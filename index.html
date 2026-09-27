@@ -5810,11 +5810,11 @@ service cloud.firestore {
  function resolveOnlineRoomDoc() {  
     try {  
       const savedCode = sessionStorage.getItem("gudong_online_room_code");  
-      if (savedCode && savedCode !== "8888") {  
+      if (savedCode) {  
         return getOnlineRoomDoc(savedCode);  
       }  
     } catch(e) {}  
-    return getOnlineRoomDoc(currentOnlineRoomCode || getRandom4DigitRoomCode());  
+    return getOnlineRoomDoc(currentOnlineRoomCode || "8888");  
   }  
   
   function generateRandomRoomCode() {  
@@ -6930,22 +6930,7 @@ function handleOnlineRoomUpdate(room) {
  return;  
  }  
   
- // 依要求7：若開局超過五分鐘未開始，即強制關閉房間，頁面會提示房間已超時五分鐘未開始  
- if (room.status === 'waiting') {  
- const wTime = room.waitingSince || (room.createdAt ? (room.createdAt.toMillis ? room.createdAt.toMillis() : (typeof room.createdAt === 'number' ? room.createdAt : null)) : null);  
- if (wTime && typeof wTime === 'number' && (Date.now() - wTime >= 5 * 60 * 1000)) {  
- alert('⏱️ 房間已超時五分鐘未開始');  
- try {  
- if (isFirebaseReady && db) {  
- initEmptyRoomDoc(db.doc(ONLINE_ROOM_DOC));  
- }  
- } catch(e) {}  
- clearAllCookies();  
- resetAllOnlineClientState();  
- selectAppMode('mode_picker');  
- return;  
- }  
- }  
+ // [已修復] 移除大廳超時誤殺清空邏輯，保障多人入座穩定不被強制重置房間
   
  // 依要求1：若該局超過 29 分鐘沒人動作，強制關閉房間 (29 分鐘 = 1740000 毫秒)  
  const INACTIVE_TIMEOUT_MS = 29 * 60 * 1000;  
@@ -7023,10 +7008,10 @@ function handleOnlineRoomUpdate(room) {
  return;  
  }  
   
- // 依要求：若該房間無真人玩家（例如全員離線、僅剩虛擬角色），立即關閉該房間並刪除清空資料！  
- if (room.players && room.players.length > 0) {  
+ // 若房間在非等待階段完全無真人，且已超時無動作，才進行回收  
+ if (room.status !== 'waiting' && room.players && room.players.length > 0) {  
  const humanPlayers = room.players.filter(p => p.id && !p.id.startsWith('mock_p_'));  
- if (humanPlayers.length === 0) {  
+ if (humanPlayers.length === 0 && lastActionTime && (now - lastActionTime > INACTIVE_TIMEOUT_MS)) {  
  if (isFirebaseReady && db) {  
  initEmptyRoomDoc(db.doc(ONLINE_ROOM_DOC));  
  }  
@@ -7133,19 +7118,16 @@ onlineRoomData = room;
  }  
  }  
   
- // 關鍵修復：偵測自己是否已被踢出房間！  
- const isKicked = room.kickedPlayerIds && room.kickedPlayerIds.includes(myOnlinePlayerId);  
- const wasInRoom = (window._hasEverJoinedLobby === true);  
- const isNoLongerInRoom = wasInRoom && !(room.players || []).some(p => p.id === myOnlinePlayerId) && room.status === 'waiting';  
-  
- if (isKicked || isNoLongerInRoom) {  
+ // 偵測自己是否確實被房主主動踢出房間 (僅在明確記錄於 kickedPlayerIds 時觸發，絕不因同步間隙誤踢)  
+ const isKicked = Boolean(room.kickedPlayerIds && room.kickedPlayerIds.includes(myOnlinePlayerId));  
+ if (isKicked) {  
  window._hasEverJoinedLobby = false;  
  if (onlineRoomUnsubscribe) {  
  onlineRoomUnsubscribe();  
  onlineRoomUnsubscribe = null;  
  }  
  resetAllOnlineClientState();  
- alert('⚠️ 您已被移出該線上房間！');  
+ alert('⚠️ 您已被房主移出該線上房間！');  
  selectAppMode('mode_picker');  
  return;  
  }  
@@ -7157,15 +7139,7 @@ onlineRoomData = room;
  const players = room.players || [];  
  let me = players.find(p => p.id === myOnlinePlayerId);  
   
- // 關鍵修復：若當前裝置重整或開新分頁導致 myOnlinePlayerId 未比對成功，以暱稱自動找回實體玩家身分，避免玩家變成無角色  
- if (!me && myOnlinePlayerName) {  
- const existingHuman = players.find(p => p.name === myOnlinePlayerName && !p.id.startsWith('mock_p_'));  
- if (existingHuman) {  
- myOnlinePlayerId = existingHuman.id;  
- try { setTabPlayerId(myOnlinePlayerId); } catch(e) {}  
- me = existingHuman;  
- }  
- }  
+ // 保持自身獨立的 Tab-level ID，絕不掠奪其他玩家席位 ID  
   
  // 若使用者尚未入座且房間處於 waiting，在背景自動加入，絕不阻擋 UI 渲染！  
  if (!me && room.status === 'waiting') {  
@@ -7435,31 +7409,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
 }  
   
- var _lobbyWaitingTimeoutTimer = null;  
  function renderOnlineLobby(room, me) {  
- if (!_lobbyWaitingTimeoutTimer) {  
- _lobbyWaitingTimeoutTimer = setInterval(() => {  
- if (onlineRoomData && onlineRoomData.status === 'waiting') {  
- const wTime = onlineRoomData.waitingSince || (onlineRoomData.createdAt ? (onlineRoomData.createdAt.toMillis ? onlineRoomData.createdAt.toMillis() : (typeof onlineRoomData.createdAt === 'number' ? onlineRoomData.createdAt : null)) : null);  
- if (wTime && typeof wTime === 'number' && (Date.now() - wTime >= 5 * 60 * 1000)) {  
- clearInterval(_lobbyWaitingTimeoutTimer);  
- _lobbyWaitingTimeoutTimer = null;  
- alert('⏱️ 房間已超時五分鐘未開始');  
- try {  
- if (isFirebaseReady && db) {  
- initEmptyRoomDoc(db.doc(ONLINE_ROOM_DOC));  
- }  
- } catch(e) {}  
- clearAllCookies();  
- resetAllOnlineClientState();  
- selectAppMode('mode_picker');  
- }  
- } else {  
- clearInterval(_lobbyWaitingTimeoutTimer);  
- _lobbyWaitingTimeoutTimer = null;  
- }  
- }, 5000);  
- }  
  const players = room.players || [];  
  const badge = document.getElementById('onlLobbyPlayerCountBadge');  
  if (badge) badge.innerText = `${players.length} / 8 人在線`;  
@@ -7512,7 +7462,7 @@ async function kickOnlinePlayer(targetId, event) {
  ${kickBtnHtml}  
  </div>  
  <div class="text-[10px] font-bold text-neutral-200 mt-1 max-w-[64px] truncate text-center ${isMe ? 'text-amber-300' : ''}">  
- ${occupant.name}${isMe ? ' (你)' : (occupant.personaTitle ? `<div class="text-[8px] text-amber-400 font-mono leading-none mt-0.5 truncate">${occupant.personaTitle}</div>` : `<div class="text-[8px] text-amber-400 font-mono leading-none mt-0.5">[LV.1 新手]</div>`)}  
+ ${occupant.name}${isMe ? ' (你)' : ''}  
  </div>  
  `;  
  } else {  
@@ -13284,7 +13234,7 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
       const mockP = (room.players || []).find(p => p.id === mockSpeakerId);
       const speakerBadge = document.getElementById('onlCurrentSpeakerBadge');
       if (mockP && speakerBadge) {
-        speakerBadge.innerHTML = `<span class="text-amber-400 font-bold animate-pulse font-mono">🤖 電腦玩家【${mockP.name} ${mockP.personaTitle || ''}】思考中...</span>`;
+        speakerBadge.innerHTML = `<span class="text-amber-400 font-bold animate-pulse font-mono">🤖 電腦玩家【${mockP.name}】思考中...</span>`;
       }
 
       const delay = 1200 + Math.floor(Math.random() * 800);
@@ -13311,7 +13261,7 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
           roundObj.speeches.push({
             playerId: mockSpeakerId,
             speakerId: mockSpeakerId,
-            speakerName: `${freshMockP.name} ${freshMockP.personaTitle || ''}`.trim(),
+            speakerName: freshMockP.name,
             colorId: freshMockP.colorId,
             text: speechText,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
