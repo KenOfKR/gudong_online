@@ -8,7 +8,7 @@
  <meta name="apple-mobile-web-app-title" content="古董局中局">  
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
- <title>古董局中局 (v2.5.7 高階位置發言與策略深度版)</title>  
+ <title>古董局中局 (v2.6.0 S-A-B級全面架構重構版)</title>  
  <script src="https://cdn.tailwindcss.com">
 /* =========================================================================
    古董局中局 v2.5.0: 離線 AI 預訓練高速模擬引擎 (BotSimulationEngine)
@@ -2489,7 +2489,24 @@ window.resetAiTrainingData = resetAiTrainingData;
  </section>  
   
  <!-- ================= 線上版 BETA 總容器 (ONLINE ROOT) ================= -->  
- <div id="secOnlineRoot" class="hidden space-y-4">  
+ <div id="secOnlineRoot" class="hidden space-y-4">
+  <!-- 全域觀戰模式頂部狀態列與雙視角切換 (僅觀戰者可見，依要求1 & 3) -->
+  <div id="onlSpectatorGlobalBar" class="hidden p-3 bg-purple-950/90 border border-purple-600 rounded-2xl shadow-xl flex items-center justify-between flex-wrap gap-2 mb-2">
+    <div class="flex items-center space-x-2">
+      <span class="px-2.5 py-1 rounded-full text-xs font-black bg-purple-900 text-purple-200 border border-purple-500 shadow flex items-center space-x-1">
+        <span>👁️</span>
+        <span>觀戰模式</span>
+      </span>
+      <span id="onlSpectatorStatusText" class="text-xs font-bold text-purple-200">正在即時觀戰中（無操作權限）</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button id="btnToggleSpectatorViewMode" type="button" onclick="toggleOnlineSpectatorViewMode()" class="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-md transition cursor-pointer flex items-center space-x-1.5 active:scale-95">
+        <span id="onlSpectatorViewModeIcon">📺</span>
+        <span id="onlSpectatorViewModeBtnText">切換：圓桌總覽視角</span>
+      </button>
+    </div>
+  </div>
+  
   
  <!-- 1. 暱稱輸入卡片 -->  
  <section id="onlSecNickname" class="space-y-4">  
@@ -2647,7 +2664,15 @@ window.resetAiTrainingData = resetAiTrainingData;
   
   
  <!-- A. 當前是我的回合：單螢幕無滾動緊湊分步導引儀表板 (Stepper Modal / Tab Panel) -->  
- <div id="onlActiveTurnControls" class="space-y-2.5">  
+ <div id="onlActiveTurnControls" class="space-y-2.5">
+    <!-- 觀戰者跟隨操作者視角防爆雷警示標籤 (依要求2) -->
+    <div id="onlSpectatorTurnWarningBanner" class="hidden p-2.5 rounded-xl bg-purple-950/95 border border-purple-500 text-xs text-purple-200 font-bold flex items-center justify-between shadow-lg">
+      <div class="flex items-center space-x-1.5">
+        <span>⚠️</span>
+        <span id="onlSpectatorTurnWarningText">【觀戰視角】同步觀看操作中（含私密資訊，請勿爆雷！）</span>
+      </div>
+    </div>
+  
  <!-- 藥不然與老朝奉同伴相認陣營提示 (比照小幫手，修改4) -->  
  <div id="onlTurnCampInfoBanner" class="hidden p-2.5 bg-neutral-950 border border-rose-800/80 rounded-xl text-xs text-neutral-200 font-bold shadow-md"></div>  
    
@@ -3093,7 +3118,19 @@ window.resetAiTrainingData = resetAiTrainingData;
  <span>三回合傳位資訊（手機傳遞順序）：</span>  
  </div>  
  <div id="onlPersonRefPassOrder" class="space-y-2"></div>  
- </div>  
+ </div>
+ <!-- 2.5 方震專屬能力・玩家陣營查驗結果 (僅方震與觀戰者可見，依要求4) -->
+ <div id="onlPersonRefFangZhenContainer" class="hidden p-3 bg-neutral-950 border border-blue-900/80 rounded-xl space-y-2">
+   <div class="flex justify-between items-center text-xs font-bold text-blue-300 border-b border-blue-900/60 pb-2">
+     <span class="flex items-center space-x-1">
+       <span>🔍</span>
+       <span>方震專屬能力・玩家陣營查驗結果：</span>
+     </span>
+     <span class="text-[10px] text-blue-400 font-mono">（三回合查驗紀錄）</span>
+   </div>
+   <div id="onlPersonRefFangZhenList" class="space-y-2"></div>
+ </div>
+  
   
  <!-- 3. 各回合發言欄 (發言紀錄) -->  
  <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5">  
@@ -3547,7 +3584,7 @@ window.resetAiTrainingData = resetAiTrainingData;
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 2.5.7 (高階位置發言與策略深度版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 2.6.0 (S-A-B級全面架構重構版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -3743,6 +3780,46 @@ service cloud.firestore {
   var myOnlinePlayerId = null;
   var myOnlinePlayerName = '';
   var currentOnlineRoomCode = '8888';
+
+// =========================================================================
+// 線上版雙視角觀戰模式核心控制 (Spectator Mode & View Switching, 依要求 1, 2, 3)
+// =========================================================================
+window.isOnlineSpectator = false;
+window.onlineSpectatorViewMode = 'follow'; // 'follow' (跟隨操作者視角) | 'table' (圓桌總覽視角)
+
+function toggleOnlineSpectatorViewMode() {
+  window.onlineSpectatorViewMode = (window.onlineSpectatorViewMode === 'table') ? 'follow' : 'table';
+  updateSpectatorBarUI();
+  if (onlineRoomData) {
+    handleOnlineRoomUpdate(onlineRoomData);
+  }
+}
+window.toggleOnlineSpectatorViewMode = toggleOnlineSpectatorViewMode;
+
+function updateSpectatorBarUI() {
+  const bar = document.getElementById('onlSpectatorGlobalBar');
+  if (!bar) return;
+  if (window.isOnlineSpectator) {
+    bar.classList.remove('hidden');
+    const mode = window.onlineSpectatorViewMode || 'follow';
+    const btnText = document.getElementById('onlSpectatorViewModeBtnText');
+    const icon = document.getElementById('onlSpectatorViewModeIcon');
+    const statusText = document.getElementById('onlSpectatorStatusText');
+    if (mode === 'follow') {
+      if (btnText) btnText.innerText = '切換：圓桌總覽視角 📺';
+      if (icon) icon.innerText = '📺';
+      if (statusText) statusText.innerText = '目前視角：跟隨當前操作者（含私密資訊）';
+    } else {
+      if (btnText) btnText.innerText = '切換：操作者視角 👁️';
+      if (icon) icon.innerText = '👁️';
+      if (statusText) statusText.innerText = '目前視角：圓桌總覽視角（無私密資訊，適合電視投放）';
+    }
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+window.updateSpectatorBarUI = updateSpectatorBarUI;
+
   var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
   var onlineRoomData = null;
   var _mockActionPending = false;
@@ -3886,6 +3963,298 @@ service cloud.firestore {
   window.GudongOnlineRepository = GudongOnlineRepository;
   window.onlineUpdate = onlineUpdate;
 
+
+/* =========================================================================
+   B9 角色能力資料化 (Data-Driven ROLE_CONFIG)
+   - 定義 8 大角色陣營、查驗配額、主被動技能規格與免疫機制，杜絕硬編碼
+========================================================================= */
+const ROLE_CONFIG = Object.freeze({
+  '許願': {
+    name: '許願',
+    camp: 'good',
+    campName: '許願陣營 (好人)',
+    inspectCount: 2,
+    blindInspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: false,
+    activeSkill: null,
+    desc: '古董世家傳人。每回合必須查驗 2 件獸首，無主動技能。'
+  },
+  '方震': {
+    name: '方震',
+    camp: 'good',
+    campName: '許願陣營 (好人)',
+    inspectCount: 1,
+    canInspectBeasts: false, // 看不懂獸首
+    immuneToLaoDisruption: false,
+    activeSkill: {
+      type: 'INSPECT_CAMP',
+      name: '查驗陣營',
+      targetType: 'PLAYER',
+      mandatory: true,
+      repeatable: false
+    },
+    desc: '忠誠保鏢。無法辨別獸首真假，但每回合可強制查驗 1 位玩家陣營。'
+  },
+  '姬雲浮': {
+    name: '姬雲浮',
+    camp: 'good',
+    campName: '許願陣營 (好人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: true, // 不受老朝奉擾亂影響
+    passivePenalty: 'PERMANENT_AMBUSH',
+    activeSkill: null,
+    desc: '鑑寶泰斗。不受老朝奉擾亂影響，但被偷襲則整場封閉。'
+  },
+  '黃煙煙': {
+    name: '黃煙煙',
+    camp: 'good',
+    campName: '許願陣營 (好人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: false,
+    hasConfusionRound: true,
+    activeSkill: null,
+    desc: '身手敏捷。有 1 個隨機回合會受到困惑顯示無法辨別真偽。'
+  },
+  '木戶加奈': {
+    name: '木戶加奈',
+    camp: 'good',
+    campName: '許願陣營 (好人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: false,
+    hasConfusionRound: true,
+    activeSkill: null,
+    desc: '神秘莫測。有 1 個隨機回合會受到困惑顯示無法辨別真偽。'
+  },
+  '老朝奉': {
+    name: '老朝奉',
+    camp: 'evil',
+    campName: '老朝奉陣營 (壞人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: true,
+    activeSkill: {
+      type: 'DISRUPT_TRUTH',
+      name: '混淆擾亂',
+      targetType: 'ROUND_STATE',
+      desc: '反轉後續好人查驗結果'
+    },
+    knowsTeammateRoles: ['藥不然'],
+    desc: '偽古集團首腦。每回合可選擇開啟「擾亂」，反轉後續好人查驗結果！'
+  },
+  '藥不然': {
+    name: '藥不然',
+    camp: 'evil',
+    campName: '老朝奉陣營 (壞人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: true,
+    activeSkill: {
+      type: 'AMBUSH_PLAYER',
+      name: '暗中偷襲',
+      targetType: 'PLAYER',
+      delayWhenTargetActed: true,
+      desc: '使目標眼前一片黑致盲'
+    },
+    knowsTeammateRoles: ['老朝奉'],
+    desc: '身懷絕技。每回合可選擇偷襲 1 位玩家，使其眼前一片黑無法行動！'
+  },
+  '鄭國渠': {
+    name: '鄭國渠',
+    camp: 'evil',
+    campName: '老朝奉陣營 (壞人)',
+    inspectCount: 1,
+    canInspectBeasts: true,
+    immuneToLaoDisruption: true,
+    hasInvalidPersonVote: true,
+    activeSkill: {
+      type: 'BLOCK_BEAST',
+      name: '贗造封鎖',
+      targetType: 'BEAST',
+      desc: '使該獸首顯示無法辨別真偽'
+    },
+    knowsTeammateRoles: [],
+    desc: '集團心腹。每回合可選擇封鎖 1 種獸首，使後續查驗者無法辨別。'
+  }
+});
+window.ROLE_CONFIG = ROLE_CONFIG;
+
+/* =========================================================================
+   A8 獨立純粹遊戲規則層 (Pure GameRules Class)
+   - 純 JS 邏輯，完全不接觸 DOM、音效與 Firebase，便於單元測試與自對局
+========================================================================= */
+class GameRules {
+  static isGoodCamp(role) {
+    const cfg = ROLE_CONFIG[role];
+    return cfg ? cfg.camp === 'good' : false;
+  }
+
+  static getInspectCount(role, isUnderAmbush) {
+    const cfg = ROLE_CONFIG[role];
+    if (!cfg) return 1;
+    if (role === '許願') return isUnderAmbush ? cfg.blindInspectCount : cfg.inspectCount;
+    return cfg.inspectCount || 1;
+  }
+
+  static evaluateBeastInspection(beast, player, round, roomState) {
+    const cfg = ROLE_CONFIG[player.role] || {};
+    const isUnderAmbush = !!(player.isAmbushed || player.isPermanentlyAmbushed);
+
+    if (isUnderAmbush) {
+      const ambushTexts = ['你眼前一片黑', '獸首被偷襲', '你被偷襲了', '你失血過多，有點暈眩'];
+      const txt = ambushTexts[Math.floor(Math.random() * ambushTexts.length)];
+      return { beastName: beast.name, resultText: `【${beast.name}】 ${txt}`, actualIsReal: beast.isReal, isAmbushed: true };
+    }
+
+    if (!cfg.canInspectBeasts) {
+      return { beastName: beast.name, resultText: `【${beast.name}】 看不懂???`, actualIsReal: beast.isReal, cannotInspect: true };
+    }
+
+    if (round && round.blockedBeast === beast.name) {
+      return { beastName: beast.name, resultText: `【${beast.name}】 無法辨別真偽！`, actualIsReal: beast.isReal, isBlocked: true };
+    }
+
+    if ((player.role === '黃煙煙' || player.role === '木戶加奈') && player.confusedRound === (roomState ? roomState.currentRoundIdx : 0)) {
+      return { beastName: beast.name, resultText: `【${beast.name}】 無法辨別真偽！`, actualIsReal: beast.isReal, isConfused: true };
+    }
+
+    let isReal = beast.isReal;
+    if (round && round.laoChaoFengActive && !cfg.immuneToLaoDisruption) {
+      isReal = !isReal; // 老朝奉擾亂反轉
+    }
+
+    return {
+      beastName: beast.name,
+      resultText: `【${beast.name}】 ${isReal ? '【真品】' : '【贗品】'}`,
+      actualIsReal: beast.isReal,
+      displayedReal: isReal
+    };
+  }
+
+  static resolveAmbushState(attacker, target, hasTargetActed, roomState) {
+    const changes = {
+      targetId: target.id,
+      isPermanentlyAmbushed: target.isPermanentlyAmbushed || false,
+      isAmbushed: false,
+      pendingAmbush: false,
+      pendingPermanentAmbush: false
+    };
+
+    if (target.role === '姬雲浮') {
+      changes.isPermanentlyAmbushed = true;
+      if (hasTargetActed) {
+        changes.pendingAmbush = true;
+        changes.pendingPermanentAmbush = true;
+      } else {
+        changes.isAmbushed = true;
+      }
+    } else {
+      if (hasTargetActed) {
+        changes.pendingAmbush = true; // 延宕至下輪生效
+      } else {
+        changes.isAmbushed = true;
+      }
+    }
+    return changes;
+  }
+
+  static calculateVoteResults(beasts, votes, roomPlayers) {
+    const totals = {};
+    const chips = {};
+    (beasts || []).forEach(b => {
+      totals[b.name] = 0;
+      chips[b.name] = [];
+    });
+
+    Object.entries(votes || {}).forEach(([voterId, ballot]) => {
+      const voter = (roomPlayers || []).find(p => p.id === voterId);
+      const voterColor = voter ? voter.colorId : 'black';
+      const pc = COLOR_PALETTE.find(c => c.id === voterColor) || COLOR_PALETTE[0];
+      const vName = voter ? voter.name : '玩家';
+
+      Object.entries(ballot || {}).forEach(([bName, count]) => {
+        const num = parseInt(count) || 0;
+        if (num > 0 && totals[bName] !== undefined) {
+          totals[bName] += num;
+          for (let i = 0; i < num; i++) {
+            chips[bName].push({
+              voterId: voterId,
+              voterName: vName,
+              colorId: pc.id,
+              bgClass: pc.bgClass,
+              hex: pc.hex
+            });
+          }
+        }
+      });
+    });
+
+    const sorted = [...(beasts || [])].sort((a, b) => {
+      const diff = (totals[b.name] || 0) - (totals[a.name] || 0);
+      if (diff !== 0) return diff;
+      return ZODIAC_ORDER.indexOf(a.name) - ZODIAC_ORDER.indexOf(b.name);
+    });
+
+    return {
+      rank1: { name: sorted[0].name, votes: totals[sorted[0].name] || 0, isReal: sorted[0].isReal, isHidden: true },
+      rank2: { name: sorted[1].name, votes: totals[sorted[1].name] || 0, isReal: sorted[1].isReal, isHidden: false },
+      beastTotals: totals,
+      beastChips: chips
+    };
+  }
+
+  static calculateGameOver(roomState) {
+    let realSavedCount = 0;
+    (roomState.rounds || []).forEach(r => {
+      if (r.voteResults) {
+        if (r.voteResults.rank1 && r.voteResults.rank1.isReal) realSavedCount++;
+        if (r.voteResults.rank2 && r.voteResults.rank2.isReal) realSavedCount++;
+      }
+    });
+
+    const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
+    const players = roomState.players || [];
+    const goodPlayers = players.filter(p => goodRoles.includes(p.role));
+    const laoPlayer = players.find(p => p.role === '老朝奉');
+    const yaoPlayer = players.find(p => p.role === '藥不然');
+    const fangPlayer = players.find(p => p.role === '方震');
+    const xuPlayer = players.find(p => p.role === '許願');
+    const pVotes = roomState.personVotes || {};
+
+    let totalScore = realSavedCount;
+    let laoCaught = false;
+    let votesForLao = 0;
+
+    if (laoPlayer) {
+      votesForLao = goodPlayers.filter(p => pVotes[p.id] === laoPlayer.id).length;
+      laoCaught = votesForLao > (goodPlayers.length / 2);
+      if (laoCaught) totalScore += 1;
+    }
+
+    let fangCaught = (yaoPlayer && fangPlayer && pVotes[yaoPlayer.id] === fangPlayer.id);
+    if (!fangCaught) totalScore += 1;
+
+    let xuCaught = (laoPlayer && xuPlayer && pVotes[laoPlayer.id] === xuPlayer.id);
+    if (!xuCaught) totalScore += 2;
+
+    const isXuWon = totalScore >= 6;
+    return {
+      totalScore: totalScore,
+      winningCamp: isXuWon ? '許願陣營' : '老朝奉陣營',
+      savedBeastsCount: realSavedCount,
+      laoCaught: laoCaught,
+      votesForLao: votesForLao,
+      goodPlayerCount: goodPlayers.length,
+      fangCaught: fangCaught,
+      xuCaught: xuCaught
+    };
+  }
+}
+window.GameRules = GameRules;
+
   // --- S-4: 有限狀態機 (Finite State Machine) 守衛 ---
   var GudongStateMachine = (function() {
     var PHASES = Object.freeze({
@@ -3935,6 +4304,128 @@ service cloud.firestore {
     };
   })();
   window.GudongStateMachine = GudongStateMachine;
+
+
+/* =========================================================================
+   B10 統一動作引擎 (ActionEngine: Unified Human & Bot Action Dispatcher)
+   - 真人 UI 點擊與電腦 Bot 決策統一打包為標準 Action 派發
+   - 包含 A5 局部更新 (Dot-Notation Partial Updates)，避免整包重寫
+========================================================================= */
+const ActionEngine = {
+  async dispatch(action) {
+    if (!action || !action.type) return;
+    const room = onlineRoomData;
+    if (!room) return;
+    const curRoundIdx = room.currentRoundIdx || 0;
+
+    switch (action.type) {
+      case 'INSPECT_BEAST': {
+        const { playerId, beast, position } = action.payload;
+        const curRound = room.rounds[curRoundIdx];
+        if (!curRound.turnLogs) curRound.turnLogs = {};
+        if (!curRound.turnLogs[playerId]) curRound.turnLogs[playerId] = {};
+
+        const p = (room.players || []).find(x => x.id === playerId) || {};
+        const result = GameRules.evaluateBeastInspection(beast, p, curRound, room);
+
+        if (!onlMyInspectedBeastsInTurn) onlMyInspectedBeastsInTurn = [];
+        const existingIdx = onlMyInspectedBeastsInTurn.findIndex(x => x.beastName === beast.name);
+        if (existingIdx !== -1) {
+          onlMyInspectedBeastsInTurn[existingIdx] = result;
+        } else {
+          onlMyInspectedBeastsInTurn.push(result);
+        }
+        curRound.turnLogs[playerId].inspect = onlMyInspectedBeastsInTurn;
+
+        // A5 局部更新：只更新該玩家的查驗日誌
+        return onlineUpdate({
+          [`rounds.${curRoundIdx}.turnLogs.${playerId}.inspect`]: onlMyInspectedBeastsInTurn,
+          lastActivityTime: Date.now()
+        });
+      }
+
+      case 'SUBMIT_SPEECH': {
+        const { playerId, text: spText, speakerName, colorId } = action.payload;
+        const curRound = room.rounds[curRoundIdx];
+        const speechItem = {
+          playerId: playerId,
+          speakerId: playerId,
+          speakerName: speakerName,
+          colorId: colorId,
+          text: escapeHTML(spText),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        if (!curRound.speeches) curRound.speeches = [];
+        curRound.speeches.push(speechItem);
+
+        const speechOrder = curRound.speechOrder || [];
+        const nextIdx = (curRound.speechIndex !== undefined ? curRound.speechIndex : 0) + 1;
+        curRound.speechIndex = nextIdx;
+
+        const isSpeechFinished = (nextIdx >= 8 || nextIdx >= speechOrder.length);
+        const patch = {
+          [`rounds.${curRoundIdx}.speeches`]: curRound.speeches,
+          [`rounds.${curRoundIdx}.speechIndex`]: nextIdx,
+          lastActivityTime: Date.now()
+        };
+
+        if (isSpeechFinished) {
+          patch.status = 'voting';
+          patch.currentSpeakerId = null;
+        } else {
+          patch.currentSpeakerId = speechOrder[nextIdx];
+        }
+
+        return onlineUpdate(patch);
+      }
+
+      case 'SUBMIT_VOTE': {
+        const { playerId, ballot } = action.payload;
+        const curRound = room.rounds[curRoundIdx];
+        if (!curRound.votes) curRound.votes = {};
+        curRound.votes[playerId] = ballot;
+
+        // A5 局部更新：僅更新當前玩家的選票欄位
+        return onlineUpdate({
+          [`rounds.${curRoundIdx}.votes.${playerId}`]: ballot,
+          lastActivityTime: Date.now()
+        });
+      }
+
+      case 'PASS_PHONE': {
+        const { nextPlayerId } = action.payload;
+        const curRound = room.rounds[curRoundIdx];
+        if (!curRound.passOrder) curRound.passOrder = [];
+        if (!curRound.passOrder.includes(nextPlayerId)) {
+          curRound.passOrder.push(nextPlayerId);
+        }
+
+        // A5 局部更新：僅推進輪到誰與傳遞序
+        return onlineUpdate({
+          currentTurnPlayerId: nextPlayerId,
+          [`rounds.${curRoundIdx}.passOrder`]: curRound.passOrder,
+          lastActivityTime: Date.now()
+        });
+      }
+
+      case 'SUBMIT_PERSON_VOTE': {
+        const { voterId, targetId } = action.payload;
+        if (!room.personVotes) room.personVotes = {};
+        room.personVotes[voterId] = targetId;
+
+        // A5 局部更新：僅更新該玩家的鑑人票
+        return onlineUpdate({
+          [`personVotes.${voterId}`]: targetId,
+          lastActivityTime: Date.now()
+        });
+      }
+
+      default:
+        console.warn('[ActionEngine] 未知動作類型:', action.type);
+    }
+  }
+};
+window.ActionEngine = ActionEngine;
 
   // HTML 輸出防 XSS 工具函式
   function escapeHTML(value) {
@@ -8491,7 +8982,37 @@ service cloud.firestore {
  if (banner) banner.classList.add('hidden');  
  }  
   
- function handleOnlineRoomUpdate(room) {  
+ 
+/* =========================================================================
+   A6 差異化渲染引擎 (Incremental DOM Diffing & Reactive Patching)
+   - 記憶體比對前次與當前 roomState，精準更新子區塊，杜絕全頁重繪與抖動
+========================================================================= */
+var previousRoomState = null;
+
+function diffRoomState(prev, next) {
+  if (!prev) return { fullRender: true };
+  const curRIdx = next.currentRoundIdx || 0;
+  const prevRIdx = prev.currentRoundIdx || 0;
+
+  const prevRound = prev.rounds && prev.rounds[prevRIdx];
+  const nextRound = next.rounds && next.currentRoundIdx !== undefined ? next.rounds[curRIdx] : null;
+
+  return {
+    fullRender: false,
+    phaseChanged: prev.status !== next.status,
+    roundChanged: prevRIdx !== curRIdx,
+    turnPlayerChanged: prev.currentTurnPlayerId !== next.currentTurnPlayerId,
+    speakerChanged: prev.currentSpeakerId !== next.currentSpeakerId,
+    playersListChanged: JSON.stringify(prev.players) !== JSON.stringify(next.players),
+    votesCountChanged: JSON.stringify(prevRound?.votes) !== JSON.stringify(nextRound?.votes),
+    speechesCountChanged: (prevRound?.speeches?.length || 0) !== (nextRound?.speeches?.length || 0),
+    passOrderChanged: JSON.stringify(prevRound?.passOrder) !== JSON.stringify(nextRound?.passOrder),
+    personVotesChanged: JSON.stringify(prev.personVotes) !== JSON.stringify(next.personVotes)
+  };
+}
+window.diffRoomState = diffRoomState;
+
+function handleOnlineRoomUpdate(room) {  
  if (!room) return;  
   
  // 檢查房間是否被關閉 (依要求7：若超過半數同意或關閉房間，提示"房號"房間已被關閉)  
@@ -8538,7 +9059,7 @@ service cloud.firestore {
  const allReadyElapsed = now - window._lobbyAllReadyStartTime;  
   
  // 1. 動態選舉：在線真人席次最小者為主動開局協調者 (Leader)  
- const isLeader = isCurrentDynamicLeader(room);  
+ const isLeader = !window.isOnlineSpectator && isCurrentDynamicLeader(room);  
  if (isLeader && allReadyElapsed >= 1500 && !window._isDealingRoles) {  
  console.log('👑 [動態協調者] 本機為席位最小之在線真人協調者，主動發起開局交易！');  
  executeOnlineStartDeal(room, false);  
@@ -8546,7 +9067,7 @@ service cloud.firestore {
   
  // 2. 超過 3.5 秒自動接管自癒 (Auto-Takeover)  
  // 若原協調者切後台或斷線，任何在線客戶端自動發起強制救援開局交易  
- if (allReadyElapsed >= 3500 && !window._hasTriggeredAutoHealing) {  
+ if (!window.isOnlineSpectator && allReadyElapsed >= 3500 && !window._hasTriggeredAutoHealing) {  
  window._hasTriggeredAutoHealing = true;  
  console.warn('⚡ [看門狗自癒] 8 人全員就緒超過 3.5 秒未開局，任何在線客戶端自動發起強制救援開局！');  
  executeOnlineStartDeal(room, true);  
@@ -8746,7 +9267,21 @@ onlineRoomData = room;
  if (players.length < 8) {  
  autoJoinLobbySeats(room);  
  }  
- }  
+ }
+  
+  // 需求 1：觀戰者自動判定 (非 8 人名單者直接進入觀戰模式)
+  let isSpectator = false;
+  if (!me) {
+    if (room.status === 'waiting' && players.length < 8) {
+      isSpectator = false;
+    } else {
+      isSpectator = true;
+    }
+  } else {
+    isSpectator = !players.some(p => p.id === me.id);
+  }
+  window.isOnlineSpectator = isSpectator;
+  updateSpectatorBarUI();  
   
  // 依要求：若房間已進入遊戲階段 (roles, playing, discussion, voting, person_voting, gameover)，檢測並確保 8 位玩家皆有角色且不重複  
  if (room.status && room.status !== 'waiting' && Array.isArray(room.players)) {  
@@ -9572,13 +10107,20 @@ async function kickOnlinePlayer(targetId, event) {
    console.warn('[v2.4.0] 私有角色寫入記錄:', pErr);
  }
 
+ // S1 脫敏防作弊：在寫入公開房間文檔前，抹除所有真人玩家的 role 欄位！
+ // 真人角色僅留存在 private/{playerId} 中，DevTools / Console 徹底無法竊窺！
+ const sanitizedPublicPlayers = players.map(p => ({
+   ...p,
+   role: (p.id && p.id.startsWith('mock_p_')) ? p.role : ''
+ }));
+
  transaction.update(docRef, {  
  status: 'roles',  
  gameState: 'roles',  
  launchLock: { lockedBy: myOnlinePlayerId, timestamp: now },  
  startTimestamp: now,  
  sessionIndex: data.sessionIndex || 1,  
- players: players,  
+ players: sanitizedPublicPlayers,  
  rounds: rounds,  
  currentRoundIdx: 0,  
  currentTurnPlayerId: starter.id,  
@@ -9748,6 +10290,26 @@ async function kickOnlinePlayer(targetId, event) {
   
  // 角色確認視圖  
  function renderOnlineRoleReveal(room, me) {  
+ if (window.isOnlineSpectator) {
+   const roleNameEl = document.getElementById('onlMyRoleName');
+   const campBadge = document.getElementById('onlMyCampBadge');
+   const roleDesc = document.getElementById('onlMyRoleDesc');
+   const confirmBtn = document.getElementById('btnOnlConfirmRole');
+   if (roleNameEl) roleNameEl.innerText = '旁觀中';
+   if (campBadge) {
+     campBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-black bg-purple-950 text-purple-300 border border-purple-700 shadow';
+     campBadge.innerText = '👁️ 觀戰模式';
+   }
+   if (roleDesc) roleDesc.innerText = '您為本局觀戰者，等待在座 8 位玩家確認身分完畢後開局...';
+   if (confirmBtn) {
+     confirmBtn.disabled = true;
+     confirmBtn.className = 'w-full py-4 bg-purple-950/80 border border-purple-800 text-purple-300 font-black text-sm rounded-xl cursor-not-allowed';
+     const confirmedCount = (room.players || []).filter(p => p.roleConfirmed).length;
+     confirmBtn.innerText = `👁️ 觀戰等待開局中 (${confirmedCount}/8)...`;
+     confirmBtn.onclick = null;
+   }
+   return;
+ }
  if (!me) {  
  const players = room.players || [];  
  if (players.length > 0) {  
@@ -9826,6 +10388,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
   
  async function confirmMyRoleReady() {  
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;
  if (!onlineRoomData || !myOnlinePlayerId || !isFirebaseReady || !db) return;  
  const docRef = db.doc(ONLINE_ROOM_DOC);  
   
@@ -9878,41 +10441,76 @@ async function kickOnlinePlayer(targetId, event) {
  const curRoundIdx = room.currentRoundIdx || 0;  
  const curRound = room.rounds[curRoundIdx];  
  const turnPlayerId = room.currentTurnPlayerId;  
- const isMyTurn = (turnPlayerId === myOnlinePlayerId);  
+ const isSpectator = window.isOnlineSpectator;
+ const spectatorMode = window.onlineSpectatorViewMode || 'follow';
+ const isMyTurn = !isSpectator && (turnPlayerId === myOnlinePlayerId);  
   
  document.getElementById('onlTurnRoundBadge').innerText = `第 ${curRoundIdx + 1} 回合`;  
- // 修改3：最右上角顯示手機操作者玩家顏色、暱稱以及角色名字  
- const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
+ 
  const actingBadge = document.getElementById('onlCurrentTurnPlayerBadge');  
- if (actingBadge && myP) {  
- const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
- actingBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
+ const actingPlayer = (room.players || []).find(p => p.id === turnPlayerId) || (room.players && room.players[0]);
+ const actingColor = actingPlayer ? (COLOR_PALETTE.find(c => c.id === actingPlayer.colorId) || COLOR_PALETTE[0]) : COLOR_PALETTE[0];
+
+ if (actingBadge) {  
+   if (isSpectator) {
+     if (spectatorMode === 'follow') {
+       actingBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">👁️ 觀戰</span><span class="text-xs font-bold text-neutral-300 mr-1">跟隨：</span><span class="${actingColor.bgClass} px-1.5 py-0.5 rounded text-xs font-black text-white mr-1">${actingColor.name}</span><span class="text-xs font-bold text-neutral-100">${actingPlayer ? actingPlayer.name : ''}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${actingPlayer ? (actingPlayer.role || '???') : ''})</span>`;
+     } else {
+       actingBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">📺 圓桌總覽</span><span class="text-xs font-bold text-neutral-300 mr-1">當前：</span><span class="${actingColor.bgClass} px-1.5 py-0.5 rounded text-xs font-black text-white mr-1">${actingColor.name}</span><span class="text-xs font-bold text-neutral-100">${actingPlayer ? actingPlayer.name : ''}</span>`;
+     }
+   } else {
+     const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
+     if (myP) {
+       const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
+       actingBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
+     }
+   }
  }  
   
- // 依要求4：無聲視覺回饋 (當狀態判定為『我的回合』時，提供呼吸光暈動畫套用於玩家操作區)  
  const myTurnBox = document.getElementById('onlMyTurnActionBox');  
  if (myTurnBox) {  
- if (isMyTurn) {  
- myTurnBox.classList.add('my-turn-active-glow');  
- } else {  
- myTurnBox.classList.remove('my-turn-active-glow');  
- }  
+   if (isMyTurn) {  
+     myTurnBox.classList.add('my-turn-active-glow');  
+   } else {  
+     myTurnBox.classList.remove('my-turn-active-glow');  
+   }  
  }  
   
- // 修改1: 手機傳遞順序畫面一律即時渲染，確保所有角色（如鄭國渠等）無論輪到誰都能看到！  
  renderPassOrderRows(room, curRound);  
   
  const myTurnControls = document.getElementById('onlActiveTurnControls');  
  const waitingView = document.getElementById('onlWaitingTurnView');  
+ const warnBanner = document.getElementById('onlSpectatorTurnWarningBanner');
+ const warnText = document.getElementById('onlSpectatorTurnWarningText');
   
- if (isMyTurn) {  
- myTurnControls.classList.remove('hidden');  
- waitingView.classList.add('hidden');  
- renderOnlineMyActiveTurn(room, me, curRound);  
+ if (isSpectator) {  
+   if (spectatorMode === 'follow') {
+     myTurnControls.classList.remove('hidden');  
+     waitingView.classList.add('hidden');  
+     if (warnBanner) {
+       warnBanner.classList.remove('hidden');
+       if (warnText && actingPlayer) {
+         warnText.innerHTML = `【觀戰視角】同步觀看【${actingColor.name}色 ${actingPlayer.name}】(${actingPlayer.role || '???'}) 操作中（含私密資訊，請勿爆雷！）`;
+       }
+     }
+     renderOnlineMyActiveTurn(room, actingPlayer, curRound);  
+   } else {
+     myTurnControls.classList.add('hidden');  
+     waitingView.classList.remove('hidden');  
+     if (warnBanner) warnBanner.classList.add('hidden');
+     renderOnlineWaitingTurn(room, null, curRound);  
+   }
  } else {  
- myTurnControls.classList.add('hidden');  
- waitingView.classList.remove('hidden');  
- renderOnlineWaitingTurn(room, me, curRound);  
+   if (warnBanner) warnBanner.classList.add('hidden');
+   if (isMyTurn) {  
+     myTurnControls.classList.remove('hidden');  
+     waitingView.classList.add('hidden');  
+     renderOnlineMyActiveTurn(room, me, curRound);  
+   } else {  
+     myTurnControls.classList.add('hidden');  
+     waitingView.classList.remove('hidden');  
+     renderOnlineWaitingTurn(room, me, curRound);  
+   }  
  }  
   
  // 電腦測試玩家自動託管行動  
@@ -10480,8 +11078,12 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  }`;  
   
  btn.innerHTML = `<span class="text-3xl font-black text-amber-300">${b.name}</span><div class="text-[9px] font-bold mt-1 ${isChosen && isUnderAmbush ? 'text-rose-400 font-black' : 'text-neutral-400'}">${isChosen ? (inspectedObj ? inspectedObj.resultText : '已查驗') : (isStepALocked ? '已鎖定' : '')}</div>`;  
- if (!cannotClick) {  
- btn.onclick = () => onlInspectBeast(b, sIdx + 1, room, me);  
+ if (window.isOnlineSpectator) {
+   btn.onclick = null;
+   btn.classList.add('cursor-default');
+   btn.classList.remove('cursor-pointer');
+ } else if (!cannotClick) {  
+   btn.onclick = () => onlInspectBeast(b, sIdx + 1, room, me);  
  }  
  grid.appendChild(btn);  
  });  
@@ -10500,17 +11102,21 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  const stepBBtn = document.getElementById('btnOnlGoToStepB');  
  const canProceedStepB = (me.role === '方震' && !isFangZhenUnderAmbush) || (onlMyInspectedBeastsInTurn.length >= targetInspectCount);  
  if (stepBBtn) {  
- if (currentSubStep === 'b' || currentSubStep === 'c') {  
- stepBBtn.disabled = true;  
- stepBBtn.innerText = '✓ 獸首查驗階段已鎖定完成';  
- stepBBtn.className = 'w-full mt-2 py-2 bg-neutral-900 text-neutral-500 font-bold text-xs rounded-lg border border-neutral-800 cursor-not-allowed';  
- } else {  
- stepBBtn.disabled = !canProceedStepB;  
- stepBBtn.innerText = '下一步：角色能力 ➔';  
- stepBBtn.className = canProceedStepB  
- ? 'w-full mt-2 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-100 font-bold text-xs rounded-lg border border-neutral-700 cursor-pointer shadow'  
- : 'w-full mt-2 py-2.5 bg-neutral-900 text-neutral-600 font-bold text-xs rounded-lg border border-neutral-800 cursor-not-allowed opacity-40';  
- }  
+   if (window.isOnlineSpectator) {
+     stepBBtn.disabled = true;  
+     stepBBtn.innerText = '👁️ 觀戰中（等待操作者進行）';  
+     stepBBtn.className = 'w-full mt-2 py-2 bg-neutral-900 text-neutral-500 font-bold text-xs rounded-lg border border-neutral-800 cursor-not-allowed';  
+   } else if (currentSubStep === 'b' || currentSubStep === 'c') {  
+     stepBBtn.disabled = true;  
+     stepBBtn.innerText = '✓ 獸首查驗階段已鎖定完成';  
+     stepBBtn.className = 'w-full mt-2 py-2 bg-neutral-900 text-neutral-500 font-bold text-xs rounded-lg border border-neutral-800 cursor-not-allowed';  
+   } else {  
+     stepBBtn.disabled = !canProceedStepB;  
+     stepBBtn.innerText = '下一步：角色能力 ➔';  
+     stepBBtn.className = canProceedStepB  
+       ? 'w-full mt-2 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-100 font-bold text-xs rounded-lg border border-neutral-700 cursor-pointer shadow'  
+       : 'w-full mt-2 py-2.5 bg-neutral-900 text-neutral-600 font-bold text-xs rounded-lg border border-neutral-800 cursor-not-allowed opacity-40';  
+   }  
  }  
   
  // 依要求1：單螢幕無滾動緊湊分步導引儀表板 (Stepper Tabs Controller)  
@@ -10548,7 +11154,8 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  }  
   
  // 核心查驗獸首處理函式 (所有角色均可正常查驗)  
- async function onlInspectBeast(b, pos, room, me) {  
+ async function onlInspectBeast(b, pos, room, me) {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  const curRound = room.rounds[room.currentRoundIdx];  
  if (!curRound.turnLogs) curRound.turnLogs = {};  
  if (!curRound.turnLogs[myOnlinePlayerId]) curRound.turnLogs[myOnlinePlayerId] = {};  
@@ -10627,7 +11234,8 @@ else {
  }  
  window.onlInspectBeast = onlInspectBeast;  
   
- async function onlGoToStepB() {  
+ async function onlGoToStepB() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (window.soundCtrl) window.soundCtrl.playScrollTransition();  
  const room = onlineRoomData;  
  const me = room.players.find(p => p.id === myOnlinePlayerId);  
@@ -10945,7 +11553,8 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  }  
  window.onlSelectFangTarget = onlSelectFangTarget;  
   
- async function onlConfirmFangZhen() {  
+ async function onlConfirmFangZhen() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (!onlFangZhenSelectedTargetId || !onlineRoomData) return;  
  const room = onlineRoomData;  
  const targetP = room.players.find(p => p.id === onlFangZhenSelectedTargetId);  
@@ -10997,7 +11606,8 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
   
  // 依要求1：老朝奉已有不開啟擾亂按鈕，移除跳過不開技能功能  
   
- async function onlConfirmLaoChaoFeng() {  
+ async function onlConfirmLaoChaoFeng() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (!onlineRoomData) return;  
  const room = onlineRoomData;  
  const curRound = room.rounds[room.currentRoundIdx];  
@@ -11028,7 +11638,8 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  }  
  window.onlSelectZhengBlock = onlSelectZhengBlock;  
   
- async function onlConfirmZhengBlock() {  
+ async function onlConfirmZhengBlock() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (!onlineRoomData) return;  
  const room = onlineRoomData;  
  const curRound = room.rounds[room.currentRoundIdx];  
@@ -11071,7 +11682,8 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  }  
  window.onlSelectYaoTarget = onlSelectYaoTarget;  
   
- async function onlConfirmYaoAmbush(isSkip) {  
+ async function onlConfirmYaoAmbush(isSkip) {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
   if (!onlineRoomData) return;  
   const room = onlineRoomData;  
   const curRound = room.rounds[room.currentRoundIdx];  
@@ -11181,7 +11793,8 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
 }
   window.onlConfirmYaoAmbush = onlConfirmYaoAmbush;  
   
- async function onlGoToStepC() {  
+ async function onlGoToStepC() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  const room = onlineRoomData;  
  const me = room.players.find(p => p.id === myOnlinePlayerId);  
  const curRound = room.rounds[room.currentRoundIdx];  
@@ -11241,7 +11854,13 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  const circleWrapper = document.getElementById('onlStepCCircleSeatsWrapper');  
  const confirmWrapper = document.getElementById('onlStepCConfirmWrapper');  
  const allDoneBanner = document.getElementById('onlAllInspectedBanner');  
- const confirmNextBtn = document.getElementById('btnOnlConfirmNextPlayer');  
+ const confirmNextBtn = document.getElementById('btnOnlConfirmNextPlayer');
+ if (window.isOnlineSpectator && confirmNextBtn) {
+   confirmNextBtn.disabled = true;
+   confirmNextBtn.className = 'w-full py-3.5 rounded-xl font-bold text-xs bg-neutral-900 border border-neutral-800 text-neutral-500 cursor-not-allowed';
+   confirmNextBtn.innerText = '⏳ 等待玩家指定傳遞給下一位...';
+   confirmNextBtn.onclick = null;
+ }  
   
  const isTailTurn = (uninspected.length === 0);  
   
@@ -11251,7 +11870,18 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  if (isTailTurn) {  
  onlSelectedPassNextId = null;  
  const tipEl = document.getElementById('onlStepCSeatTip');  
- if (tipEl) tipEl.innerText = '全員查驗完成・請直接點擊下方前往鑑寶';  
+ if (tipEl) {
+  tipEl.innerText = window.isOnlineSpectator ? '全員查驗完成・等待尾家點擊前往鑑寶' : '全員查驗完成・請直接點擊下方前往鑑寶';
+}
+if (window.isOnlineSpectator && allDoneBanner) {
+  const b = allDoneBanner.querySelector('button');
+  if (b) {
+    b.disabled = true;
+    b.className = 'w-full py-3.5 bg-neutral-900 border border-neutral-800 text-neutral-500 font-bold text-xs rounded-xl cursor-not-allowed';
+    b.innerText = '⏳ 等待尾家前往鑑寶發言階段...';
+    b.onclick = null;
+  }
+}  
  if (confirmWrapper) confirmWrapper.classList.add('hidden');  
  if (allDoneBanner) {  
  allDoneBanner.classList.remove('hidden');  
@@ -11375,6 +12005,7 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
   
    
 async function executeOnlineAdvanceToDiscussion(rParam) {
+    if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;
     const room = rParam || onlineRoomData;
     if (!room || !isFirebaseReady || !db) return;
     const curRIdx = (room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0;
@@ -11447,7 +12078,8 @@ async function executeOnlineAdvanceToDiscussion(rParam) {
   }
   window.executeOnlineAdvanceToDiscussion = executeOnlineAdvanceToDiscussion;
   window.onlProceedToDiscussion = executeOnlineAdvanceToDiscussion;  
-async function onlConfirmPassNextPlayer() {  
+async function onlConfirmPassNextPlayer() {
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (!onlSelectedPassNextId || !onlineRoomData) return;  
  const room = onlineRoomData;  
  const curRound = room.rounds[room.currentRoundIdx];  
@@ -12000,10 +12632,16 @@ window.renderPassOrderRows = renderPassOrderRows;
  const tipSeat = document.getElementById('onlDiscussionSpeakingSeatTip');  
   
  // 修改4：發言環節最右上角顯示手機操作者玩家顏色暱稱以及角色名字  
- const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
- if (speakerBadge && myP) {  
- const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
- speakerBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
+ if (speakerBadge) {
+   if (window.isOnlineSpectator) {
+     speakerBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">👁️ 觀戰中</span><span class="text-xs font-bold text-neutral-300">發言進度 (${displaySpeakerIndex}/8)</span>`;
+   } else {
+     const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
+     if (myP) {
+       const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
+       speakerBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
+     }
+   }
  }  
  if (speaker && tipSeat) {  
  const pc = COLOR_PALETTE.find(c => c.id === speaker.colorId) || COLOR_PALETTE[0];  
@@ -12015,7 +12653,7 @@ window.renderPassOrderRows = renderPassOrderRows;
   
  // 輸入框顯示控制 (只有輪到我且在自由發言狀態時才顯示發言框，並附帶無聲呼吸光暈)  
  const inputCard = document.getElementById('onlMySpeechInputBox');  
- if (isMySpeechTurn && room.status === 'discussion') {  
+ if (!window.isOnlineSpectator && isMySpeechTurn && room.status === 'discussion') {  
  inputCard.classList.remove('hidden');  
  inputCard.classList.add('my-turn-active-glow');  
  } else if (inputCard) {  
@@ -12119,6 +12757,10 @@ container.appendChild(row);
   
  // 個人鑑寶投票視圖 (無倒數、確認鍵、已投票人數...(x/8)、籌碼疊起、點開彈窗)  
  async function onlSubmitMySpeech() {  
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) {
+   alert('您為觀戰者，無法進行發言。');
+   return;
+ }
  const textarea = document.getElementById('onlSpeechInputText');  
  const text = textarea ? textarea.value.trim() : '';  
  if (!text) {  
@@ -12189,14 +12831,32 @@ container.appendChild(row);
   
  // 修改7: 個人鑑寶投票階段改成"顏色+暱稱"鑑寶投票階段  
  const headerTitle = document.getElementById('onlVotingSectionHeaderTitle');  
- if (headerTitle && me) {  
- const pc = COLOR_PALETTE.find(c => c.id === me.colorId) || COLOR_PALETTE[0];  
- headerTitle.innerHTML = `<span class="${pc.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1">${pc.name}色</span><span>${me.name} 鑑寶投票階段</span>`;  
+ if (headerTitle) {  
+   if (window.isOnlineSpectator) {
+     headerTitle.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">👁️ 觀戰中</span><span>鑑寶投票階段進度</span>`;
+   } else if (me) {  
+     const pc = COLOR_PALETTE.find(c => c.id === me.colorId) || COLOR_PALETTE[0];  
+     headerTitle.innerHTML = `<span class="${pc.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1">${pc.name}色</span><span>${me.name} 鑑寶投票階段</span>`;  
+   }
  }  
   
   
  // 修改1 & 9: 在發言階段時個人鑑寶投票階段可看到動物，可預先按投票數，但是確認投票按鈕不能按  
- if (hasMyVoted) {  
+ if (window.isOnlineSpectator) {
+   if (formSec) formSec.classList.add('hidden');
+   if (submittedNotice) {
+     submittedNotice.classList.remove('hidden');
+     submittedNotice.innerHTML = `
+       <div class="p-3 bg-purple-950/80 border border-purple-600/80 rounded-xl text-center space-y-1.5 shadow-md">
+         <div class="text-xs font-black text-purple-200 flex items-center justify-center space-x-1">
+           <span>👁️</span>
+           <span>您為觀戰者，正在觀看在座玩家投票進度</span>
+         </div>
+         <div class="text-xs text-neutral-300">場上投票進度：<span class="text-amber-400 font-mono font-black text-sm">${votedCount} / ${totalPlayers}</span> 人已完成投票</div>
+       </div>
+     `;
+   }
+ } else if (hasMyVoted) {  
  if (formSec) formSec.classList.add('hidden');  
  if (submittedNotice) {  
  submittedNotice.classList.remove('hidden');  
@@ -12385,7 +13045,7 @@ container.appendChild(row);
  checksListHtml += `  
  <div class="text-xs text-neutral-200 flex justify-between items-center pl-1">  
  <span>• 第 ${rIdx + 1} 回合：查驗【${log.fangZhenTargetColor || ''}色 ${log.fangZhenTargetName || '玩家'}】</span>  
- <span class="font-black ${isGood ? 'text-emerald-400' : 'text-rose-400'}">${campStr.replace(/^查驗【.*?】：屬於/, '')}</span>  
+ <span class="font-black ${isGood ? 'text-emerald-400' : 'text-rose-400'}">${isGood ? '許願陣營' : '老朝奉陣營'}</span>  
  </div>  
  `;  
  } else if (log.ability && (log.ability.includes('偷襲') || log.ability.includes('封鎖') || log.ability.includes('無法查驗'))) {  
@@ -12498,6 +13158,10 @@ container.appendChild(row);
  // 依修改2：確認投票提交處理函式 (修正投票按鈕按了沒反應的bug)  
  async function onlSubmitMyVote() {  
  if (!onlineRoomData || !myOnlinePlayerId) return;  
+ if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) {
+   alert('您為觀戰者，無法參與鑑寶投票。');
+   return;
+ }
  const room = onlineRoomData;  
  const curRoundIdx = (room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0;  
  const curRound = room.rounds ? room.rounds[curRoundIdx] : null;  
@@ -12559,6 +13223,7 @@ container.appendChild(row);
   
  Object.entries(votes).forEach(([voterId, ballot]) => {  
  const voter = (room.players || []).find(p => p.id === voterId);  
+ if (!voter) return; // 依要求 1：嚴格排除非在座 8 位正式玩家的幽靈票/觀戰票！
  const voterColorId = voter ? voter.colorId : 'black';  
  const pc = COLOR_PALETTE.find(c => c.id === voterColorId) || COLOR_PALETTE[0];  
  const vName = voter ? voter.name : '玩家';  
@@ -12894,11 +13559,30 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
  const myColor = me ? (COLOR_PALETTE.find(c => c.id === me.colorId) || COLOR_PALETTE[0]) : COLOR_PALETTE[0];  
   
  const promptText = document.getElementById('onlPersonVotePromptText');  
- if (promptText && me) {  
- promptText.innerHTML = `玩家 <span class="${myColor.bgClass} px-2 py-0.5 rounded font-black text-xs inline-block">${myColor.name}色</span>【${me.role || '角色'}】，請投出您心目中的人選：`;  
+ if (promptText) {  
+   if (window.isOnlineSpectator) {
+     promptText.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">👁️ 觀戰中</span><span class="text-xs text-neutral-300">您為觀戰者，正在觀看在座玩家鑑人指認進度...</span>`;
+   } else if (me) {  
+     promptText.innerHTML = `玩家 <span class="${myColor.bgClass} px-2 py-0.5 rounded font-black text-xs inline-block">${myColor.name}色</span>【${me.role || '角色'}】，請投出您心目中的人選：`;  
+   }
  }  
   
- if (hasMyVoted) {  
+ if (window.isOnlineSpectator) {
+   if (candidatesGrid) candidatesGrid.classList.add('hidden');
+   if (confirmWrapper) confirmWrapper.classList.add('hidden');
+   if (submittedNotice) {
+     submittedNotice.classList.remove('hidden');
+     submittedNotice.innerHTML = `
+       <div class="p-3 bg-purple-950/80 border border-purple-600/80 rounded-xl text-center space-y-1.5 shadow-md">
+         <div class="text-xs font-black text-purple-200 flex items-center justify-center space-x-1">
+           <span>👁️</span>
+           <span>您為觀戰者，正在觀看在座玩家鑑人指認進度</span>
+         </div>
+         <div class="text-xs text-neutral-300">場上鑑人進度：<span class="text-amber-400 font-mono font-black text-sm">${votedCount} / ${totalPlayers}</span> 人已完成指認</div>
+       </div>
+     `;
+   }
+ } else if (hasMyVoted) {  
  if (candidatesGrid) candidatesGrid.classList.add('hidden');  
  if (confirmWrapper) confirmWrapper.classList.add('hidden');  
  if (submittedNotice) submittedNotice.classList.remove('hidden');  
@@ -12972,6 +13656,10 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
     }
 
     async function onlSubmitMyPersonVote() {
+      if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) {
+        alert('您為觀戰者，無法參與鑑人投票。');
+        return;
+      }
       if ((!onlSelectedPersonTargetId && !window.onlSelectedPersonTargetId) || !onlineRoomData || !db) return;
       const targetId = onlSelectedPersonTargetId || window.onlSelectedPersonTargetId;
       const voterId = myOnlinePlayerId || window.myOnlinePlayerId;
@@ -14195,11 +14883,20 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
           });
           beastsGridHtml += '</div>';
 
+          // 需求 4：在每個回合投票結果後方加入「你驗X真/假」對比標籤
+          const targetPId = (window.isOnlineSpectator && window.onlineSpectatorViewMode === 'follow')
+            ? ((room.players && room.players[0]) ? room.players[0].id : myOnlinePlayerId)
+            : myOnlinePlayerId;
+          const myLog = (r.turnLogs && r.turnLogs[targetPId]) || {};
+          const myInspectList = myLog.inspect || [];
+          const inspectBadgeHtml = getMyInspectComparisonBadgeHtml(myInspectList, res.rank2);
+
           roundBox.innerHTML = `
             <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-              <div class="flex items-center space-x-1.5">
+              <div class="flex items-center space-x-1.5 flex-wrap">
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
                 <span class="text-amber-400 font-bold">第 ${r.roundNum} 回合獸首投票結果：</span>
+                ${inspectBadgeHtml}
               </div>
             </div>
             ${beastsGridHtml}
@@ -14211,6 +14908,72 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
       // 2. 三回合傳位資訊 (手機傳遞順序)：與遊戲中完全一致 (包含彩色頭像與專屬技能標籤)
       if (refPass) {
         renderUnifiedThreeRoundPassOrders(room, 'onlPersonRefPassOrder');
+      }
+
+      // 需求 4：方震專屬能力・玩家陣營查驗結果 (在三回合傳位資訊欄位下方展示)
+      const fzContainer = document.getElementById('onlPersonRefFangZhenContainer');
+      const fzList = document.getElementById('onlPersonRefFangZhenList');
+      if (fzContainer && fzList) {
+        const mePlayer = (room.players || []).find(p => p.id === myOnlinePlayerId);
+        const isFangZhen = mePlayer && mePlayer.role === '方震';
+        const isSpectatorFollow = (window.isOnlineSpectator && (window.onlineSpectatorViewMode === 'follow' || !window.onlineSpectatorViewMode));
+
+        if (isFangZhen || isSpectatorFollow) {
+          fzContainer.classList.remove('hidden');
+          fzList.innerHTML = '';
+
+          const fangZhenPlayer = (room.players || []).find(p => p.role === '方震');
+          if (fangZhenPlayer) {
+            let hasAnyFangInspection = false;
+            [1, 2, 3].forEach(rNum => {
+              const rObj = (room.rounds || []).find(r => r.roundNum === rNum);
+              const fLog = rObj && rObj.turnLogs && rObj.turnLogs[fangZhenPlayer.id];
+
+              const row = document.createElement('div');
+              row.className = 'p-2.5 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between text-xs flex-wrap gap-y-1';
+
+              if (fLog && fLog.fangZhenTargetName) {
+                hasAnyFangInspection = true;
+                const tcName = fLog.fangZhenTargetColor || '未知';
+                const tc = COLOR_PALETTE.find(c => c.name === tcName || c.id === fLog.fangZhenTargetId) || COLOR_PALETTE[0];
+                const campStr = fLog.fangZhenCamp || '';
+                const isGood = campStr.includes('好人') || campStr.includes('許願');
+
+                row.innerHTML = `
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-amber-400 font-mono">第 ${rNum} 回合：</span>
+                    <span class="${tc.bgClass} px-2 py-0.5 rounded text-[11px] font-black text-white shadow-xs">${tc.name}色</span>
+                    <span class="font-bold text-neutral-100">${fLog.fangZhenTargetName}</span>
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-2.5 py-0.5 rounded text-xs font-black shadow-xs ${isGood ? 'bg-blue-950 text-blue-300 border border-blue-600' : 'bg-rose-950 text-rose-300 border border-rose-600'}">
+                      ${isGood ? '許願陣營' : '老朝奉陣營'}
+                    </span>
+                  </div>
+                `;
+              } else if (fLog && (fLog.ability && fLog.ability.includes('偷襲'))) {
+                row.innerHTML = `
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-amber-400 font-mono">第 ${rNum} 回合：</span>
+                    <span class="text-rose-400 font-bold">💥 遭藥不然偷襲致盲，無法查驗玩家陣營</span>
+                  </div>
+                `;
+              } else {
+                row.innerHTML = `
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-neutral-500 font-mono">第 ${rNum} 回合：</span>
+                    <span class="text-neutral-500 font-mono">無查驗紀錄</span>
+                  </div>
+                `;
+              }
+              fzList.appendChild(row);
+            });
+          } else {
+            fzList.innerHTML = '<div class="text-xs text-neutral-500 py-1 text-center font-mono">場上無方震角色</div>';
+          }
+        } else {
+          fzContainer.classList.add('hidden');
+        }
       }
 
       // 3. 各回合發言欄紀錄：可折疊版本 (跟操作中的頁面完全一致)
