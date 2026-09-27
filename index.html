@@ -708,18 +708,87 @@
   
   
  <!-- 若輪到我發言：輸入框與發言完畢按鈕 -->  
- <div id="onlMySpeechInputBox" class="hidden p-3 bg-neutral-950 border-2 border-amber-500/80 rounded-xl space-y-2 shadow-lg">  
- <div class="text-xs font-bold text-amber-300 flex items-center justify-between">  
- <span class="flex items-center space-x-1">  
- <span class="animate-bounce">📢</span>  
- <span>請發言：</span>  
- </span>  
-   
-</div>  
- <textarea id="onlSpeechInputText" rows="2" placeholder="請打字輸入您的陳述、真偽推論或心理博弈..." class="w-full text-xs bg-neutral-900 border border-neutral-700 rounded-lg p-2.5 text-neutral-100 outline-none focus:border-amber-400 resize-none"></textarea>  
- <button type="button" onclick="onlSubmitMySpeech()" class="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-xs rounded-lg shadow transition active:scale-[0.99]">  
- 發言完畢 ➔  
- </button>  
+ <div id="onlMySpeechInputBox" class="hidden p-3 bg-neutral-950 border-2 border-amber-500/80 rounded-xl space-y-2.5 shadow-lg">  
+   <div class="text-xs font-bold text-amber-300 flex items-center justify-between">  
+     <span class="flex items-center space-x-1">  
+       <span class="animate-bounce">📢</span>  
+       <span>請發言：</span>  
+     </span>  
+     <span class="text-[10px] text-neutral-400">可使用下方快捷鍵填寫或打字</span>
+   </div>  
+   <textarea id="onlSpeechInputText" rows="2" placeholder="請打字輸入您的陳述、真偽推論或點選下方快捷詞彙..." class="w-full text-xs bg-neutral-900 border border-neutral-700 rounded-lg p-2.5 text-neutral-100 outline-none focus:border-amber-400 resize-none"></textarea>  
+
+   <!-- 快捷詞彙按鈕區 -->
+   <div class="space-y-2 pt-0.5">
+     <!-- 1. 當局獸首真假快捷鍵 -->
+     <div class="space-y-1">
+       <div class="text-[10px] font-bold text-neutral-400 flex items-center justify-between">
+         <span class="flex items-center space-x-1">
+           <span>🦁</span>
+           <span>當局獸首真偽（自動加「，」）：</span>
+         </span>
+       </div>
+       <div id="onlSpeechBeastQuickGrid" class="space-y-1">
+         <!-- 動態渲染當局 4 隻獸首的真/假按鈕 (Row 1: 真, Row 2: 假) -->
+         <div class="grid grid-cols-4 gap-1.5">
+           <button type="button" onclick="appendSpeechQuickText('鼠真，')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">鼠真</button>
+           <button type="button" onclick="appendSpeechQuickText('牛真，')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">牛真</button>
+           <button type="button" onclick="appendSpeechQuickText('虎真，')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">虎真</button>
+           <button type="button" onclick="appendSpeechQuickText('兔真，')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">兔真</button>
+         </div>
+         <div class="grid grid-cols-4 gap-1.5">
+           <button type="button" onclick="appendSpeechQuickText('鼠假，')" class="py-1 px-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">鼠假</button>
+           <button type="button" onclick="appendSpeechQuickText('牛假，')" class="py-1 px-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">牛假</button>
+           <button type="button" onclick="appendSpeechQuickText('虎假，')" class="py-1 px-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">虎假</button>
+           <button type="button" onclick="appendSpeechQuickText('兔假，')" class="py-1 px-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">兔假</button>
+         </div>
+       </div>
+     </div>
+
+     <!-- 2. 常用陳述快捷鍵 -->
+     <div class="space-y-1">
+       <div class="text-[10px] font-bold text-neutral-400 flex items-center space-x-1">
+         <span>🎯</span>
+         <span>戰情陳述（自動加「，」）：</span>
+       </div>
+       <div class="grid grid-cols-4 gap-1.5">
+         <button type="button" onclick="appendSpeechQuickText('我驗不到，')" class="py-1 px-1 rounded bg-neutral-900 hover:bg-neutral-800 text-amber-300 border border-amber-600/60 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">我驗不到</button>
+         <button type="button" onclick="appendSpeechQuickText('我被偷襲，')" class="py-1 px-1 rounded bg-neutral-900 hover:bg-neutral-800 text-rose-300 border border-rose-600/60 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">我被偷襲</button>
+         <button type="button" onclick="appendSpeechQuickText('好人，')" class="py-1 px-1 rounded bg-neutral-900 hover:bg-neutral-800 text-emerald-300 border border-emerald-600/60 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">好人</button>
+         <button type="button" onclick="appendSpeechQuickText('壞人，')" class="py-1 px-1 rounded bg-neutral-900 hover:bg-neutral-800 text-purple-300 border border-purple-600/60 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">壞人</button>
+       </div>
+     </div>
+
+     <!-- 3. 八個玩家顏色快捷鍵 -->
+     <div class="space-y-1">
+       <div class="text-[10px] font-bold text-neutral-400 flex items-center space-x-1">
+         <span>🎨</span>
+         <span>玩家顏色（直接填入）：</span>
+       </div>
+       <div class="grid grid-cols-4 gap-1.5">
+         <button type="button" onclick="appendSpeechQuickText('黑色')" class="py-1 px-1 rounded bg-black hover:bg-neutral-900 text-white border border-neutral-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">黑色</button>
+         <button type="button" onclick="appendSpeechQuickText('紅色')" class="py-1 px-1 rounded bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">紅色</button>
+         <button type="button" onclick="appendSpeechQuickText('橘色')" class="py-1 px-1 rounded bg-orange-950/80 hover:bg-orange-900 text-orange-200 border border-orange-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">橘色</button>
+         <button type="button" onclick="appendSpeechQuickText('黃色')" class="py-1 px-1 rounded bg-yellow-950/80 hover:bg-yellow-900 text-yellow-200 border border-yellow-600 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">黃色</button>
+         <button type="button" onclick="appendSpeechQuickText('綠色')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">綠色</button>
+         <button type="button" onclick="appendSpeechQuickText('藍色')" class="py-1 px-1 rounded bg-blue-950/80 hover:bg-blue-900 text-blue-200 border border-blue-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">藍色</button>
+         <button type="button" onclick="appendSpeechQuickText('紫色')" class="py-1 px-1 rounded bg-purple-950/80 hover:bg-purple-900 text-purple-200 border border-purple-700 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">紫色</button>
+         <button type="button" onclick="appendSpeechQuickText('白色')" class="py-1 px-1 rounded bg-neutral-200 hover:bg-white text-neutral-900 border border-neutral-300 text-[11px] font-black transition active:scale-95 text-center cursor-pointer shadow-sm">白色</button>
+       </div>
+     </div>
+   </div>
+
+   <!-- 送出操作列：左邊「直接過 ⏩」、右邊「發言完畢 ➔」 -->
+   <div class="flex items-center space-x-2 pt-1">
+     <button type="button" onclick="onlDirectPassSpeech()" class="w-1/3 py-2 bg-neutral-800 hover:bg-neutral-700 text-amber-300 hover:text-amber-200 border border-neutral-700 font-black text-xs rounded-lg shadow transition active:scale-[0.99] cursor-pointer text-center flex items-center justify-center space-x-1">
+       <span>直接過</span>
+       <span>⏩</span>
+     </button>
+     <button type="button" onclick="onlSubmitMySpeech()" class="w-2/3 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-xs rounded-lg shadow transition active:scale-[0.99] cursor-pointer text-center flex items-center justify-center space-x-1">
+       <span>發言完畢</span>
+       <span>➔</span>
+     </button>
+   </div>
  </div>  
   
    
@@ -7916,6 +7985,13 @@ async function kickOnlinePlayer(targetId, event) {
    console.warn('[v2.4.0] 私有角色寫入記錄:', pErr);
  }
 
+ // 建立加密密令，待終局 (gameover) 自動解密供結算勝負與覆盤
+ const sealedRoleMap = {};
+ players.forEach(p => {
+   sealedRoleMap[p.id] = p.role;
+ });
+ const sealedRolesToken = sealRoleMap(sealedRoleMap);
+
  // S1 脫敏防作弊：在寫入公開房間文檔前，抹除所有真人玩家的 role 欄位！
  // 真人角色僅留存在 private/{playerId} 中，DevTools / Console 徹底無法竊窺！
  const sanitizedPublicPlayers = players.map(p => ({
@@ -7930,6 +8006,7 @@ async function kickOnlinePlayer(targetId, event) {
  startTimestamp: now,  
  sessionIndex: data.sessionIndex || 1,  
  players: sanitizedPublicPlayers,  
+ sealedRolesToken: sealedRolesToken,  
  rounds: rounds,  
  currentRoundIdx: 0,  
  currentTurnPlayerId: starter.id,  
@@ -10494,7 +10571,8 @@ window.renderPassOrderRows = renderPassOrderRows;
  const inputCard = document.getElementById('onlMySpeechInputBox');  
  if (!window.isOnlineSpectator && isMySpeechTurn && room.status === 'discussion') {  
  inputCard.classList.remove('hidden');  
- inputCard.classList.add('my-turn-active-glow');  
+ inputCard.classList.add('my-turn-active-glow');
+    renderSpeechQuickButtons(room, curRound);  
  } else if (inputCard) {  
  inputCard.classList.add('hidden');  
  inputCard.classList.remove('my-turn-active-glow');  
@@ -10595,7 +10673,83 @@ container.appendChild(row);
  }  
   
  // 個人鑑寶投票視圖 (無倒數、確認鍵、已投票人數...(x/8)、籌碼疊起、點開彈窗)  
- async function onlSubmitMySpeech() {  
+ 
+// =========================================================================
+
+// =========================================================================
+// 角色密令封裝與解密器 (用於遊戲終局結算與防窺隔離)
+// =========================================================================
+function sealRoleMap(roleMap) {
+  try {
+    return btoa(encodeURIComponent(JSON.stringify(roleMap)));
+  } catch(e) {
+    return null;
+  }
+}
+window.sealRoleMap = sealRoleMap;
+
+function unsealRoleMap(sealedStr) {
+  try {
+    if (!sealedStr) return null;
+    return JSON.parse(decodeURIComponent(atob(sealedStr)));
+  } catch(e) {
+    return null;
+  }
+}
+window.unsealRoleMap = unsealRoleMap;
+
+// 發言快捷詞彙與直過操作輔助器
+// =========================================================================
+function appendSpeechQuickText(textToAppend) {
+  const textarea = document.getElementById('onlSpeechInputText');
+  if (!textarea) return;
+  textarea.value = (textarea.value || '') + textToAppend;
+  textarea.focus();
+  try {
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  } catch (e) {}
+}
+window.appendSpeechQuickText = appendSpeechQuickText;
+
+async function onlDirectPassSpeech() {
+  const textarea = document.getElementById('onlSpeechInputText');
+  if (textarea) {
+    textarea.value = '過';
+  }
+  await onlSubmitMySpeech();
+}
+window.onlDirectPassSpeech = onlDirectPassSpeech;
+
+function renderSpeechQuickButtons(room, curRound) {
+  const container = document.getElementById('onlSpeechBeastQuickGrid');
+  if (!container) return;
+
+  let beasts = (curRound && curRound.beasts && curRound.beasts.length)
+    ? curRound.beasts
+    : (room && room.rounds && room.rounds[room.currentRoundIdx || 0] && room.rounds[room.currentRoundIdx || 0].beasts)
+    ? room.rounds[room.currentRoundIdx || 0].beasts
+    : [];
+
+  if (!beasts || beasts.length === 0) return;
+
+  const names = beasts.map(b => (typeof b === 'string' ? b : (b && b.name ? b.name : String(b))));
+
+  const realHtml = names.map(n => `
+    <button type="button" onclick="appendSpeechQuickText('${n}真，')" class="py-1 px-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">${n}真</button>
+  `).join('');
+
+  const fakeHtml = names.map(n => `
+    <button type="button" onclick="appendSpeechQuickText('${n}假，')" class="py-1 px-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 text-[11px] font-bold transition active:scale-95 text-center cursor-pointer shadow-sm">${n}假</button>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="grid grid-cols-4 gap-1.5">${realHtml}</div>
+    <div class="grid grid-cols-4 gap-1.5">${fakeHtml}</div>
+  `;
+}
+window.renderSpeechQuickButtons = renderSpeechQuickButtons;
+
+async function onlSubmitMySpeech() {  
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) {
    alert('您為觀戰者，無法進行發言。');
    return;
@@ -11588,30 +11742,63 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
       });
       totalScore += realSavedCount;
 
+      // 1. 解密與還原全員身分角色 (解決脫敏防作弊機制下，結算無法取得真人角色的問題)
+      let trueRoleMap = {};
+      if (room.sealedRolesToken) {
+        trueRoleMap = unsealRoleMap(room.sealedRolesToken) || {};
+      }
+
+      // 備援讀取：若有缺漏，嘗試從各玩家的私有節點補齊
+      const playersList = room.players || [];
+      for (const p of playersList) {
+        if (!trueRoleMap[p.id]) {
+          if (p.role) {
+            trueRoleMap[p.id] = p.role;
+          } else if (p.id === myOnlinePlayerId && typeof myPrivateRoleData !== 'undefined' && myPrivateRoleData && myPrivateRoleData.role) {
+            trueRoleMap[p.id] = myPrivateRoleData.role;
+          } else {
+            try {
+              const privSnap = await db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`).get();
+              if (privSnap && privSnap.exists && privSnap.data().role) {
+                trueRoleMap[p.id] = privSnap.data().role;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+
+      // 還原全員真實角色清單
+      const resolvedPlayers = playersList.map(p => ({
+        ...p,
+        role: trueRoleMap[p.id] || p.role || ''
+      }));
+
       const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
-      const goodPlayers = room.players.filter(p => goodRoles.includes(p.role));
-      const laoPlayer = room.players.find(p => p.role === '老朝奉');
-      const yaoPlayer = room.players.find(p => p.role === '藥不然');
-      const fangPlayer = room.players.find(p => p.role === '方震');
-      const xuPlayer = room.players.find(p => p.role === '許願');
+      const goodPlayers = resolvedPlayers.filter(p => goodRoles.includes(p.role));
+      const laoPlayer = resolvedPlayers.find(p => p.role === '老朝奉');
+      const yaoPlayer = resolvedPlayers.find(p => p.role === '藥不然');
+      const fangPlayer = resolvedPlayers.find(p => p.role === '方震');
+      const xuPlayer = resolvedPlayers.find(p => p.role === '許願');
+
+      const pVotes = room.personVotes || {};
 
       let laoCaught = false;
       let votesForLao = 0;
       if (laoPlayer) {
-        votesForLao = goodPlayers.filter(p => room.personVotes && room.personVotes[p.id] === laoPlayer.id).length;
+        votesForLao = goodPlayers.filter(p => pVotes[p.id] === laoPlayer.id).length;
         laoCaught = votesForLao > (goodPlayers.length / 2);
         if (laoCaught) totalScore += 1;
       }
 
       let fangCaught = false;
       if (yaoPlayer && fangPlayer) {
-        fangCaught = (room.personVotes[yaoPlayer.id] === fangPlayer.id);
+        fangCaught = (pVotes[yaoPlayer.id] === fangPlayer.id);
         if (!fangCaught) totalScore += 1;
       }
 
       let xuCaught = false;
       if (laoPlayer && xuPlayer) {
-        xuCaught = (room.personVotes[laoPlayer.id] === xuPlayer.id);
+        xuCaught = (pVotes[laoPlayer.id] === xuPlayer.id);
         if (!xuCaught) totalScore += 2;
       }
 
@@ -11629,11 +11816,12 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
         goodPlayerCount: goodPlayers.length,
         fangCaught: fangCaught,
         xuCaught: xuCaught,
-        durationMinutes: Math.max(1, elapsed)
+        durationMinutes: Math.max(1, elapsed),
+        revealedRoles: trueRoleMap
       };
 
       // 檢查是否包含非真人玩家 (測試版電腦玩家)
-      const hasMockPlayers = (room.players || []).some(p => p.id && p.id.startsWith('mock_p_'));
+      const hasMockPlayers = resolvedPlayers.some(p => p.id && p.id.startsWith('mock_p_'));
       gameOverData.hasMockPlayers = hasMockPlayers;
 
       // 修改規則2: 測試版(有非真人玩家)遊戲絕對不會列入戰績網！
@@ -11652,7 +11840,7 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
             winningCamp: winningCampName,
             savedBeastsCount: realSavedCount,
             rounds: room.rounds,
-            players: room.players.map(p => ({
+            players: resolvedPlayers.map(p => ({
               id: p.id,
               name: p.name,
               colorId: p.colorId,
@@ -11675,8 +11863,9 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
 
       await onlineUpdate({
         status: 'gameover',
-        personVotes: room.personVotes || {},
-        gameOverData: gameOverData
+        personVotes: pVotes,
+        gameOverData: gameOverData,
+        players: resolvedPlayers
       });
     }
 
@@ -11827,8 +12016,10 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
         </div>
       `;
       const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
-      const goodPlayers = (room.players || []).filter(p => goodRoles.includes(p.role));
-      const laoPlayer = (room.players || []).find(p => p.role === '老朝奉');
+      const roleMap = gData.revealedRoles || {};
+      const resolvedList = (room.players || []).map(p => ({ ...p, role: p.role || roleMap[p.id] || '' }));
+      const goodPlayers = resolvedList.filter(p => goodRoles.includes(p.role));
+      const laoPlayer = resolvedList.find(p => p.role === '老朝奉');
       const pVotes = room.personVotes || {};
       const votesForLao = (gData.votesForLao !== undefined)
         ? gData.votesForLao
