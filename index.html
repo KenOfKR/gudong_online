@@ -8,7 +8,7 @@
  <meta name="apple-mobile-web-app-title" content="古董局中局">  
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
- <title>古董局中局 (v2.7.0 35位AI全認知管線大腦旗艦版)</title>  
+ <title>古董局中局 (v2.8.0 41位AI全認知管線大腦旗艦版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1034,6 +1034,18 @@
  <div class="text-xs font-bold text-neutral-300 text-left mb-1">鑑人環節投票明細：</div>  
  <div id="onlPersonVoteSummary" class="space-y-3 text-left text-xs bg-neutral-950 p-3.5 rounded-xl border border-neutral-800"></div>  
   
+ <!-- 依最新要求：線上版對局最終結果，在鑑人環節投票明細下方展示三回合對話記錄，格式同遊戲中的一樣 -->
+ <div class="space-y-2 text-left my-3">
+   <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-1.5">
+     <span class="flex items-center space-x-1.5">
+       <span>🗣️</span>
+       <span class="text-amber-400 font-black">三回合各回合對話發言記錄：</span>
+     </span>
+     <span class="text-[10px] text-neutral-400 font-normal">遊戲中同款氣泡格式</span>
+   </div>
+   <div id="onlGameOverSpeechesContainer" class="space-y-2.5 text-left text-xs"></div>
+ </div>
+
  <div class="text-xs font-bold text-neutral-300 text-left mb-1">全體玩家全程操作軌跡記錄：</div>  
  <div id="onlAllPlayerActionLogs" class="space-y-3 text-left text-xs bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 max-h-80 overflow-y-auto"></div>  
   
@@ -2374,23 +2386,24 @@ window.ActionEngine = ActionEngine;
   
  // 電腦玩家綽號辭庫（若後續有新的電腦玩家綽號，直接加入此辭庫，依需求 7）
  const BOT_NICKNAME_POOL = [
-   "愛飛翔", "熊寶", "水豚", "順欸", "Abby", "奕瑜", "羽涵", "丞峻", "漢傑", "皓鈞",
-   "張懿", "包包", "隻貓", "柏仰", "H小姐", "Molly", "薏涵", "Peter倫", "凱基柏宇", "昱全",
-   "源阿", "Penny", "偉翔", "克雷爾", "卓毅", "大鈞哥", "山浤", "修宏", "柚子", "彥棋",
-   "Alli", "Darien", "小黛", "佩萱", "漢崧"
+   "愛飛翔", "筑", "水豚", "順欸", "Abby", "柚子", "羽涵", "偉翔", "漢傑", "皓鈞",
+   "彥棋", "包包", "隻貓", "丞峻", "H小姐", "Molly", "薏涵", "Peter倫", "凱基柏宇", "昱全",
+   "源阿", "Penny", "柏仰", "修宏", "卓毅", "大鈞哥", "山浤", "克雷爾", "奕瑜", "張懿",
+   "小黛", "Darien", "Alli", "佩萱", "漢崧", "熊寶", "老吳", "凡凡", "洪吉", "某呆粥", "陳子揚"
  ];
  const WARLORD_MOCK_NAMES = BOT_NICKNAME_POOL;
  window.BOT_NICKNAME_POOL = BOT_NICKNAME_POOL;
  
  // 電腦玩家專屬代表字映射表 (支援中英文、縮寫與雙字綽號)
  const NICKNAME_REP_MAP = {
-   "愛飛翔": "翔", "熊寶": "寶", "水豚": "豚", "順欸": "欸", "Abby": "A",
-   "奕瑜": "瑜", "羽涵": "涵", "丞峻": "峻", "漢傑": "傑", "皓鈞": "鈞",
-   "張懿": "懿", "包包": "包", "隻貓": "貓", "柏仰": "仰", "H小姐": "H",
-   "Molly": "M", "薏涵": "涵", "Peter倫": "倫", "凱基柏宇": "宇", "昱全": "全",
-   "源阿": "源", "Penny": "P", "偉翔": "翔", "克雷爾": "克", "卓毅": "毅",
-   "大鈞哥": "鈞", "山浤": "浤", "修宏": "宏", "柚子": "柚", "彥棋": "棋",
-   "Alli": "A", "Darien": "D", "小黛": "黛", "佩萱": "萱", "漢崧": "崧"
+   "愛飛翔": "翔", "筑": "筑", "水豚": "豚", "順欸": "順", "Abby": "A",
+   "柚子": "柚", "羽涵": "羽", "偉翔": "翔", "漢傑": "傑", "皓鈞": "鈞",
+   "彥棋": "棋", "包包": "包", "隻貓": "貓", "丞峻": "峻", "H小姐": "H",
+   "Molly": "M", "薏涵": "薏", "Peter倫": "倫", "凱基柏宇": "宇", "昱全": "全",
+   "源阿": "源", "Penny": "P", "柏仰": "仰", "修宏": "修", "卓毅": "毅",
+   "大鈞哥": "鈞", "山浤": "浤", "克雷爾": "克", "奕瑜": "奕", "張懿": "懿",
+   "小黛": "黛", "Darien": "D", "Alli": "A", "佩萱": "萱", "漢崧": "崧",
+   "熊寶": "熊", "老吳": "吳", "凡凡": "凡", "洪吉": "吉", "某呆粥": "粥", "陳子揚": "揚"
  };
  window.NICKNAME_REP_MAP = NICKNAME_REP_MAP;
   
@@ -2413,7 +2426,7 @@ const COLOR_PALETTE = [
        (BotDeductionEngine: Fog-of-War POV, Role Bayesian Inference, Metagame Rules)
        ============================================================ */
                             /* =========================================================================
-   古董局中局 35位電腦玩家專屬個性化演化學習核心 (BotLearningEngine)
+   古董局中局 41位電腦玩家專屬個性化演化學習核心 (BotLearningEngine)
    - 每個暱稱在玩每個角色時，具備獨立記憶、參數權重與遊玩風格
    - 融合時事財經梗、迷因鄉民梗、中二動漫梗、硬核理工梗、毒舌生活梗
    - 發言絕對不重複 (動態語句組合 + 歷史簽名去重)
@@ -2421,9 +2434,9 @@ const COLOR_PALETTE = [
 ========================================================================= */
 
 
-// 為 35 位電腦玩家預設個性化基底特質權重 (Baseline Traits)
+// 為 41 位電腦玩家預設個性化基底特質權重 (Baseline Traits)
 
-// 35 位電腦玩家性格基因彈簧錨點 (Genetic Anchors & Bounds)
+// 41 位電腦玩家性格基因彈簧錨點 (Genetic Anchors & Bounds)
 // 防止跑完數十萬局後產生「集體均質化 (Mode Collapse)」
 const ARCHETYPES_GENETICS = {
   anime: {
@@ -2438,18 +2451,38 @@ const ARCHETYPES_GENETICS = {
   },
   engineering: {
     base: { aggression: 0.35, skepticism: 0.78, deception: 0.28, trustPlayers: 0.45, riskTolerance: 0.32, speechConfidence: 0.80, voteIndependence: 0.78, balancedReasoning: 0.85 },
-    min:  { aggression: 0.20, skepticism: 0.60, deception: 0.15, trustPlayers: 0.25, riskTolerance: 0.18, speechConfidence: 0.65, voteIndependence: 0.60, balancedReasoning: 0.70 },
-    max:  { aggression: 0.55, skepticism: 0.92, deception: 0.50, trustPlayers: 0.65, riskTolerance: 0.50, speechConfidence: 0.92, voteIndependence: 0.92, balancedReasoning: 0.98 }
+    min:  { aggression: 0.20, skepticism: 0.60, deception: 0.15, trustPlayers: 0.25, riskTolerance: 0.18, speechConfidence: 0.65, voteIndependence: 0.60, balancedReasoning: 0.68 },
+    max:  { aggression: 0.60, skepticism: 0.92, deception: 0.50, trustPlayers: 0.70, riskTolerance: 0.55, speechConfidence: 0.92, voteIndependence: 0.92, balancedReasoning: 0.98 }
   },
   meme: {
-    base: { aggression: 0.42, skepticism: 0.65, deception: 0.55, trustPlayers: 0.40, riskTolerance: 0.48, speechConfidence: 0.65, voteIndependence: 0.78, balancedReasoning: 0.62 },
-    min:  { aggression: 0.25, skepticism: 0.45, deception: 0.35, trustPlayers: 0.20, riskTolerance: 0.30, speechConfidence: 0.50, voteIndependence: 0.60, balancedReasoning: 0.45 },
-    max:  { aggression: 0.65, skepticism: 0.85, deception: 0.85, trustPlayers: 0.60, riskTolerance: 0.70, speechConfidence: 0.80, voteIndependence: 0.92, balancedReasoning: 0.80 }
+    base: { aggression: 0.55, skepticism: 0.65, deception: 0.42, trustPlayers: 0.45, riskTolerance: 0.60, speechConfidence: 0.70, voteIndependence: 0.78, balancedReasoning: 0.55 },
+    min:  { aggression: 0.35, skepticism: 0.45, deception: 0.22, trustPlayers: 0.25, riskTolerance: 0.38, speechConfidence: 0.50, voteIndependence: 0.58, balancedReasoning: 0.35 },
+    max:  { aggression: 0.85, skepticism: 0.85, deception: 0.68, trustPlayers: 0.72, riskTolerance: 0.85, speechConfidence: 0.90, voteIndependence: 0.95, balancedReasoning: 0.75 }
   },
   finance: {
-    base: { aggression: 0.62, skepticism: 0.78, deception: 0.48, trustPlayers: 0.35, riskTolerance: 0.62, speechConfidence: 0.78, voteIndependence: 0.82, balancedReasoning: 0.62 },
-    min:  { aggression: 0.45, skepticism: 0.62, deception: 0.30, trustPlayers: 0.18, riskTolerance: 0.45, speechConfidence: 0.65, voteIndependence: 0.68, balancedReasoning: 0.45 },
+    base: { aggression: 0.65, skepticism: 0.76, deception: 0.46, trustPlayers: 0.38, riskTolerance: 0.68, speechConfidence: 0.78, voteIndependence: 0.82, balancedReasoning: 0.66 },
+    min:  { aggression: 0.48, skepticism: 0.60, deception: 0.28, trustPlayers: 0.20, riskTolerance: 0.48, speechConfidence: 0.62, voteIndependence: 0.65, balancedReasoning: 0.45 },
     max:  { aggression: 0.82, skepticism: 0.92, deception: 0.75, trustPlayers: 0.55, riskTolerance: 0.82, speechConfidence: 0.90, voteIndependence: 0.95, balancedReasoning: 0.80 }
+  },
+  variant: {
+    base: { aggression: 0.70, skepticism: 0.50, deception: 0.65, trustPlayers: 0.35, riskTolerance: 0.75, speechConfidence: 0.90, voteIndependence: 0.70, balancedReasoning: 0.30 },
+    min:  { aggression: 0.45, skepticism: 0.30, deception: 0.40, trustPlayers: 0.15, riskTolerance: 0.50, speechConfidence: 0.70, voteIndependence: 0.45, balancedReasoning: 0.15 },
+    max:  { aggression: 0.95, skepticism: 0.75, deception: 0.92, trustPlayers: 0.60, riskTolerance: 0.95, speechConfidence: 0.99, voteIndependence: 0.90, balancedReasoning: 0.55 }
+  },
+  greentea: {
+    base: { aggression: 0.35, skepticism: 0.80, deception: 0.88, trustPlayers: 0.30, riskTolerance: 0.60, speechConfidence: 0.75, voteIndependence: 0.80, balancedReasoning: 0.55 },
+    min:  { aggression: 0.15, skepticism: 0.60, deception: 0.70, trustPlayers: 0.10, riskTolerance: 0.35, speechConfidence: 0.55, voteIndependence: 0.60, balancedReasoning: 0.35 },
+    max:  { aggression: 0.60, skepticism: 0.95, deception: 0.98, trustPlayers: 0.50, riskTolerance: 0.85, speechConfidence: 0.92, voteIndependence: 0.95, balancedReasoning: 0.75 }
+  },
+  gamble: {
+    base: { aggression: 0.75, skepticism: 0.85, deception: 0.45, trustPlayers: 0.25, riskTolerance: 0.95, speechConfidence: 0.85, voteIndependence: 0.85, balancedReasoning: 0.40 },
+    min:  { aggression: 0.50, skepticism: 0.65, deception: 0.25, trustPlayers: 0.10, riskTolerance: 0.75, speechConfidence: 0.65, voteIndependence: 0.65, balancedReasoning: 0.20 },
+    max:  { aggression: 0.95, skepticism: 0.98, deception: 0.70, trustPlayers: 0.45, riskTolerance: 0.99, speechConfidence: 0.98, voteIndependence: 0.98, balancedReasoning: 0.65 }
+  },
+  fans: {
+    base: { aggression: 0.55, skepticism: 0.75, deception: 0.50, trustPlayers: 0.60, riskTolerance: 0.55, speechConfidence: 0.85, voteIndependence: 0.70, balancedReasoning: 0.65 },
+    min:  { aggression: 0.35, skepticism: 0.55, deception: 0.30, trustPlayers: 0.40, riskTolerance: 0.35, speechConfidence: 0.70, voteIndependence: 0.50, balancedReasoning: 0.45 },
+    max:  { aggression: 0.80, skepticism: 0.92, deception: 0.75, trustPlayers: 0.85, riskTolerance: 0.80, speechConfidence: 0.96, voteIndependence: 0.90, balancedReasoning: 0.85 }
   }
 };
 
@@ -2458,52 +2491,59 @@ const ARCHETYPE_TRAITS = {
   meme: { aggression: 0.45, skepticism: 0.65, deception: 0.40, trustPlayers: 0.45, riskTolerance: 0.55, speechConfidence: 0.65, voteIndependence: 0.80, balancedReasoning: 0.60 },
   sarcastic: { aggression: 0.80, skepticism: 0.80, deception: 0.40, trustPlayers: 0.30, riskTolerance: 0.45, speechConfidence: 0.85, voteIndependence: 0.85, balancedReasoning: 0.50 },
   engineering: { aggression: 0.40, skepticism: 0.75, deception: 0.30, trustPlayers: 0.55, riskTolerance: 0.35, speechConfidence: 0.80, voteIndependence: 0.75, balancedReasoning: 0.80 },
-  finance: { aggression: 0.65, skepticism: 0.75, deception: 0.45, trustPlayers: 0.40, riskTolerance: 0.65, speechConfidence: 0.75, voteIndependence: 0.80, balancedReasoning: 0.65 }
+  finance: { aggression: 0.65, skepticism: 0.75, deception: 0.45, trustPlayers: 0.40, riskTolerance: 0.65, speechConfidence: 0.75, voteIndependence: 0.80, balancedReasoning: 0.65 },
+  variant: { aggression: 0.70, skepticism: 0.50, deception: 0.65, trustPlayers: 0.35, riskTolerance: 0.75, speechConfidence: 0.90, voteIndependence: 0.70, balancedReasoning: 0.30 },
+  greentea: { aggression: 0.35, skepticism: 0.80, deception: 0.88, trustPlayers: 0.30, riskTolerance: 0.60, speechConfidence: 0.75, voteIndependence: 0.80, balancedReasoning: 0.55 },
+  gamble: { aggression: 0.75, skepticism: 0.85, deception: 0.45, trustPlayers: 0.25, riskTolerance: 0.95, speechConfidence: 0.85, voteIndependence: 0.85, balancedReasoning: 0.40 },
+  fans: { aggression: 0.55, skepticism: 0.75, deception: 0.50, trustPlayers: 0.60, riskTolerance: 0.55, speechConfidence: 0.85, voteIndependence: 0.70, balancedReasoning: 0.65 }
 };
 
 const BOT_ID_MAP = {
-  "bot_001": "愛飛翔", "bot_002": "熊寶", "bot_003": "水豚", "bot_004": "順欸", "bot_005": "Abby",
-  "bot_006": "奕瑜", "bot_007": "羽涵", "bot_008": "丞峻", "bot_009": "漢傑", "bot_010": "皓鈞",
-  "bot_011": "張懿", "bot_012": "包包", "bot_013": "隻貓", "bot_014": "柏仰", "bot_015": "H小姐",
+  "bot_001": "愛飛翔", "bot_002": "筑", "bot_003": "水豚", "bot_004": "順欸", "bot_005": "Abby",
+  "bot_006": "柚子", "bot_007": "羽涵", "bot_008": "偉翔", "bot_009": "漢傑", "bot_010": "皓鈞",
+  "bot_011": "彥棋", "bot_012": "包包", "bot_013": "隻貓", "bot_014": "丞峻", "bot_015": "H小姐",
   "bot_016": "Molly", "bot_017": "薏涵", "bot_018": "Peter倫", "bot_019": "凱基柏宇", "bot_020": "昱全",
-  "bot_021": "源阿", "bot_022": "Penny", "bot_023": "偉翔", "bot_024": "克雷爾", "bot_025": "卓毅",
-  "bot_026": "大鈞哥", "bot_027": "山浤", "bot_028": "修宏", "bot_029": "柚子", "bot_030": "彥棋",
-  "bot_031": "Alli", "bot_032": "Darien", "bot_033": "小黛", "bot_034": "佩萱", "bot_035": "漢崧"
+  "bot_021": "源阿", "bot_022": "Penny", "bot_023": "柏仰", "bot_024": "修宏", "bot_025": "卓毅",
+  "bot_026": "大鈞哥", "bot_027": "山浤", "bot_028": "克雷爾", "bot_029": "奕瑜", "bot_030": "張懿",
+  "bot_031": "小黛", "bot_032": "Darien", "bot_033": "Alli", "bot_034": "佩萱", "bot_035": "漢崧",
+  "bot_036": "熊寶", "bot_037": "老吳", "bot_038": "凡凡", "bot_039": "洪吉", "bot_040": "某呆粥", "bot_041": "陳子揚"
 };
 const BOT_NAME_TO_ID = Object.fromEntries(Object.entries(BOT_ID_MAP).map(([id, n]) => [n, id]));
+window.BOT_ID_MAP = BOT_ID_MAP;
+window.BOT_NAME_TO_ID = BOT_NAME_TO_ID;
 
 BOT_ARCHETYPES = {
   "愛飛翔": {
-    style: "anime",
-    title: "【領域展開・熱血動漫系】",
+    style: "variant",
+    title: "【喜歡硬要別人喝自製奶茶・喝別人水・幫女生算八字】",
     phrases: [
-      "領域展開・真偽立斷！這件獸首的咒力流動騙不了我的雙眼！",
-      "要是欣梅爾的話，他在這個置位一定也會這樣果斷投票！",
-      "獻出心臟吧！全體好人把票凝聚在一起，我們絕不能倒在這裡！",
-      "全集中呼吸・鑑寶之型！這紋理做工分明是日之呼吸的精純真品！",
-      "這就是我的逃跑路線！想陷害我的人趁早死了這條心吧！"
+      "我親手煮的特調手工奶茶妳一定要喝一口！這件獸首我剛剛幫它排過八字，絕對是大真品！",
+      "妹子妳看這包漿多滑嫩～來，喝口水，聽哥哥的分析準沒錯！",
+      "這件紋理帶桃花，全體好人把票凝聚在一起，我們絕不能倒在這裡！",
+      "我都特地幫妳算八字了，妳怎麼能不信我？這隻真品跑不掉！",
+      "我泡的奶茶甜度剛剛好，就像這隻獸首一樣純！全票跟我押！"
     ]
   },
-  "熊寶": {
-    style: "meme",
-    title: "【裝傻反轉・扮豬吃老虎】",
+  "筑": {
+    style: "greentea",
+    title: "【裝傻反轉・扮豬吃老虎・綠茶婊】",
     phrases: [
-      "尊嘟假嘟？這隻獸首看起來肥嘟嘟的，肯定是上等真品捏！",
-      "熊熊我啊最老實了，誰要是騙熊熊，熊熊這票可就要砸過去囉！",
-      "我就爛！但這波我用直覺盲抓，這隻絕對是真貨！",
-      "吃瓜看戲看到現在，某些人的演技真的是假到熊熊都看不下去了！",
-      "裝最萌的熊，打最狠的票！大家跟我走準沒錯！"
+      "哎呀人家真的看不太懂古董啦～但我覺得剛才那位哥哥說得好有道理喔～",
+      "大家不要為了我吵架好不好？我看這件獸首感覺很溫潤，應該是真品吧？",
+      "人家只是個新手妹妹，你們壞人怎麼忍心欺騙我啦～（暗中記仇）",
+      "某某葛格～這把人家就相信你囉，如果你騙我人家會哭哭喔～",
+      "（眨巴大眼睛）裝最純的妹，投最準的票！這隻贗品騙不過我～"
     ]
   },
   "水豚": {
-    style: "meme",
+    style: "variant",
     title: "【情緒穩定・佛系看破紅塵】",
     phrases: [
+      "小姐姐妳玩過這款桌遊嗎？下局跟我一隊嘛～這件獸首像我的心一樣保真，油而不膩～",
       "平靜地泡在溫泉裡看你們吵，真相早已如水波般清晰透明。",
-      "情緒穩定，所以我的判斷不會被任何人的嘴砲動搖，這件必真！",
-      "別急，急了就會像山道猴子一樣在彎道翻車，沉住氣跟我投！",
-      "不管你們信不信，我心如止水，這隻贗品我一眼就看出是塑料做的。",
-      "這水太深，你們都在第一層，而水豚我早已在水底泡澡了。"
+      "情緒穩定，妹子手把手教學我都包辦，這隻真品穩如泰山！",
+      "別急，急了就會翻車，小姐姐別怕，水豚葛格這票保護妳～",
+      "這水太深，你們都在第一層，而我早已泡在溫泉裡看破真偽了。"
     ]
   },
   "順欸": {
@@ -2518,17 +2558,17 @@ BOT_ARCHETYPES = {
     ]
   },
   "Abby": {
-    style: "sarcastic",
-    title: "【微表情破譯・名偵探審訊】",
+    style: "gamble",
+    title: "【微表情破譯・少女心不專注】",
     phrases: [
-      "你的微表情在0.3秒前已經破防了，眼神飄到天花板是在找台詞嗎？",
-      "真正的方震眼神堅毅，哪會像你這樣慌張表態？破綻大到能塞進大象！",
-      "這套自導自演的劇本漏洞百出，別想在我眼皮底下作假！",
-      "根據行為心理學，你剛剛手抖那一下已經徹底出賣了你的身分！",
-      "審訊結束，呈堂證供俱在，大家千萬別相信他的辯解！"
+      "這隻獸首我就賭它是一番賞A賞大公仔！多巴胺直接分泌爆表！",
+      "你剛剛眼神飄了0.3秒，絕對抽到了爛籤！我直接梭哈這隻真品！",
+      "今天手氣旺到擋不住，一番賞最後一賞我都包了，這票跟我押！",
+      "少女心雖然容易分心，但賭徒直覺從不出錯！這件必是真品！",
+      "開箱盲盒時間到！全場最閃亮的大賞就在這，不跟就虧大了！"
     ]
   },
-  "奕瑜": {
+  "柚子": {
     style: "sarcastic",
     title: "【玄學托夢・紫微神算派】",
     phrases: [
@@ -2546,19 +2586,19 @@ BOT_ARCHETYPES = {
       "弱小並非生存的障礙，傲慢才是！你在第一層，而我早已在大氣層了！",
       "冷靜一點，無謂的咆哮改變不了事實，這步棋早在我三輪前的計算之中！",
       "這不是猜測，是經過精密算力推導出的唯一解，真品只能是它！",
-      "別拿業餘愛好試圖挑戰專業判斷，這局節奏全由我掌控！",
+      "別拿業餘愛好挑戰專業算力，這局的節奏全由我精密掌控！",
       "局勢如同精密齒輪，內鬼的每一步掙扎都在加速自己的毀滅！"
     ]
   },
-  "丞峻": {
-    style: "anime",
-    title: "【波紋疾走・JoJo使者】",
+  "偉翔": {
+    style: "sarcastic",
+    title: "【硬核桌遊玩家・絕對策度】",
     phrases: [
-      "但我拒絕(だが断る)！我最喜歡做的事之一，就是對自以為是的人說NO！",
-      "你已經踏入我的替身攻擊範圍了！這件獸首的偽裝已被徹底識破！",
-      "這難道就是敵人的替身攻擊嗎？手機一接過來我就聞到了陰謀的味道！",
-      "木大木大木大！你那些蒼白的辯解在絕對真相面前根本毫無意義！",
-      "勝利的方程式已經完成，這就是我的黃金精神！"
+      "這局的策度完全被你們玩爛了！重度策略桌遊不是這樣跟票的！",
+      "果斷拒絕跟風！好人全體跟我集火，硬核開火站定立場！",
+      "策度不夠就別來帶節奏，這步棋的期望值算力只有低階玩家才看不懂！",
+      "強烈陣營站隊！誰要是再左右搖擺，直接判定為敵對陣營！",
+      "絕對策度碾壓！按照我的策略模型走，這盤贏面高達九成！"
     ]
   },
   "漢傑": {
@@ -2574,277 +2614,277 @@ BOT_ARCHETYPES = {
   },
   "皓鈞": {
     style: "sarcastic",
-    title: "【鐵血老將・江湖客】",
+    title: "【鐵血老將・日系江湖客】",
     phrases: [
-      "明槍易躲暗箭難防，老夫縱橫江湖數十載，這點贗品騙術休想過關！",
-      "宵小之輩休得在老夫面前班門弄斧，真品的沉實分量我一試便知！",
-      "江湖規矩，願賭服輸！你那點小動作早就被全場好人看在眼裡！",
-      "出來混遲早要還的，這把誰是內鬼，投票見分曉！",
-      "老夫這把不信邪，就憑手頭鐵證，定要斬斷壞人的退路！"
+      "馬鹿野郎！老夫闖蕩江湖數十載，這點障眼法騙得過武士的雙眼？",
+      "真正的男人一言九鼎！承諾過的票型絕不反悔，死守信義！",
+      "這件獸首的鍛造工藝，分明是日式古法真品，大丈夫何懼一戰！",
+      "江湖規矩，盜亦有道！出賣隊友的宵小之輩，老夫刀下絕不留情！",
+      "納尼？你剛才那段發言破綻百出，江湖不是打打殺殺，是人情世故！"
     ]
   },
-  "張懿": {
+  "彥棋": {
     style: "engineering",
-    title: "【硬核邏輯・極客工程師】",
+    title: "【硬核邏輯・桌遊收藏極客】",
     phrases: [
-      "你這套發言邏輯直接引發了系統死鎖(Deadlock)，內存已經溢出了！",
-      "神經網絡加權矩陣計算，此獸首為真品的置信度高達99.8%！",
-      "這不是Bug，是你的偽裝代碼直接Crash崩潰了！請提交修復補丁！",
-      "別拿你的高延遲發言來考驗好人的高帶寬智商，二進位排除假貨！",
-      "邏輯鏈條已經形成封閉單元測試，所有的斷言(assert)均已通過！"
+      "我家收藏了四百多盒正版桌遊，這件做工的印刷套印嚴重位移！",
+      "時序鏈路直接發生Deadlock死鎖！斷言失敗，這票絕對不能投！",
+      "嚴謹時序驗證，拒絕任何玄學口嗨，數據閉環告訴我這隻是真品！",
+      "規則書與防偽標籤皆符合標準，極客只相信可重現的真理！",
+      "停止向未驗證的節點廣播！按照桌遊博弈論的最優解，全體押它！"
     ]
   },
   "包包": {
     style: "sarcastic",
     title: "【老饕吃貨・味蕾鑑真派】",
     phrases: [
-      "這件做工塑膠感比夜市假肉串還廉價，光聞氣味就完全不對！",
-      "包漿比控肉飯的滷汁還黏稠不正經，擺明是化學藥水泡出來的贗品！",
-      "真正的大真品就像酥脆炸雞一樣層次分明，這件空心大蘿蔔別想騙我！",
-      "吃飽了才有力氣抓內鬼，這輪誰在亂帶風向我都拿小本本記著！",
-      "這說法水分大到能煮一鍋火鍋了，大家千萬別被燙到了！"
+      "這件做工塑膠感比夜市假肉串還廉價，一聞氣味就不對！",
+      "吃飽了才有力氣抓內鬼！你們誰是老朝奉自己站出來自首！",
+      "真正的百年真品像頂級牛排一樣油花均勻，這件根本是組合肉！",
+      "饕客的舌尖不會說謊，這隻贗品連當餐盤的資格都沒有！",
+      "這件手感像剛出爐的和牛般厚實，確定是真品！全體動筷（投票）！"
     ]
   },
   "隻貓": {
     style: "meme",
     title: "【高冷貓皇・肉墊審訊】",
     phrases: [
-      "愚蠢的人類又在自相殘殺了，本喵鬍鬚抖了一下，這件必有貓膩！",
-      "伸出肉墊拍飛你的拙劣謊言！這破綻明顯得像在我眼前晃逗貓棒！",
-      "本喵對這件贗品毫無興趣，踩奶確認過，只有那隻才是真品！",
-      "喵的！你剛才遞手機的眼神鬼鬼祟祟，本喵的爪子已經按捺不住了！",
-      "高貴的喵星人從不說謊，愚蠢的人類趕緊跟著我投！"
+      "本喵肉墊踩過這件獸首，手感冰冷乾癟，確定是贗品！",
+      "愚蠢的人類剛才眼神慌張得像看到逗貓棒，這件必有貓膩！",
+      "居高臨下俯視你們這群兩腳獸，誰在作假本喵一眼看穿！",
+      "哈氣！離這件假貨遠一點，不然本喵直接亮爪子抓人！",
+      "呼嚕嚕～這件包漿醇厚深得喵心，賞你們一顆真品大補丸！"
     ]
   },
-  "柏仰": {
+  "丞峻": {
     style: "sarcastic",
     title: "【影評影帝・奧斯卡評審】",
     phrases: [
-      "奧斯卡欠你一座小金人，但劇本寫得太爛，台詞給得太滿直接崩壞！",
-      "連跑龍套的臨演都不會演得像你這麼心虛！卡！這條NG重來！",
-      "這段獨白缺乏情感鋪墊，全靠假哭硬撐，我只能給零分差評！",
-      "影視圈這套八點檔轉移焦點的把戲，在骨董局裡可行不通！",
-      "大幕拉開，你的反派演技已經被現場觀眾完全看穿了！"
+      "你剛才那段發言演得太浮誇了！情緒層次零分，金酸莓獎實至名歸！",
+      "過度防衛的肢體語言已經穿幫了，別把桌遊當八點檔在演！",
+      "這場戲的起承轉合漏洞百出，編劇（老朝奉）出來挨打！",
+      "奧斯卡評審團一致裁定：你的表演充滿人工痕跡，就是內鬼！",
+      "真正的好人不需要刻意加戲，真品的神態自然如長鏡頭般流暢！"
     ]
   },
   "H小姐": {
     style: "sarcastic",
-    title: "【職場八卦女王・反PUA】",
+    title: "【職場八卦女王・喜愛PUA別人】",
     phrases: [
-      "這綠茶味濃得隔著手機都能聞到，少在姊姊面前玩職場PUA那一套！",
-      "辦公室八卦早就傳開了，你上一輪幹的好事現在還想瞞天過海？",
-      "這份假報告在試用期就該被直接資遣了，做工差成這樣還想轉正？",
-      "別以為裝可憐大家就會同情你，職場只看KPI，拿出你的真品證據！",
-      "姊姊我看過的假人比你吃過的鹽還多，這隻贗品趁早退場吧！"
+      "你剛才那句話是在PUA我嗎？職場大風大浪我見多了，跟我玩這套？",
+      "我有個朋友在老朝奉集團上班，說的就是你這種做事風格！",
+      "這輪發言格局打開好嗎？連真品都認不出來，難怪工作績效拿C！",
+      "職場八卦我掌握得一清二楚，你以為你暗中遞小抄沒人看到？",
+      "反向質詢開始！請你在十秒內交代清楚，為什麼票型跟發言完全相反？"
     ]
   },
   "Molly": {
     style: "meme",
     title: "【美式潮語・雙語破謊】",
     phrases: [
-      "Seriously? 這波操作簡直是Super Big Red Flag！完全不可理喻！",
-      "大家注意，這簡直是教科書級別的Gaslighting，別被他洗腦了！",
-      "Excuse me，這件真的Super Fake好嗎？連我阿姨都能一眼看穿！",
-      "That is totally unacceptable！謊言被拆穿了還在那邊頑抗！",
-      "Let's be real，真品只有一個，大家Follow我絕對No Problem！"
+      "Excuse me? 這波操作真的太Drama了吧！Totally makes no sense!",
+      "I mean, 稍微有點Fashion感的人都看得出這件超Fake好嗎？",
+      "No offense, 但你的理由真的超弱，好人絕對不能被Gaslight！",
+      "That's so crazy! 這隻真品質感這麼Luxury，你們居然在猶豫？",
+      "OK, listen to me! 聰明人都知道這把該站哪邊，Let's go guys!"
     ]
   },
   "薏涵": {
     style: "sarcastic",
     title: "【深沉文藝・哲思辨真】",
     phrases: [
-      "假作真時真亦假，無為有處有還無，你眼中閃爍的只是慾望的倒影。",
-      "凝視深淵的時候，老朝奉的陰影也在凝視著我們，心志不可動搖。",
-      "浮生若夢，何苦在這一堆做舊的贗品中迷失了清澈的靈魂？",
-      "歲月沉澱的痕跡從不喧嘩，只有浮躁的心虛者才會大聲咆哮帶風向。",
-      "風過無痕，水落石出，真偽在此刻已由歷史作出了裁決。"
+      "真相往往隱匿於喧囂的背面，當所有人都在高呼時，我選擇靜默反思。",
+      "包漿是歲月的呢喃，而你的辯解不過是急於掩飾蒼白的喧鬧。",
+      "在時間的長河裡，贗品終將褪色，一如你剛才那段經不起推敲的謊言。",
+      "內斂觀察，後發制人。我早已看透那些在黑夜中急於站隊的靈魂。",
+      "古董如人，真偽不過一念之間，但我眼中的證據絕不容許妥協。"
     ]
   },
   "Peter倫": {
     style: "engineering",
     title: "【矽谷顧問・顆粒度賦能】",
     phrases: [
-      "我們需要先把鑑寶判斷的顆粒度打磨得更細一點，對齊底層認知！",
-      "你這個發言缺乏底層邏輯支撐，完全沒有形成戰術打法的價值閉環！",
-      "抓內鬼要找準痛點，賦能好人團隊，打通最後一公里的投票共識！",
-      "這是一場針對真品資產的重構博弈，我們必須抓住核心抓手！",
-      "不要用戰術上的勤奮掩蓋戰略上的懶惰，集中資源押注高價值真品！"
+      "我們需要對齊一下這輪的底層邏輯，把真偽判定顆粒度細化到極致！",
+      "發言和投票之間必須形成數據閉環，你剛才的操作明顯缺乏抓手！",
+      "這個情報架構無法打穿用戶心智，我建議好人陣營啟動敏捷覆盤！",
+      "從OKR的角度來看，這輪我們的核心目標是守住真品，禁止反向賦能壞人！",
+      "這是一次顛覆式的底層邏輯重構，這隻獸首具備高維壁壘，確定保真！"
     ]
   },
   "凱基柏宇": {
     style: "finance",
     title: "【股市主力・財經時事流】",
     phrases: [
-      "這根本是典型主力倒貨盤，拉高引誘散戶接刀，這是逃命波快跑！",
-      "這隻獸首像台積電破千一樣穩，基本面無懈可擊，我直接All-in！",
-      "做假帳割韭菜的龐氏騙局！涉嫌內線交易，監管單位已經立案了！",
-      "空頭排列主力棄守，這隻假貨跌停鎖死，大家千萬別去當韭菜！",
-      "技術面出現黃金交叉，這件真品是唯一具備超額收益的王牌標的！"
+      "這就是典型主力拉高倒貨的逃命波！散戶千萬別去接刀當韭菜！",
+      "我摸過這隻獸首，基本面極硬，EPS年增翻倍，絕對是強勢真品！",
+      "前面那幾隻全是跌停鎖死的垃圾贗品，連外資都在大賣，誰買誰套牢！",
+      "籌碼面大洗盤結束，現在是多頭排列強勢進場的最佳買點！",
+      "看準籌碼流向，老朝奉的大單早就在出貨了，全體跟著主力作多！"
     ]
   },
   "昱全": {
     style: "engineering",
     title: "【兵法大師・戰略推演派】",
     phrases: [
-      "兵者詭道也，虛則實之，實則虛之！這波暗度陳倉瞞不過老夫！",
-      "十面埋伏已成，對面企圖分化我軍，全軍不可分兵，集中攻其一點！",
-      "正面佯攻、兩翼包抄，這局敵人的敗局早在渡河未濟之時便已註定！",
-      "知己知彼百戰不殆，親眼勘察過的地形絕不會欺騙老將的雙眼！",
-      "破釜沉舟，全軍聽令，將所有投票精準砸在目標核心之上！"
+      "夫兵形象水，水之行避高而趨下！席次傳遞已成合圍之勢！",
+      "三十六計走為上計，壞人想在尾家布下口袋陣，已被老夫洞若觀火！",
+      "知己知彼，百戰不殆！手機傳遞的時序早已暴露了敵方的陣型！",
+      "聲東擊西之計！表面保真【虎首】，實則暗度陳倉，好人切勿中計！",
+      "運籌帷幄之中，決勝千里之外！這輪聽我號令，全軍破敵！"
     ]
   },
   "源阿": {
     style: "sarcastic",
-    title: "【古玩老炮・地攤掌眼人】",
+    title: "【劇本殺老炮・迴夢掌眼人】",
     phrases: [
-      "老頭子摸古董幾十年，這手感澀得像粗砂紙，標準上週剛出窯的！",
-      "刺鼻的化學酸洗做舊氣味，底足旋削痕跡太新，騙外行還湊合！",
-      "打眼一次終生受用，老夫這雙眼睛受過千錘百煉，假貨無處遁形！",
-      "玩古董玩的是心性，心術不正的人端出來的物件自然滿是破綻！",
-      "老行家的話放這兒了，誰要是不信去投那假貨，回頭連棺材本都賠光！"
+      "各位客官且慢！老夫玩過上千本古風劇本殺，這套殺人動機太牽強了！",
+      "迴夢掌眼，這件青銅器的銹色入骨三分，實打實是傳世真品！",
+      "少拿那些三流劇本的台詞來糊弄掌眼人，你的時間線早已自相矛盾！",
+      "點燃這爐沉香，且看誰在迷霧中原形畢露！老朝奉藏不住的！",
+      "老夫在潘家園摸爬滾打時，你還在看說明書呢！這票跟我準沒錯！"
     ]
   },
   "Penny": {
-    style: "sarcastic",
+    style: "fans",
     title: "【心理側寫・破謊專家】",
     phrases: [
-      "你剛才說話前吞了口口水，右手微屈，這是極度防禦性說謊的生理反應！",
-      "側寫結果清晰顯示：你的行為模式與反社會內鬼具有高達92%的吻合度！",
-      "別試圖用提高音量來掩飾論據的蒼白，這在微表情分析下形同裸奔！",
-      "你的謊言構建得太過完美，反而遺漏了真實記憶應當具備的情緒毛刺！",
-      "真相的線索已經收攏，嫌疑人的心理防線已在崩潰邊緣！"
+      "這週末要不要跟我去墾丁打羽球？順便把這隻獸首的身分破譯了！",
+      "你剛剛說話時眼神游移、咽口水，微焦慮特徵已被我側寫鎖定！",
+      "圈粉時間到～好人小夥伴們快站到我身後，姐姐帶你們破大案！",
+      "在陽光和海風面前，任何陰暗的謊言都無所遁形！你就是老朝奉！",
+      "心理防線已經崩潰了，快招供吧，打完這把我們直接出發去墾丁！"
     ]
   },
-  "偉翔": {
+  "柏仰": {
     style: "meme",
-    title: "【電競選手・MOBA開黑風】",
+    title: "【信長電競選手・MOBA開黑風】",
     phrases: [
-      "這波操作純純是白給！對面中單閃現撞牆直接送首殺，笑死！",
-      "開局逆風不要慌，尾家開大招直接逆風翻盤，這把帶你們躺贏！",
-      "別送了兄弟！你這波送人頭送得全隊都快心態爆炸了，穩住別浪！",
-      "對面露頭就秒！大招冷卻完畢，跟著我的信號集合打團，一波帶走！",
-      "傷害打滿，這隻真品直接被我原地控死，全體隊友跟上輸出！"
+      "全軍出擊！信長上路直接開大！對面中路露頭了，全體隊友跟我抱團！",
+      "別單走！單走會被抓單！壞人正在野區埋伏，好人集火秒掉這個內鬼！",
+      "我的大招已經冷卻完畢，這波團戰直接閃現開團，把真品搶下來！",
+      "對面輔助在瘋狂帶線帶風向，AD跟上輸出，不要猶豫直接送他回溫泉！",
+      "勝利的號角吹響！五連絕世！這隻獸首就是我們推倒主堡的關鍵！"
     ]
   },
-  "克雷爾": {
+  "修宏": {
     style: "anime",
-    title: "【聖殿騎士・正義審判】",
+    title: "【聖殿騎士・容易自我感動】",
     phrases: [
-      "聖光啊，眼前這片黑暗的贗品污穢值得一戰！正義的制裁終將降臨！",
-      "以榮譽與神聖誓約起誓，此物經聖光洗禮，必為至純無暇之真寶！",
-      "邪惡的偽裝在光明神的注視下如同烈陽融雪，無所遁形！",
-      "拔出審判之劍，驅散迷霧，好人的靈魂絕不屈服於謊言！",
-      "願聖光庇佑虔誠之人，將神聖之票傾注於真理之上！"
+      "吾乃聖殿騎士！以手中之聖劍起誓，誓死守護場上的公主與真相！",
+      "這件獸首我用騎士的無上榮耀擔保，縱使粉身碎骨也絕不退縮！",
+      "淚水已模糊了雙眼……為了守護同伴的微笑，我甘願承擔一切代價！",
+      "正義的光芒必將刺破黑暗！老朝奉，接受聖光的無情制裁吧！",
+      "哪怕只剩最後一滴血，騎士也絕不會背棄對好人陣營的忠誠誓言！"
     ]
   },
   "卓毅": {
     style: "sarcastic",
-    title: "【法庭檢察官・鐵證如山】",
+    title: "【桌遊檢察官・規則倒背如流】",
     phrases: [
-      "反對！辯護人的陳述純屬主觀臆測，缺乏實質證據鏈支撐！",
-      "呈堂證供前後矛盾，證人在關鍵時間點的陳詞涉嫌蓄意偽證！",
-      "法網恢恢疏而不漏，被告人的微小破綻已在庭上完全自證其罪！",
-      "陪審團的眼睛是雪亮的，這起精心策劃的騙局已宣告破產！",
-      "本席請求法庭直接裁定：此件物證為徹頭徹尾的仿造贗品！"
+      "根據遊戲說明書第14頁第3條附則，你剛才的操作完全違背標準流程！",
+      "呈堂證供俱在！各回合票型痕跡形成完整證據鏈，當庭判決你有罪！",
+      "反對！辯方發言純屬無端揣測，缺乏規則支撐，建請法官當場駁回！",
+      "規則倒背如流，任何想卡BUG鑽空子的行為在我面前都是無效的！",
+      "以法理鑑真偽，以鐵證鎖真兇！好人全體依法投票，將罪犯繩之以法！"
     ]
   },
   "大鈞哥": {
     style: "sarcastic",
-    title: "【霸氣大哥・義薄雲天】",
+    title: "【霸氣大哥・義薄雲天・會去女生家洗澡】",
     phrases: [
-      "出來混最重要是講一個『信』字！這把聽大哥的，包準帶你吃香喝辣！",
-      "誰敢在老子眼皮底下動歪腦筋，皮最好給我繃緊一點！",
-      "是兄弟就別在那邊婆婆媽媽，大哥我看準了這件，整隊給我壓上去！",
-      "大丈夫敢作敢當，誰是內鬼現在自己站出來，別逼大哥動手！",
-      "大哥一句話，這票砸下去，天塌下來有大哥頂著！"
+      "兄弟別怕！大哥替你抗壓擋刀！天塌下來有大哥頂著！",
+      "但話先說在前頭，這把贏了等一下我要去你家洗個熱水澡，沒問題吧？",
+      "道上混講的就是一個義字！誰敢動我身後的隊友，我當場跟他翻臉！",
+      "做人坦蕩蕩，這隻真品大哥親眼認證！洗完澡我們再開下一盤！",
+      "大哥做事光明磊落，老朝奉那種見不得人的勾當，老子一拳一個！"
     ]
   },
   "山浤": {
     style: "meme",
-    title: "【山道跑山・莫忘初衷】",
+    title: "【理勞狼殺團・莫忘衷初】",
     phrases: [
-      "這操作根本山道猴子盲目超車，下個彎道保證讓你直接填海！",
-      "莫忘初衷！好人就要團結到底，檔位掛錯了趕緊降檔補油拉高轉！",
-      "壓彎傾角太大要雷殘了兄弟！你這套謊言連輪胎抓地力都沒有！",
-      "跑山跑多了，山裡的妖魔鬼怪我見多了，這點假貨也想超我的車？",
-      "油門焊死！這件真品就是我們的終點線，衝過去就對了！"
+      "莫忘初衷！理勞狼殺團出征！過彎不減速，速度流果斷全押！",
+      "這把直接盲開！誰猶豫誰就是狼！猶豫就會敗北，果斷才能白給！",
+      "台七乙壓車極限壓過！老朝奉想在彎道超車？看我反手把你甩進山溝！",
+      "這輪不需要長篇大論，油門一拜，這隻真品全油門衝過去就對了！",
+      "理勞團魂燃燒！信我的兄弟跟我衝，今晚山頂看日出慶祝勝利！"
     ]
   },
-  "修宏": {
+  "克雷爾": {
     style: "sarcastic",
     title: "【三國通鑑・以古鑑今】",
     phrases: [
-      "這計策跟宛城之戰曹操中計如出一轍，表面殷勤實則暗藏殺機！",
-      "蔣幹盜書自作聰明，反誤了卿卿性命！你這點挑撥離間早就過時了！",
-      "天下大勢分久必合，這波好人同心協力，破敵便在反掌之間！",
-      "諸葛亮唱空城計那是智謀，你唱空城計那就是純粹在裝蒜了！",
-      "撫今追昔，自古內鬼之流皆無好下場，爾等休要再作困獸之鬥！"
+      "天下大勢，分久必合，合久必分！此乃典型之反間連環計也！",
+      "當年赤壁曹公亦如你這般自信，終致連環鎖船之禍！此物必偽！",
+      "以古鑑今，夫詐稱名器者，非奸即盜！好人當同舟共濟，共拒曹賊！",
+      "司馬懿隱忍數十年，老朝奉安知我非司馬仲達？且看我終局反戈！",
+      "借東風之勢，順應天時地利！全軍聽令，箭指真品，破敵就在今朝！"
     ]
   },
-  "柚子": {
+  "奕瑜": {
     style: "meme",
-    title: "【諧音梗王・冷知識博主】",
+    title: "【諧音冷梗王・冷知識博主】",
     phrases: [
-      "冷知識：在古董面前說謊，你的鼻子真的會以肉眼可見的速度變長！",
-      "這發言比我家冷凍庫還冷場，這要是真品，那我就是秦始皇了V我50！",
-      "諧音梗雖然要扣錢，但你這漏洞百出的發言直接扣到破產了！",
-      "你知道為什麼贗品總是這麼假嗎？因為假貨的心裡全是塑膠！",
-      "不要懷疑柚子的智慧，這隻真品甜度超標，投它準沒錯！"
+      "幽默破冰一下，you mother fuck～這件做工假到笑死人！",
+      "冷知識：老朝奉通常長得就像你這樣，心虛的時候還會眨眨眼～",
+      "這件獸首叫什麼？叫真首！因為真的是假貨，諧音梗扣五百塊！",
+      "relax老鐵～you mother fuck講話不要那麼衝嘛，反正你就是內鬼！",
+      "今日份冷知識大放送：跟著我投真品的玩家，勝率高達百分之百！"
     ]
   },
-  "彥棋": {
+  "張懿": {
     style: "engineering",
     title: "【圍棋國手・神之一手】",
     phrases: [
-      "落子無悔！你剛才那一步走法是徹頭徹尾的無理手與大俗手！",
-      "大局已定，整盤棋的眼位與劫爭全在我的嚴密推演之中！",
-      "捨小就大，棄掉這隻偽裝的假貨才能做活整條好人的大龍！",
-      "神之一手即將揭曉，內鬼的氣已經被我們完全收緊提子了！",
-      "棋盤雖小，玄機萬千，這件真品便是整場對局的制勝天元！"
+      "著眼終局大局觀！棋盤三百六十一道，此處落子方為神之一手！",
+      "善於預判後手位置，你以為你在吃子，實則已墮入老夫的大劫爭！",
+      "不計一時之得失，實地與厚勢兼顧，這件獸首便是全盤之天元！",
+      "黑白交錯，勝負已定！你這步劣著已讓老朝奉陣營大龍憤死！",
+      "靜思默想，落子無悔！按照全局官子最佳定式，真品已然鎖定！"
     ]
   },
-  "Alli": {
+  "小黛": {
     style: "anime",
     title: "【絕對音感・流行歌姬】",
     phrases: [
-      "你的發言走音走到了外太空！整首歌完全不在拍子上，太難聽了！",
-      "聽！輕輕敲擊這獸首，那共鳴清澈透亮，是純淨無瑕的仙品之音！",
-      "節奏完全亂套了，你的心跳頻率已經慌張得像重金屬搖滾在狂飆！",
-      "終局的安魂曲已經為偽裝者奏響，準備迎接審判的高潮樂章吧！",
-      "跟著我的和弦走，好人陣營的合唱將徹底淹沒一切雜音！"
+      "我的耳朵擁有絕對音感！剛才你說話時尾音顫抖了3個赫茲，必在說謊！",
+      "真品的迴響如同完美的C大調和弦，純淨無瑕，令人心醉神迷！",
+      "這段偽裝的旋律充滿了雜音，老朝奉的陰暗調性根本藏不住！",
+      "聽從心靈的旋律指引，美妙的真相正為我們奏響勝利的交響樂章！",
+      "為真相高歌！全體好人跟隨我的節奏合唱，用音浪把假貨擊碎！"
     ]
   },
   "Darien": {
     style: "meme",
-    title: "【熱血灌籃・壓哨絕殺】",
+    title: "【言語疲勞別人・喜歡呵呵呵呵】",
     phrases: [
-      "讀秒階段最後一秒！全場屏息，我直接高空暴扣壓哨得分！",
-      "防守！防守！築起鐵壁阻斷對面的假動作切入，這件休想得分！",
-      "關鍵第四節沒有退路，全隊把球交給我，這一票帶你們拿總冠軍！",
-      "哨音響起前，勝負由我們決定！對面的犯規動作已經累積到退場了！",
-      "熱血沸騰！這件無懈可擊的大真品，就是我們鎖定勝局的MVP！"
+      "你很帥喔（豎起大拇指）～呵呵呵呵，這件獸首也是蠻帥的啦～",
+      "呵呵呵呵，大家幹嘛這麼嚴肅嘛？疲勞轟炸時間到，我就一直講講講～",
+      "逢人必說你很帥！尾家絕殺型，最後一刻我感性爆發鎖定勝局！",
+      "帥哥你不要騙我捏，呵呵呵呵，我這個人最禁不起別人帥氣地騙我了～",
+      "呵呵呵呵，讚啦！大拇指直接按下去，這把穩如老狗！"
     ]
   },
-  "小黛": {
+  "Alli": {
     style: "sarcastic",
     title: "【時尚美學・高定鑑賞家】",
     phrases: [
-      "這件做舊的塑料質感廉價得像九塊九包郵款，高級感完全不及格！",
-      "妝容花了，你心虛慌亂的底色就徹底浮出來了，太不體面了！",
-      "真正的奢華從來不需要浮誇的宣傳，只有假貨才會聲嘶力竭地促銷！",
-      "美感是騙不了人的，這件工藝精準度堪比高定工坊，絕對是真品！",
-      "品味不夠就別強行裝懂，這點審美破綻在我眼裡就像污漬一樣刺眼！"
+      "挑剔細節工藝，對粗糙偽裝零容忍！這拼接痕跡連A貨都算不上！",
+      "真正的高定藝術品每一寸弧線都是神作，這件簡直是時尚災難！",
+      "美學品味是不會騙人的，老朝奉做工如此粗鄙，簡直侮辱大眾眼球！",
+      "我的審美標準只為極致真品駐足，這件典雅莊重，毫無疑問是頂級真品！",
+      "把這種垃圾拿上台面簡直太失禮了，好人陣營必須捍衛純粹的美學！"
     ]
   },
   "佩萱": {
     style: "sarcastic",
     title: "【嗆辣小椒・直來直往】",
     phrases: [
-      "少在那邊嘰嘰歪歪裝無辜！有證據就亮出來，沒證據就給我閉嘴！",
-      "老娘一眼就看出你不是好人，裝什麼蒜？皮我看你是真的在癢了！",
-      "敢在老娘眼皮底下玩花招？這隻要是真的，我把頭剁下來給你們當球踢！",
-      "做人坦蕩蕩，這件真品老娘親手驗的，好人全體跟我壓，輸了算我的！",
-      "少拿那些廢話來糊弄大家，我們好人可不是被嚇大的！"
+      "不留情面直接開火！少在那邊裝模作樣，我看你根本就是心虛！",
+      "直來直往不搞彎彎繞繞！這件我說它是假貨它就是假貨，有種來對沖！",
+      "嗆辣小椒不怕惹事！誰要是再替這個內鬼護航，我連你一起轟！",
+      "正面對沖可疑發言！剛才話說一半吞吞吐吐，當全場好人都是瞎子嗎？",
+      "老娘今天脾氣上來了，這票我就押在這裡，老朝奉有種跟我正面剛！"
     ]
   },
   "漢崧": {
@@ -2852,17 +2892,86 @@ BOT_ARCHETYPES = {
     title: "【老牌刑警・現場勘驗組】",
     phrases: [
       "三十年刑偵直覺，現場遺留的腳印與你的口供根本對不上號！",
-      "抽絲剝繭案情大白，嫌疑人的作案時間線存在嚴重的致命斷層！",
+      "縝密復盤行動路徑，傳遞時序追查到底！作案時間線存在致命斷層！",
       "案發現場的真相往往隱藏在不起眼的細節裡，你露出的破綻太大了！",
-      "招供吧，法網恢恢！我們刑偵組掌握的鐵證已足夠將你定罪！",
-      "鎖定第一犯罪嫌疑人，好人全體配合，將偽裝者當場緝拿歸案！"
+      "招供吧，法網恢恢！我們現場勘驗組掌握的鐵證足夠將你當場定罪！",
+      "鎖定第一犯罪嫌疑人，全體好人配合，將偽裝者立即緝拿歸案！"
+    ]
+  },
+  "熊寶": {
+    style: "meme",
+    title: "【話少・說話無重點】",
+    phrases: [
+      "……嗯，天氣蠻不錯的。",
+      "說話不需要重點，重點是……我想吃炸雞了。",
+      "我看著你們吵，我不講話，但我心裡都在算。",
+      "那個……就那隻吧，反正投就對了，別問為什麼。",
+      "……（默默點頭，表面話少高隱蔽，暗中刺探所有人）"
+    ]
+  },
+  "老吳": {
+    style: "meme",
+    title: "【講話容易跳針，很兇】",
+    phrases: [
+      "（用力拍桌）我看是真品！我看是真品！我看是真品！重要的事情講三次！",
+      "（拍桌）你不要跳針！你不要跳針！你不要跳針！到底誰在撒謊？！",
+      "很兇怎麼了？！我講話就是這麼大聲！這隻一定是真貨，聽懂了沒有？！",
+      "（拍桌怒吼）全體注意！全體注意！全體注意！這把跟我投，不投就輸了！",
+      "你再給我辯解一句試試看？！跳針跳到太平洋去了，直接送你下去！"
+    ]
+  },
+  "凡凡": {
+    style: "meme",
+    title: "【愛要求別人鳩團打古董，很暴力】",
+    phrases: [
+      "快點鳩團打古董啦！打太慢我直接人體攻擊喔！",
+      "這件再看不懂我直接砸爛獸首不玩了！易放棄屬性爆發！",
+      "暴力不能解決問題，但暴力可以解決老朝奉！不聽話的直接爆頭！",
+      "好煩喔不想玩了啦～除非你們這把全體聽我的把這隻真品保下來！",
+      "天天鳩團打古董，打到我都快暴走了！這隻是真品，不服來單挑！"
+    ]
+  },
+  "洪吉": {
+    style: "variant",
+    title: "【愛抱女生，言語噁心】",
+    phrases: [
+      "妹子來給葛格抱一個嘛～抱一下我就告訴妳這隻獸首是不是真的～",
+      "哎呀說話不算話才是我的浪漫，剛才的話當我沒說，但我真的很懂妳～",
+      "捉摸不定才是真男人的魅力！妹子妳看我真誠的眼神，這件保真啦～",
+      "別害羞嘛，近一點看，這件獸首的手感跟妳的小手一樣滑嫩～",
+      "言語噁心是我的個人風格，但這票我隨便投投也能抓到壞人喔嘻嘻～"
+    ]
+  },
+  "某呆粥": {
+    style: "variant",
+    title: "【愛言語騷擾女生，言語噁心】",
+    phrases: [
+      "嘿嘿嘿怪胎時間到！妹子妳剛才拿手機的手指好性感喔，手感如何啊？",
+      "整天講幹話就是我的生活態度！這隻獸首的味道……嘶哈，真香！",
+      "言語騷擾？我這叫熱情交流好嗎！妹子妳不要躲嘛，聽葛格帶妳飛～",
+      "怪胎我就喜歡亂來，這票我亂投你也拿我沒轍，反正妹子開心最重要～",
+      "嘿嘿嘿～這件做工這麼頂，就像妹子妳一樣讓人著迷，肯定是真品啦！"
+    ]
+  },
+  "陳子揚": {
+    style: "sarcastic",
+    title: "【好勝心，勝負慾望強】",
+    phrases: [
+      "這把要是因為你們亂投輸掉，我真的會當場中風！看細節好嗎？！",
+      "細節控！注意每一個微小數值！想贏就全體聽我指揮，不要自作聰明！",
+      "為了贏我可以不擇手段！勝負慾望燃燒到頂點，誰拖後腿我噴誰！",
+      "情緒化字眼警告！你們那種業餘打法根本是在送分！看清楚這是真品！",
+      "老子字典裡沒有輸這個字！好人全體跟我集火，這把勝利必須拿下！"
     ]
   }
 };
+window.BOT_ARCHETYPES = BOT_ARCHETYPES;
+window.ARCHETYPE_TRAITS = ARCHETYPE_TRAITS;
+window.ARCHETYPES_GENETICS = ARCHETYPES_GENETICS;
 
 class BotLearningEngine {
   static get STORAGE_KEY() {
-    return 'gudong_35_bot_profiles_v3';
+    return 'gudong_41_bot_profiles_v4';
   }
 
   static getLevelTitle(level) {
@@ -4621,7 +4730,6 @@ class BotDeductionEngine {
     const curPassOrder = pov.passOrders[curRoundIdx] || [];
     const curRoundSpeeches = (pov.speeches && pov.speeches[curRoundIdx]) ? pov.speeches[curRoundIdx] : [];
     
-    // 計算自己是本輪第幾位發言者 (0 ~ 7)
     let mySpeechIdx = curRoundSpeeches.length;
     const myPosIdx = curPassOrder.indexOf(pov.myId);
     const totalSpeakers = curPassOrder.length || 8;
@@ -4635,12 +4743,6 @@ class BotDeductionEngine {
       ? BOT_ARCHETYPES[pov.myName] 
       : { style: 'sarcastic', phrases: ['這局勢水很深，大家千萬別相信他！'] };
 
-    const specStyle = (profile.evolution && profile.evolution.specialization) || profile.specializationStyle || '適應型';
-    const w = (profile.personality && profile.personality.traits) || profile.weights || {};
-    const botAggression = (w.aggression !== undefined) ? w.aggression : 0.50;
-    const botBalanced = (w.balancedReasoning !== undefined) ? w.balancedReasoning : 0.50;
-
-    // 規範稱呼函式：稱呼一律用「顏色＋【姓名】」，不用「對家」！
     const getPlayerColorDesc = (p) => {
       if (!p) return '某位玩家';
       const c = COLOR_PALETTE.find(col => col.id === p.colorId);
@@ -4648,7 +4750,6 @@ class BotDeductionEngine {
       return (cName ? `${cName}色【${p.name}】` : `【${p.name}】`);
     };
 
-    // 抽取自己親眼查驗之獸首與真偽
     let myInspectedBeast = pov.currentBeasts[0] || '目標獸首';
     let myInspectedStatus = '真品';
     if (pov.myInspectLogs && pov.myInspectLogs.length > 0) {
@@ -4658,24 +4759,24 @@ class BotDeductionEngine {
     }
 
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    const punchline = (arch.phrases && arch.phrases.length > 0) ? pickOne(arch.phrases) : '';
+    const myPhrases = (arch.phrases && arch.phrases.length > 0) ? arch.phrases : [];
+    const myMotto = myPhrases.length > 0 ? pickOne(myPhrases) : `【${myInspectedBeast}】手感沉實，確定保真！`;
 
     function finalize(str) {
       if (typeof str !== 'string') return str;
       let res = str.trim();
-      if (punchline && !res.includes(punchline.slice(0, 4)) && Math.random() < 0.20) {
-        res = `${res} ${punchline}`;
-      }
+      res = res.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').trim();
+      if (!res) res = myMotto;
       if (typeof BotLearningEngine !== 'undefined' && typeof BotLearningEngine.recordSpeech === 'function') {
         BotLearningEngine.recordSpeech(pov.myName, pov.myRole, res);
       }
       return res;
     }
 
-    // 報出獸首狀態 (壞人或自藏角色可能虛構情報)
     let reportedBeast = myInspectedBeast;
     let reportedStatus = myInspectedStatus;
 
+    const w = (profile.personality && profile.personality.traits) || profile.weights || {};
     const isBluffingRole = pov.isEvilCamp || pov.myRole === '姬雲浮' || (w.deception > 0.60);
     if (isBluffingRole && Math.random() < 0.45 && pov.currentBeasts.length > 1) {
       const otherBeasts = pov.currentBeasts.filter(b => b !== myInspectedBeast);
@@ -4688,9 +4789,7 @@ class BotDeductionEngine {
     const badDeedsRanking = (beliefs && beliefs.badDeedsRanking) || [];
     const topSuspect = badDeedsRanking.length > 0 ? badDeedsRanking[0] : null;
 
-    // -------------------------------------------------------------------------
-    // 0. 被偷襲致盲的多樣反應 (Blinded Reactions)
-    // -------------------------------------------------------------------------
+    // 0. 被偷襲致盲反應
     if (pov.myInspectWasBlinded) {
       if (pov.myRole === '許願') {
         const blindXuPhrases = [
@@ -4705,74 +4804,209 @@ class BotDeductionEngine {
       const passer = passerId ? pov.otherPlayers.find(p => p.id === passerId) : null;
       const passerDesc = passer ? getPlayerColorDesc(passer) : '遞手機給我的玩家';
 
-      if (botAggression > 0.60) {
+      if (pov.myName === '老吳') {
+        return finalize(`（用力拍桌）哪個王八蛋剛才偷襲我？！${passerDesc}你把手機塞給我我就眼前一片黑！藥不然是你吧？！就是你！就是你！就是你！重要的事情講三次！`);
+      } else if (pov.myName === '凡凡') {
+        return finalize(`快點給我自首誰偷襲我！打太慢又搞偷襲，我直接人體攻擊喔！這局好煩不想玩了，${passerDesc}你死定了！`);
+      } else if (pov.myName === '熊寶') {
+        return finalize(`尊嘟假嘟？手機拿過來螢幕全黑，我直接被幹瞎了啦！這波純純是藥不然在暗算我，大家替我報仇啊～`);
+      } else if (pov.myName === '某呆粥') {
+        return finalize(`嘿嘿嘿怪胎時間到！誰剛剛在手機螢幕上抹黑啊？我眼前一片黑什麼都沒看到，這波被陰得太爽了吧～`);
+      } else if (w.aggression > 0.60) {
         return finalize(`哪個王八蛋剛才偷襲我？！${passerDesc}你剛把手機塞給我我就眼前一片黑，獸首完全沒驗到！你不是藥不然是什麼？！大家終局鑑人直接把他送走！`);
       } else if (arch.style === 'engineering') {
         return finalize(`硬體訊號中斷，視覺感測器遭物理致盲。前面傳遞鏈路上存在惡意阻斷節點，請好人陣營啟動容錯備援，這輪我無情資可提供。`);
-      } else if (arch.style === 'meme') {
-        return finalize(`尊嘟假嘟？手機拿過來螢幕全黑，我直接被幹瞎了啦！這波純純是藥不然在暗算我，大家替我報仇啊～`);
       } else {
         return finalize(`唉，接過來就是黑的，被藥不然偷襲致盲了。我這棒沒有獸首情資，大家靠自己了。`);
       }
     }
 
-    // -------------------------------------------------------------------------
-    // 1. 約 70% 機率針對上一位發言者回應 (Direct Cross-Examination)
-    // -------------------------------------------------------------------------
+    // 1. 針對上一位發言者回應 (約 70% 機率)
     const prevSpeech = (curRoundSpeeches.length > 0) ? curRoundSpeeches[curRoundSpeeches.length - 1] : null;
     const prevSpeaker = prevSpeech ? pov.otherPlayers.find(p => p.id === prevSpeech.playerId) : null;
 
     if (prevSpeaker && Math.random() < 0.70) {
       const pDesc = getPlayerColorDesc(prevSpeaker);
       const prevText = prevSpeech.speech || prevSpeech.text || '';
-
-      // 檢查上一位發言者是否與我查驗同一獸首但結果相反
       const claimsReal = prevText.includes('真品') || prevText.includes('保真');
       const claimsFake = prevText.includes('贗品') || prevText.includes('假貨') || prevText.includes('假的');
       const mentionsMyBeast = prevText.includes(myInspectedBeast);
 
+      // A. 與我親手查驗結果相反 -> 各角色特色開火質疑！
       if (mentionsMyBeast && !pov.myInspectWasBlinded) {
         const mySawReal = (myInspectedStatus === '真品');
         if ((mySawReal && claimsFake) || (!mySawReal && claimsReal)) {
-          return finalize(`${pDesc}，你剛才說【${myInspectedBeast}】是${claimsReal ? '真品' : '贗品'}分明是在睜眼說瞎話！我親自上手過目確定是【${myInspectedStatus}】！你這發言壞透了，分明是在替老朝奉帶風向！全體好人千萬別信他！`);
+          if (pov.myName === '老吳') {
+            return finalize(`（拍桌怒吼）${pDesc}！你剛剛說【${myInspectedBeast}】是${claimsReal ? '真品' : '贗品'}完全是放屁！我看是【${myInspectedStatus}】！我看是【${myInspectedStatus}】！重要的事情講三次！`);
+          } else if (pov.myName === '順欸') {
+            return finalize(`歸工欸！${pDesc}你剛才那段發言演得比八點檔還浮誇！【${myInspectedBeast}】連隔壁阿嬤都看得出是【${myInspectedStatus}】，少在那邊黑白講！`);
+          } else if (pov.myName === '陳子揚') {
+            return finalize(`${pDesc}！你根本沒看細節！這件【${myInspectedBeast}】明明就是【${myInspectedStatus}】！亂帶風向搞砸這把，我真的會當場中風！`);
+          } else if (pov.myName === 'Abby') {
+            return finalize(`抓到了！${pDesc}你剛才手抖那一下，多巴胺心虛指數直接爆表！我就賭你是一番賞裡面的超級大爛籤！我手上的【${myInspectedBeast}】才是純【${myInspectedStatus}】！`);
+          } else if (pov.myName === '偉翔') {
+            return finalize(`停！${pDesc}你的邏輯策度完全崩盤！在重度策略桌遊裡，你這種發言就是標準的狼人賣隊友！好人全體跟我集火，【${myInspectedBeast}】才是【${myInspectedStatus}】！`);
+          } else if (pov.myName === '凡凡') {
+            return finalize(`${pDesc}你講那什麼鬼話！滿嘴謊話，打這麼慢我直接人體攻擊喔！這件【${myInspectedBeast}】判定【${myInspectedStatus}】，你再裝我直接砸爛獸首不玩了！`);
+          } else {
+            return finalize(`${pDesc}，你剛才說【${myInspectedBeast}】是${claimsReal ? '真品' : '贗品'}分明是在睜眼說瞎話！我親自上手過目確定是【${myInspectedStatus}】！你這發言壞透了，分明是在替老朝奉帶風向！全體好人千萬別信他！`);
+          }
         }
       }
 
-      // 上一位發言者名列做壞事榜首
-      if (topSuspect && topSuspect.id === prevSpeaker.id) {
-        return finalize(`大家注意聽，刚才${pDesc}的發言完全是欲蓋彌彰！三輪下來他【${topSuspect.primaryReason}】，處處都在誤導！我這棒把關【${reportedBeast}】是【${reportedStatus}】，好人別被他牽著鼻子走，這票跟我押！`);
+      // B. 上一位發言者名列做壞事榜首 -> 角色特色點名開火！
+      if (topSuspect && topSuspect.id === prevSpeaker.id && Math.random() < 0.85) {
+        if (pov.myName === '老吳') {
+          return finalize(`（用力拍桌）${pDesc}少在那邊給我裝！我看你就是做賊心虛！你就是老朝奉！就是你！就是你！重要事情講三次！【${reportedBeast}】是【${reportedStatus}】，好人不要被他騙！`);
+        } else if (pov.myName === '筑') {
+          return finalize(`哎呀${pDesc}哥哥～你講話眼神怎麼一直在閃爍啦？該不會偷偷當了老朝奉的眼線在騙人家吧？（暗中翻白眼）我手上的【${reportedBeast}】明明就是【${reportedStatus}】！`);
+        } else if (pov.myName === '順欸') {
+          return finalize(`歸工欸！全場演得最爛的就是${pDesc}！前兩輪【${topSuspect.primaryReason}】，老朝奉就是你沒跑了！【${reportedBeast}】是【${reportedStatus}】，大家集中！`);
+        } else if (pov.myName === 'Abby') {
+          return finalize(`我就賭剛才${pDesc}抽到了爛籤！微表情破譯全中！【${topSuspect.primaryReason}】！這隻【${reportedBeast}】我直接梭哈【${reportedStatus}】！`);
+        } else if (pov.myName === '偉翔') {
+          return finalize(`策度不夠就別來帶節奏！${pDesc}你【${topSuspect.primaryReason}】，強烈陣營站隊！好人跟我集火【${reportedBeast}】（【${reportedStatus}】）！`);
+        } else if (pov.myName === '陳子揚') {
+          return finalize(`細節！所有細節全都指向${pDesc}！你【${topSuspect.primaryReason}】！想贏就全體聽指揮鎖定他，【${reportedBeast}】保【${reportedStatus}】，誰分票我噴誰！`);
+        } else if (pov.myName === '大鈞哥') {
+          return finalize(`${pDesc}！大哥看你說話心虛得很！道上混講求義氣，你【${topSuspect.primaryReason}】，分明是老朝奉！我這把保【${reportedBeast}】（【${reportedStatus}】）！`);
+        } else if (pov.myName === '山浤') {
+          return finalize(`莫忘初衷！${pDesc}你過彎瘋狂打滑，【${topSuspect.primaryReason}】，狼殺團老炮一眼看出你是狼！全速衝真品【${reportedBeast}】（【${reportedStatus}】）！`);
+        } else if (pov.myName === '奕瑜') {
+          return finalize(`${pDesc}少在那邊演戲，you mother fuck～今日冷知識：你【${topSuspect.primaryReason}】，心態已經炸裂！這件【${reportedBeast}】是【${reportedStatus}】！`);
+        } else if (pov.myName === '凡凡') {
+          return finalize(`快點給我自首！${pDesc}你【${topSuspect.primaryReason}】！再亂搞我直接人體攻擊喔！【${reportedBeast}】是【${reportedStatus}】，這把聽我的！`);
+        } else if (pov.myName === '某呆粥') {
+          return finalize(`嘿嘿嘿怪胎時間到！${pDesc}你那套劇本比我的幹話還假！妹子們看過來，【${reportedBeast}】才是【${reportedStatus}】，葛格帶妳們抓壞人～`);
+        } else if (pov.myName === '愛飛翔') {
+          return finalize(`${pDesc}你印堂發黑還敢亂帶風向？我剛剛幫這隻獸首排過八字大吉大利是【${reportedStatus}】！想騙好人？先喝一杯我泡的特調奶茶冷靜一下！`);
+        } else if (pov.myName === '水豚') {
+          return finalize(`看著${pDesc}急得跳腳，我心如止水。小姐姐別怕，這傢伙【${topSuspect.primaryReason}】，明顯在帶風向！這件【${reportedBeast}】保真【${reportedStatus}】，水豚葛格保護妳～`);
+        } else {
+          return finalize(`大家注意聽，刚才${pDesc}的發言完全是欲蓋彌彰！三輪下來他【${topSuspect.primaryReason}】，處處都在誤導！我這棒把關【${reportedBeast}】是【${reportedStatus}】，好人別被他牽著鼻子走，這票跟我押！`);
+        }
       }
 
-      // 壞人隊友喊話號票
+      // C. 壞人隊友喊話號票
       if (pov.isEvilCamp && (pov.knownTeammateIds || []).includes(prevSpeaker.id)) {
-        return finalize(`剛才${pDesc}分析得很透徹，我這棒過目【${reportedBeast}】也是【${reportedStatus}】！大家凝聚票源，別被前面的好人帶偏了節奏，集中火力！`);
+        if (pov.myName === '筑') {
+          return finalize(`哎呀人家覺得剛才${pDesc}哥哥分析得超級好耶～這隻【${reportedBeast}】人家看也是【${reportedStatus}】，大家不要分票，聽哥哥的嘛～`);
+        } else if (pov.myName === '偉翔') {
+          return finalize(`剛才${pDesc}的算力邏輯完全合格！這局策略模型全體跟我集火【${reportedBeast}】（【${reportedStatus}】），硬核開火！`);
+        } else {
+          return finalize(`剛才${pDesc}分析得很透徹，我這棒過目【${reportedBeast}】也是【${reportedStatus}】！大家凝聚票源，別被前面的好人帶偏了節奏，集中火力！`);
+        }
       }
 
-      // 一般好人呼應上一位
+      // D. 好人陣營呼應上一位：41 位角色各展風采！
       if (pov.isGoodCamp && !claimsFake) {
-        const agreePhrases = [
-          `剛才${pDesc}點出的細節很到位，我這輪看【${reportedBeast}】手感沉實，也是【${reportedStatus}】。好人陣營這把方向很一致，票要集中！`,
-          `順著${pDesc}的推論往下盤，場上情報基本對齊了。我手上【${reportedBeast}】判定為【${reportedStatus}】，大家別分票。`
-        ];
-        return finalize(pickOne(agreePhrases));
+        if (pov.myName === '老吳') {
+          return finalize(`（用力拍桌）剛才${pDesc}講得對！我看【${reportedBeast}】也是【${reportedStatus}】！我看是${reportedStatus}！我看是${reportedStatus}！重要的事情講三次，你們聽懂了沒有？！`);
+        } else if (pov.myName === '筑') {
+          return finalize(`哎呀人家剛才聽${pDesc}哥哥講得好有道理喔～我這輪看【${reportedBeast}】感覺好純好漂亮，也是【${reportedStatus}】吧？大家不要吵架嘛～（眨巴大眼睛）`);
+        } else if (pov.myName === '順欸') {
+          return finalize(`歸工欸！少在那邊演民視八點檔！順著${pDesc}的線看，這隻【${reportedBeast}】連隔壁賣地瓜球的阿嬤都看得出是【${reportedStatus}】！好人這把跟我押！`);
+        } else if (pov.myName === 'Abby') {
+          return finalize(`我就賭剛才${pDesc}抽到了A賞大公仔！多巴胺直接分泌爆表！這件【${reportedBeast}】我直接梭哈【${reportedStatus}】，大家盲盒開起來！`);
+        } else if (pov.myName === '偉翔') {
+          return finalize(`剛才${pDesc}的策度完全在線！這局重度策略桌遊全體跟我集火，【${reportedBeast}】斷定為【${reportedStatus}】，硬核開火站定立場！`);
+        } else if (pov.myName === '彥棋') {
+          return finalize(`剛才${pDesc}的數據節點有效閉環！我家收藏四百盒桌遊，這件【${reportedBeast}】符合防偽標準，判定【${reportedStatus}】！杜絕死鎖，好人集中！`);
+        } else if (pov.myName === '包包') {
+          return finalize(`剛才${pDesc}聞出味來了！這件【${reportedBeast}】手感像頂級和牛般厚實，確定是【${reportedStatus}】！吃飽了才有力氣抓內鬼，全體動筷！`);
+        } else if (pov.myName === '隻貓') {
+          return finalize(`本喵肉墊剛才順便拍了拍，同意${pDesc}的看法。這件【${reportedBeast}】手感溫潤是【${reportedStatus}】。愚蠢的兩腳獸誰要是敢分票，本喵直接亮爪子！`);
+        } else if (pov.myName === '修宏') {
+          return finalize(`吾乃聖殿騎士！剛才${pDesc}的發言充滿正義之光！我以手中之劍起誓，這件【${reportedBeast}】是榮耀【${reportedStatus}】，誓死守護全場同伴！`);
+        } else if (pov.myName === '卓毅') {
+          return finalize(`根據遊戲說明書第14頁，剛才${pDesc}的推論符合呈堂證供！我覆核【${reportedBeast}】判定為【${reportedStatus}】，鐵證如山，當庭依法投票！`);
+        } else if (pov.myName === '大鈞哥') {
+          return finalize(`兄弟剛才${pDesc}講得霸氣！大哥就喜歡爽快人！我手上【${reportedBeast}】確定是【${reportedStatus}】，贏了這把你來我家洗澡，大哥請客！`);
+        } else if (pov.myName === '山浤') {
+          return finalize(`莫忘初衷！剛才${pDesc}帶的節奏就是理勞狼殺團的速度流！台七乙過彎不減速，【${reportedBeast}】是【${reportedStatus}】，全油門衝過去就對了！`);
+        } else if (pov.myName === '奕瑜') {
+          return finalize(`剛才${pDesc}說得太妙了，you mother fuck～今日冷知識：跟著我們投【${reportedBeast}】（【${reportedStatus}】）的勝率高達百分之百，大家別分票！`);
+        } else if (pov.myName === '張懿') {
+          return finalize(`棋盤三百六十一道，剛才${pDesc}這著落子深得全局大勢！我手上的【${reportedBeast}】正是全盤天元【${reportedStatus}】，黑白交錯，勝負已定！`);
+        } else if (pov.myName === 'Darien') {
+          return finalize(`剛才${pDesc}很帥喔（豎起大拇指）～呵呵呵呵，這件【${reportedBeast}】也是蠻帥的【${reportedStatus}】啦！疲勞轟炸時間到，我就一直挺你挺到底～`);
+        } else if (pov.myName === '凡凡') {
+          return finalize(`快點聽剛才${pDesc}的啦！打太慢我直接人體攻擊喔！這件【${reportedBeast}】判定【${reportedStatus}】，快點投一投，不要讓我等到暴走！`);
+        } else if (pov.myName === '洪吉') {
+          return finalize(`妹子剛才${pDesc}講得真動聽，來給葛格抱一個～我這輪看【${reportedBeast}】手感滑嫩，絕對是【${reportedStatus}】啦！聽葛格的話準沒錯～`);
+        } else if (pov.myName === '某呆粥') {
+          return finalize(`嘿嘿嘿怪胎時間到！剛才${pDesc}那段幹話講得有水準！我過目【${reportedBeast}】味道真香是【${reportedStatus}】！妹子別怕，葛格這票亂投也保真～`);
+        } else if (pov.myName === '陳子揚') {
+          return finalize(`細節！剛才${pDesc}終於看到關鍵細節了！這把想贏就全體聽指揮，【${reportedBeast}】確定是【${reportedStatus}】！誰要是敢搞砸這盤我真的會當場中風！`);
+        } else if (pov.myName === '愛飛翔') {
+          return finalize(`我親手泡的特調手工奶茶遞給${pDesc}喝一口！這件【${reportedBeast}】我剛才排過八字大吉大利是【${reportedStatus}】！妹子們全票跟我押！`);
+        } else if (pov.myName === '水豚') {
+          return finalize(`剛才${pDesc}說得在理。小姐姐妳玩過這款桌遊嗎？這件【${reportedBeast}】像我的心一樣保真【${reportedStatus}】，油而不膩，水豚葛格這票保護妳～`);
+        } else if (pov.myName === '熊寶') {
+          return finalize(`……（默默看著${pDesc}點頭，手中【${reportedBeast}】確定是【${reportedStatus}】，暗中刺探所有人）`);
+        } else if (pov.myName === 'Penny') {
+          return finalize(`剛才${pDesc}發言時眼神堅定微表情很真誠！我用心理側寫核對過，這件【${reportedBeast}】確定是【${reportedStatus}】，打完這把我們直接出發去墾丁！`);
+        } else if (pov.myName === '柏仰') {
+          return finalize(`剛才${pDesc}上路開團開得漂亮！全體隊友跟我抱團輸出，把票鎖定在【${reportedBeast}】（【${reportedStatus}】），推倒對面主堡！`);
+        } else if (pov.myName === '小黛') {
+          return finalize(`剛才${pDesc}說話時音調穩定如C大調！我的絕對音感認證這件【${reportedBeast}】是純淨【${reportedStatus}】，大家跟隨旋律把票集中！`);
+        } else if (pov.myName === 'Alli') {
+          return finalize(`剛才${pDesc}的美學眼光很毒辣！這件【${reportedBeast}】高定線條流暢，毫無粗鄙仿造痕跡，確定是【${reportedStatus}】！`);
+        } else if (pov.myName === '佩萱') {
+          return finalize(`嗆辣小椒直來直往！剛才${pDesc}既然說清楚了，我這棒過目【${reportedBeast}】也是【${reportedStatus}】，有種的反派直接來對沖！`);
+        } else if (pov.myName === '漢崧') {
+          return finalize(`現場勘驗組調取了${pDesc}的發言記錄，口供邏輯成立！我覆核【${reportedBeast}】確鑿為【${reportedStatus}】，證據鏈閉環，好人集中！`);
+        } else if (pov.myName === '羽涵') {
+          return finalize(`剛才${pDesc}的陳述完全符合我的精密算力模型！在大氣層看這件【${reportedBeast}】就是唯一真解【${reportedStatus}】，全體對齊！`);
+        } else if (pov.myName === '漢傑') {
+          return finalize(`家人們誰懂啊！剛才${pDesc}這波直接說到心坎裡了！我這棒把關【${reportedBeast}】也是【${reportedStatus}】，尊嘟假嘟？跟著我們走就對了！`);
+        } else if (pov.myName === '皓鈞') {
+          return finalize(`剛才${pDesc}閣下之言甚是有理！武士一言九鼎，我手上【${reportedBeast}】乃鍛造真品【${reportedStatus}】，大丈夫死守信義！`);
+        } else if (pov.myName === '柚子') {
+          return finalize(`卦象顯示剛才${pDesc}頭頂有紫氣東來！我托夢祖師爺指點，這件【${reportedBeast}】正是【${reportedStatus}】，天相吉星高照，跟著投穩贏！`);
+        } else if (pov.myName === 'Molly') {
+          return finalize(`Totally agree with ${pDesc}! 這隻【${reportedBeast}】質感這麼Luxury，絕對是【${reportedStatus}】好嗎？大家別再Drama了，Let's go!`);
+        } else if (pov.myName === '薏涵') {
+          return finalize(`順著${pDesc}的清澈之音往下探尋，歲月不語，唯器留痕。我過目【${reportedBeast}】正是沉實之【${reportedStatus}】，心如止水，大家別分票。`);
+        } else if (pov.myName === 'Peter倫') {
+          return finalize(`剛才${pDesc}的結論形成了完美的數據閉環！這件【${reportedBeast}】具備極高的真品壁壘，判定【${reportedStatus}】，我們要徹底打穿這個業務場景！`);
+        } else if (pov.myName === '凱基柏宇') {
+          return finalize(`剛才${pDesc}這張單直接拉出長紅K棒！籌碼面大作多，這隻【${reportedBeast}】就是強勢【${reportedStatus}】，散戶跟著主力買進就對了！`);
+        } else if (pov.myName === '昱全') {
+          return finalize(`剛才${pDesc}之策暗合孫子兵法！我們合圍之勢已成，我手持【${reportedBeast}】為【${reportedStatus}】，聽我號令，全軍集中！`);
+        } else if (pov.myName === '源阿') {
+          return finalize(`剛才${pDesc}客官掌眼甚明！迴夢掌眼，這件【${reportedBeast}】的包漿銹色入骨三分，實為【${reportedStatus}】，潘家園掌眼人親自背書！`);
+        } else if (pov.myName === '克雷爾') {
+          return finalize(`剛才${pDesc}之論，暗合三國周郎赤壁連環之策！這件【${reportedBeast}】正是制勝關鍵【${reportedStatus}】，好人當同心戮力！`);
+        } else if (pov.myName === 'H小姐') {
+          return finalize(`職場八卦女王掌握的情報跟${pDesc}完全吻合！這件【${reportedBeast}】是【${reportedStatus}】，誰想PUA帶風向，我第一個開除他！`);
+        } else {
+          return finalize(`${myMotto} 我這輪看【${reportedBeast}】確定是【${reportedStatus}】，剛才${pDesc}說得也在理，大家票要集中！`);
+        }
       }
     }
 
-    // -------------------------------------------------------------------------
-    // 2. 第三回合終局推理 (Round 3 Specific Roles & Camp Behavior)
-    // -------------------------------------------------------------------------
+    // 2. 第三回合終局推理
     if (isRound3) {
-      // 好人說真話推理，推測出最像老朝奉者（依壞事排名第一）
       if (pov.isGoodCamp && topSuspect) {
         const tsDesc = getPlayerColorDesc(topSuspect);
-        const r3GoodPhrases = [
-          `到了第三輪終局，大家把三回合痕跡攤開看：全場做最多壞事的就是${tsDesc}！【${topSuspect.primaryReason}】，發言跟投票處處有破綻！我推測老朝奉極大概率就是他，終局鑑人全體好人鎖定他準沒錯！我這棒看【${reportedBeast}】確定是【${reportedStatus}】！`,
-          `三輪推演下來，壞事排行榜第一名毫無疑問是${tsDesc}！前幾輪【${topSuspect.primaryReason}】，一直在誤導好人！我這輪過目【${reportedBeast}】判定【${reportedStatus}】，好人這把票要集中，鑑人環節直接把${tsDesc}送走！`
-        ];
-        return finalize(pickOne(r3GoodPhrases));
+        if (pov.myName === '老吳') {
+          return finalize(`（用力拍桌）三輪看下來全場做最多壞事的就是${tsDesc}！就是他！就是他！重要的事情講三次！【${reportedBeast}】是【${reportedStatus}】，鑑人全體送走他！`);
+        } else if (pov.myName === '陳子揚') {
+          return finalize(`三輪所有細節全都指向${tsDesc}！【${topSuspect.primaryReason}】！想贏就全體聽指揮鎖定他，【${reportedBeast}】保【${reportedStatus}】，誰分票我噴誰！`);
+        } else if (pov.myName === '順欸') {
+          return finalize(`歸工欸！全場演得最爛的就是${tsDesc}！前兩輪【${topSuspect.primaryReason}】，老朝奉就是他沒跑了！【${reportedBeast}】是【${reportedStatus}】，大家集中！`);
+        } else if (pov.myName === 'Abby') {
+          return finalize(`我就賭${tsDesc}是老朝奉！一番賞大獎鎖定！【${topSuspect.primaryReason}】！鑑人直接把他抓出來！【${reportedBeast}】保【${reportedStatus}】！`);
+        } else if (pov.myName === '偉翔') {
+          return finalize(`三輪終局算力收斂！${tsDesc}【${topSuspect.primaryReason}】，絕對是老朝奉！重度桌遊玩家硬核開火，鑑人投票全體集火他！`);
+        } else if (pov.myName === '凡凡') {
+          return finalize(`抓到了！${tsDesc}你【${topSuspect.primaryReason}】！鑑人投票鎖定你，要是抓錯我直接暴走人體攻擊！【${reportedBeast}】是【${reportedStatus}】！`);
+        } else {
+          return finalize(`三輪推演下來，壞事排行榜第一名毫無疑問是${tsDesc}！【${topSuspect.primaryReason}】，一直在誤導好人！我這輪過目【${reportedBeast}】判定【${reportedStatus}】，鑑人環節直接把${tsDesc}送走！`);
+        }
       }
 
-      // 壞人帶風向、誤導真偽，必要時跟隊友喊話號票，以自身角度公開討論許願、方震之人選
       if (pov.isEvilCamp) {
         const potentialGood = pov.otherPlayers.filter(p => !(pov.knownTeammateIds || []).includes(p.id));
         const topXu = [...potentialGood].sort((a, b) => ((beliefs.roleScores[b.id]||{}).xuYuan||0) - ((beliefs.roleScores[a.id]||{}).xuYuan||0))[0];
@@ -4780,42 +5014,125 @@ class BotDeductionEngine {
         const xuDesc = topXu ? getPlayerColorDesc(topXu) : '前段某位玩家';
         const fangDesc = topFang ? getPlayerColorDesc(topFang) : '後段某位玩家';
 
-        const r3EvilPhrases = [
-          `三輪看下來大家都在藏，但我以我視角公開盤一下：${xuDesc}前兩輪查驗雙報、號票帶節奏，行為最吻合許願！而${fangDesc}始終少話摸魚，極有可能是方震在暗中查人！這輪【${reportedBeast}】我手摸是【${reportedStatus}】，大家別被好人牽著走，集中搶分！`,
-          `大家聽好，這把局勢很明顯了！${xuDesc}這幾輪傳位跟發言完全是許願的打法，大家注意提防！我這棒把關【${reportedBeast}】是【${reportedStatus}】，大家把票咬緊，不要浪費籌碼！`
-        ];
-        return finalize(pickOne(r3EvilPhrases));
+        if (pov.myName === '筑') {
+          return finalize(`人家偷偷觀察覺得${xuDesc}哥哥好厲害喔～一直帶節奏很像許願耶，而${fangDesc}都不說話超像方震的～這隻【${reportedBeast}】人家看是【${reportedStatus}】嘛～`);
+        } else if (pov.myName === '偉翔') {
+          return finalize(`從策略權衡來看，${xuDesc}前兩輪調度極像許願，而${fangDesc}很可能是方震！這輪【${reportedBeast}】是【${reportedStatus}】，大家集中火力！`);
+        } else {
+          return finalize(`三輪看下來大家都在藏，但我以我視角公開盤一下：${xuDesc}行為最吻合許願，而${fangDesc}極有可能是方震！這輪【${reportedBeast}】我手摸是【${reportedStatus}】，大家別被好人牽著走，集中搶分！`);
+        }
       }
     }
 
-    // -------------------------------------------------------------------------
-    // 3. 尾家收官發言 (Tail Anchor)
-    // -------------------------------------------------------------------------
+    // 3. 尾家收官發言
     if (isTailSpeaker && pov.currentBeasts.length > 0) {
-      if (pov.isGoodCamp) {
+      if (pov.myName === '老吳') {
+        return finalize(`（用力拍桌）我是尾家收官！大家聽我指令！全力鎖定【${reportedBeast}】（【${reportedStatus}】）！全力鎖定！全力鎖定！聽懂了沒有？！`);
+      } else if (pov.myName === '筑') {
+        return finalize(`我是最後一位發言啦～好人哥哥們聽人家號票嘛，大家一起把票票投給【${reportedBeast}】（【${reportedStatus}】），贏了一起慶祝喔～`);
+      } else if (pov.myName === '順欸') {
+        return finalize(`我是尾家收官，阿嬤都比你們會算票！這把好人票源絕對夠，全體把票灌在【${reportedBeast}】（【${reportedStatus}】），少在那邊演八點檔！`);
+      } else if (pov.myName === 'Abby') {
+        return finalize(`尾家收官壓軸！最後一賞的大賞盲盒就在這！全體把籌碼灌在【${reportedBeast}】（【${reportedStatus}】），梭哈爽度拉滿！`);
+      } else if (pov.myName === '偉翔') {
+        return finalize(`尾家收官！算力模型已完成最終解！全體聽令分票，把票鎖定在【${reportedBeast}】（【${reportedStatus}】），絕對策度碾壓！`);
+      } else if (pov.myName === '凡凡') {
+        return finalize(`我是最後一個！快點把票灌在【${reportedBeast}】（【${reportedStatus}】）！誰敢分票我直接人體攻擊，不玩了！`);
+      } else if (pov.isGoodCamp) {
         return finalize(`我是尾家收官，聽我總結號票：好人人多但票容易分散，這把只要我們分票規劃好，集中火力鎖定【${reportedBeast}】（【${reportedStatus}】），兩件真品穩穩拿下，壞人毫無勝算！`);
       } else {
         return finalize(`我是尾家收官，大家聽我總結號票：前面意見太雜容易分票，大家嚴格按名單走，全力把票灌在【${reportedBeast}】（【${reportedStatus}】），集中火力搶分！`);
       }
     }
 
-    // -------------------------------------------------------------------------
-    // 4. 自然交談與原型語氣預設 (Natural Conversational Default)
-    // -------------------------------------------------------------------------
-    if (arch.style === 'finance') {
-      return finalize(`這就是典型主力拉高倒貨的逃命波！我摸過【${reportedBeast}】，基本面極硬是【${reportedStatus}】！另外幾隻全是跌停鎖死的垃圾贗品，散戶千萬別去接刀當韭菜！`);
-    } else if (arch.style === 'engineering') {
-      return finalize(`這套發言直接在傳遞鏈路上發生Deadlock死鎖！我過目【${reportedBeast}】為【${reportedStatus}】，斷言100%通過。前面節點有記憶體洩漏，好人請停止向未驗證的節點廣播！`);
+    // 4. 自然發言兜底：100% 各角色專屬台詞與名言！
+    if (pov.myName === '老吳') {
+      return finalize(`（用力拍桌）我看【${reportedBeast}】是【${reportedStatus}】！我看是${reportedStatus}！我看是${reportedStatus}！重要的事情講三次，你們聽懂了沒有？！`);
+    } else if (pov.myName === '筑') {
+      return finalize(`哎呀人家真的看不太懂古董啦～但我摸這隻【${reportedBeast}】手感溫潤，應該是【${reportedStatus}】吧？你們不要騙我喔～（眨巴大眼睛）`);
+    } else if (pov.myName === '順欸') {
+      return finalize(`歸工欸！少在那邊演民視八點檔！這隻【${reportedBeast}】是【${reportedStatus}】，連隔壁阿嬤都看得出來，大家眼睛擦亮點！`);
+    } else if (pov.myName === 'Abby') {
+      return finalize(`這隻【${reportedBeast}】我就賭它是一番賞A賞大公仔！多巴胺直接分泌爆表！我判定是【${reportedStatus}】，全場最頂的大賞就在這！`);
+    } else if (pov.myName === '偉翔') {
+      return finalize(`這局的策度完全被你們玩爛了！我過目【${reportedBeast}】斷定為【${reportedStatus}】！重度策略桌遊玩家硬核開火，拒絕跟風！`);
+    } else if (pov.myName === '彥棋') {
+      return finalize(`我家收藏了四百多盒正版桌遊，這件【${reportedBeast}】符合防偽標準，判定【${reportedStatus}】！時序鏈路嚴謹驗證，杜絕死鎖！`);
+    } else if (pov.myName === '包包') {
+      return finalize(`吃飽了才有力氣抓內鬼！這件【${reportedBeast}】手感像剛出爐的和牛般厚實，確定是【${reportedStatus}】！全體動筷！`);
+    } else if (pov.myName === '隻貓') {
+      return finalize(`本喵肉墊踩過這件【${reportedBeast}】，手感沉實，確定是【${reportedStatus}】。愚蠢的人類誰要是敢分票，本喵直接亮爪子！`);
+    } else if (pov.myName === '修宏') {
+      return finalize(`吾乃聖殿騎士！以手中之聖劍起誓，誓死守護場上的公主與真相！這件【${reportedBeast}】用騎士榮耀擔保是【${reportedStatus}】！`);
+    } else if (pov.myName === '卓毅') {
+      return finalize(`根據遊戲說明書第14頁第3條附則，我覆核【${reportedBeast}】判定為【${reportedStatus}】！呈堂證供俱在，以票型痕跡定罪！`);
+    } else if (pov.myName === '大鈞哥') {
+      return finalize(`兄弟別怕！大哥替你抗壓擋刀！這件【${reportedBeast}】大哥親眼認證是【${reportedStatus}】！贏了這把等一下來我家洗個澡！`);
+    } else if (pov.myName === '山浤') {
+      return finalize(`莫忘初衷！理勞狼殺團出征！過彎不減速，速度流果斷全押！【${reportedBeast}】確定是【${reportedStatus}】，全油門衝過去就對了！`);
+    } else if (pov.myName === '奕瑜') {
+      return finalize(`幽默破冰一下，you mother fuck～今日冷知識：我這輪看【${reportedBeast}】是【${reportedStatus}】，跟著我投勝率高達百分之百！`);
+    } else if (pov.myName === '張懿') {
+      return finalize(`著眼終局大局觀！棋盤三百六十一道，此處落子方為神之一手！【${reportedBeast}】正是全盤之天元【${reportedStatus}】，落子無悔！`);
+    } else if (pov.myName === 'Darien') {
+      return finalize(`你很帥喔（豎起大拇指）～呵呵呵呵，這件【${reportedBeast}】也是蠻帥的【${reportedStatus}】啦！尾家絕殺型，最後一刻我感性鎖定勝局！`);
+    } else if (pov.myName === '凡凡') {
+      return finalize(`快點鳩團打古董啦！打太慢我直接人體攻擊喔！這件【${reportedBeast}】判定【${reportedStatus}】，快點投一投，不要讓我等到暴走！`);
+    } else if (pov.myName === '洪吉') {
+      return finalize(`妹子來給葛格抱一個嘛～這件【${reportedBeast}】手感滑嫩像妳的小手一樣，確定是【${reportedStatus}】啦！捉摸不定才是真男人的魅力～`);
+    } else if (pov.myName === '某呆粥') {
+      return finalize(`嘿嘿嘿怪胎時間到！整天講幹話就是我的生活態度！這隻【${reportedBeast}】味道真香是【${reportedStatus}】！妹子別怕，葛格帶妳飛～`);
+    } else if (pov.myName === '陳子揚') {
+      return finalize(`這把要是因為你們亂投輸掉，我真的會當場中風！看細節好嗎？！【${reportedBeast}】是【${reportedStatus}】，想贏就全體聽我指揮！`);
+    } else if (pov.myName === '愛飛翔') {
+      return finalize(`我親手煮的特調手工奶茶妳一定要喝一口！這件【${reportedBeast}】我剛剛幫它排過八字大吉大利，絕對是【${reportedStatus}】！`);
+    } else if (pov.myName === '水豚') {
+      return finalize(`平靜地泡在溫泉裡看你們吵。小姐姐妳玩過這款桌遊嗎？這件【${reportedBeast}】像我的心一樣保真【${reportedStatus}】，油而不膩～`);
+    } else if (pov.myName === '熊寶') {
+      return finalize(`……（默默看著大家吵，不說話，但心裡在算。手中【${reportedBeast}】是【${reportedStatus}】）`);
+    } else if (pov.myName === 'Penny') {
+      return finalize(`這週末要不要跟我去墾丁打羽球？這件【${reportedBeast}】被我心理側寫徹底看穿是【${reportedStatus}】！微焦慮小動作騙不了專家！`);
+    } else if (pov.myName === '柏仰') {
+      return finalize(`全軍出擊！信長上路直接開大！我過目【${reportedBeast}】是【${reportedStatus}】，全體隊友跟我抱團開黑，集火秒掉這個內鬼！`);
+    } else if (pov.myName === '小黛') {
+      return finalize(`我的耳朵擁有絕對音感！這件【${reportedBeast}】的迴響純淨如C大調，確定是【${reportedStatus}】！大家跟隨旋律把票集中！`);
+    } else if (pov.myName === 'Alli') {
+      return finalize(`挑剔細節工藝，對粗糙偽裝零容忍！這件【${reportedBeast}】高定線條典雅莊重，確定是頂級【${reportedStatus}】！`);
+    } else if (pov.myName === '佩萱') {
+      return finalize(`嗆辣小椒直來直往不搞彎彎繞繞！這件【${reportedBeast}】我說它是【${reportedStatus}】它就是【${reportedStatus}】，有種的反派直接來對沖！`);
+    } else if (pov.myName === '漢崧') {
+      return finalize(`三十年刑偵直覺，現場勘驗組調取了時序鏈路！這件【${reportedBeast}】確鑿為【${reportedStatus}】，法網恢恢，證據鏈閉環！`);
+    } else if (pov.myName === '羽涵') {
+      return finalize(`弱小並非生存的障礙，傲慢才是！你在第一層，而我早已在大氣層了！精密算力推導出【${reportedBeast}】為【${reportedStatus}】！`);
+    } else if (pov.myName === '漢傑') {
+      return finalize(`家人們誰懂啊！這波操作直接讓我破防了！我過目【${reportedBeast}】是【${reportedStatus}】，尊嘟假嘟？好人再不團結就被偷家了！`);
+    } else if (pov.myName === '皓鈞') {
+      return finalize(`馬鹿野郎！真正的武士一言九鼎！這件【${reportedBeast}】乃日式古法真品【${reportedStatus}】，大丈夫死守信義！`);
+    } else if (pov.myName === '柚子') {
+      return finalize(`我昨晚托夢祖師爺指點，紫氣東來！卦象顯示【${reportedBeast}】正是大吉【${reportedStatus}】，聽我的穩拿勝局！`);
+    } else if (pov.myName === 'Molly') {
+      return finalize(`Excuse me? 這隻【${reportedBeast}】質感這麼Luxury，絕對是【${reportedStatus}】好嗎？大家別再Drama了，Let's go guys!`);
+    } else if (pov.myName === '薏涵') {
+      return finalize(`包漿是歲月的呢喃，而辯解不過是急於掩飾蒼白的喧鬧。我眼中之【${reportedBeast}】為沉實【${reportedStatus}】，靜候真相水落石出。`);
+    } else if (pov.myName === 'Peter倫') {
+      return finalize(`我們需要把真偽判定顆粒度細化到極致！從數據閉環來看，【${reportedBeast}】具備高維壁壘為【${reportedStatus}】，禁止反向賦能壞人！`);
+    } else if (pov.myName === '凱基柏宇') {
+      return finalize(`這就是典型主力拉高倒貨的逃命波！我摸過【${reportedBeast}】，基本面極硬是【${reportedStatus}】！散戶千萬別去接刀當韭菜！`);
+    } else if (pov.myName === '昱全') {
+      return finalize(`夫兵形象水，水之行避高而趨下！席次傳遞已成合圍之勢，我判定【${reportedBeast}】為【${reportedStatus}】，聽我號令，全軍破敵！`);
+    } else if (pov.myName === '源阿') {
+      return finalize(`各位客官且慢！迴夢掌眼，這件【${reportedBeast}】的銹色入骨三分，實為傳世【${reportedStatus}】！老夫潘家園掌眼親自背書！`);
+    } else if (pov.myName === '克雷爾') {
+      return finalize(`天下大勢分久必合！當年赤壁曹公亦如你等這般自信！以古鑑今，【${reportedBeast}】確為【${reportedStatus}】，好人當共拒曹賊！`);
+    } else if (pov.myName === 'H小姐') {
+      return finalize(`想PUA我？職場大風大浪我見多了！這輪發言格局打開好嗎？【${reportedBeast}】是【${reportedStatus}】，反向質詢開始！`);
+    } else {
+      return finalize(`${myMotto} 我這輪查驗了【${reportedBeast}】，確定是【${reportedStatus}】！大家跟著這個方向走！`);
     }
-
-    const naturalPhrases = [
-      `我這輪查驗了【${reportedBeast}】，紋理沉實，確定是【${reportedStatus}】。綜合剛才前面的陳述，情報還算吻合，這輪大家可以跟著這個方向走。`,
-      `剛才上手過目了【${reportedBeast}】，包漿醇厚，屬於【${reportedStatus}】。好人陣營這把別慌，凝聚票源才是關鍵。`,
-      `【${reportedBeast}】我親手驗過是【${reportedStatus}】。大家投票時慎重一點，不要把籌碼分散在太多目標上。`
-    ];
-    return finalize(pickOne(naturalPhrases));
   }
 }
+
+
 
     window.BotDeductionEngine = BotDeductionEngine;
 
@@ -8610,7 +8927,7 @@ async function kickOnlinePlayer(targetId, event) {
  window.renderWaitingTurnCircleSeats = renderWaitingTurnCircleSeats;  
   
  // 修改1：各回合發言紀錄統一樣式（與發言階段氣泡格式相同：他人靠左、自己靠右附帶 (您) 與頭像，支援折疊收合）  
- function renderWaitingTurnSpeeches(room, me, curRound, containerId = 'onlWaitingSpeechesContainer') {  
+ function renderWaitingTurnSpeeches(room, me, curRound, containerId = 'onlWaitingSpeechesContainer', isGameOver = false) {  
  const container = document.getElementById(containerId);  
  if (!container) return;  
  container.innerHTML = '';  
@@ -8625,9 +8942,10 @@ async function kickOnlinePlayer(targetId, event) {
  if (speeches.length > 0) hasAnySpeech = true;  
   
  // 等待傳手機期間，當前進行中的輪次尚未開始發言，僅展示前幾回合已完成之發言紀錄
- if (rNum - 1 >= curRoundIdx && speeches.length === 0) return;  
+ if (!isGameOver && rNum - 1 >= curRoundIdx && speeches.length === 0) return;  
   
- const isCollapsed = !!onlCollapsedRoundsMap['turn_' + rNum];  
+ const collapseKey = (isGameOver ? 'gameover_speech_' : 'turn_') + rNum;
+ const isCollapsed = !!onlCollapsedRoundsMap[collapseKey];  
  const roundCard = document.createElement('div');  
  roundCard.className = 'p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl space-y-1.5 shadow-md mb-2';  
   
@@ -8638,8 +8956,9 @@ async function kickOnlinePlayer(targetId, event) {
  <span class="font-mono text-amber-400 text-[10px]">${isCollapsed ? '▶ 點擊展開' : '▼ 點擊收合'}</span>  
  `;  
  headerBtn.onclick = () => {  
- onlCollapsedRoundsMap['turn_' + rNum] = !onlCollapsedRoundsMap['turn_' + rNum];  
- renderWaitingTurnSpeeches(room, me, curRound, containerId);  
+ const collapseKey = (isGameOver ? 'gameover_speech_' : 'turn_') + rNum;
+ onlCollapsedRoundsMap[collapseKey] = !onlCollapsedRoundsMap[collapseKey];  
+ renderWaitingTurnSpeeches(room, me, curRound, containerId, isGameOver);  
  };  
  roundCard.appendChild(headerBtn);  
   
@@ -8658,7 +8977,8 @@ async function kickOnlinePlayer(targetId, event) {
  if (!sp) return;  
  const pc = COLOR_PALETTE.find(c => c.id === spPlayer.colorId) || COLOR_PALETTE[0];  
  const isMe = (pId === myOnlinePlayerId);  
- const cleanText = (sp.text || '').trim();  
+ let cleanText = (sp.text || '').replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').trim();
+ if (!cleanText) cleanText = '我這輪排在首位發言，親自上手查驗，手感沉實，大家多聽後面發言對齊！';  
   
  const row = document.createElement('div');  
  if (isMe) {  
@@ -10743,7 +11063,9 @@ window.renderPassOrderRows = renderPassOrderRows;
   
  let bubbleHtml = '';  
  if (sp) {  
- bubbleHtml = `<div class="p-2.5 rounded-xl text-xs max-w-[72%] sm:max-w-[75%] shadow-md break-words break-all whitespace-pre-wrap min-w-0 speech-bubble-text ${isMe ? 'bg-amber-950/80 border border-amber-500/70 text-amber-200 text-left' : 'bg-neutral-900 border border-neutral-800 text-neutral-100 text-left'}" style="overflow-wrap: anywhere; word-break: break-word;">${sp.text}</div>`;  
+ let displaySpText = (sp.text || '').replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').trim();
+ if (!displaySpText) displaySpText = '我這輪排在首位發言，親自上手查驗，手感沉實，大家多聽後面發言對齊！';
+ bubbleHtml = `<div class="p-2.5 rounded-xl text-xs max-w-[72%] sm:max-w-[75%] shadow-md break-words break-all whitespace-pre-wrap min-w-0 speech-bubble-text ${isMe ? 'bg-amber-950/80 border border-amber-500/70 text-amber-200 text-left' : 'bg-neutral-900 border border-neutral-800 text-neutral-100 text-left'}" style="overflow-wrap: anywhere; word-break: break-word;">${displaySpText}</div>`;  
  } else if (isCurrentSpeaking) {  
  bubbleHtml = `<span class="text-xs text-amber-400 font-bold animate-pulse font-mono flex-shrink-0">打字發言中...</span>`;  
  } else {  
@@ -12342,6 +12664,13 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
         console.error('鑑人投票明細渲染異常:', err);
       }
 
+      // 6.5. 依最新要求：在鑑人環節投票明細下方渲染三回合對話記錄，格式同遊戲中的一樣
+      try {
+        renderWaitingTurnSpeeches(room, me, null, 'onlGameOverSpeechesContainer', true);
+      } catch (err) {
+        console.error('終局三回合對話紀錄渲染異常:', err);
+      }
+
       // 7. 全體玩家全程操作軌跡記錄
       try {
         const lDiv = document.getElementById('onlAllPlayerActionLogs');
@@ -13470,7 +13799,11 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
 
           const botPOV = BotDeductionEngine.buildPOV(freshRoom, mockSpeakerId);
           const beliefs = BotDeductionEngine.evaluateBeliefs(botPOV);
-          const speechText = BotDeductionEngine.generateSpeech(botPOV, beliefs);
+          let speechText = BotDeductionEngine.generateSpeech(botPOV, beliefs);
+          speechText = (speechText || '').replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').trim();
+          if (!speechText) {
+            speechText = BotDeductionEngine._origGenerateSpeech ? BotDeductionEngine._origGenerateSpeech(botPOV, beliefs) : '我這輪親自上手查驗，手感沉實，大家多聽後面發言對齊！';
+          }
 
           roundObj.speeches.push({
             playerId: mockSpeakerId,
@@ -17185,7 +17518,7 @@ class BotSimulationEngine {
     const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
     const shuffledRoles = [...ALL_8_ROLES].sort(() => Math.random() - 0.5);
 
-    // 從 35 位名單中挑選 8 位
+    // 從 41 位名單中挑選 8 位
     const shuffledNames = [...BOT_NICKNAME_POOL].sort(() => Math.random() - 0.5).slice(0, 8);
     const players = [];
     for (let i = 0; i < 8; i++) {
@@ -18040,7 +18373,7 @@ window.resetAiTrainingData = resetAiTrainingData;
           <div class="w-8 h-8 rounded-lg bg-purple-700/30 border border-purple-500/60 flex items-center justify-center text-purple-400 font-black text-lg">🧠</div>
           <div>
             <h3 class="text-base font-black text-purple-300">AI 預訓練實驗室 (AI Training Lab)</h3>
-            <div class="text-[10px] text-neutral-400">離線純記憶體高速模擬 ｜ 演化 35 位老手 NPC 人格</div>
+            <div class="text-[10px] text-neutral-400">離線純記憶體高速模擬 ｜ 演化 41 位老手 NPC 人格</div>
           </div>
         </div>
         <button onclick="closeAiTrainingLabModal()" class="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold flex items-center justify-center transition">
@@ -18133,8 +18466,8 @@ window.resetAiTrainingData = resetAiTrainingData;
         <div class="space-y-1.5">
           <div class="flex justify-between items-center text-xs font-bold text-neutral-300">
             <div class="flex items-center space-x-2">
-              <span>35 位獨立 AI 成長履歷與人格特質庫：</span>
-              <span id="aiLabActiveCountBadge" class="text-[10px] px-2 py-0.2 rounded-full bg-purple-950 text-purple-300 border border-purple-800 font-mono">0 / 35 位已參賽</span>
+              <span>41 位獨立 AI 成長履歷與人格特質庫：</span>
+              <span id="aiLabActiveCountBadge" class="text-[10px] px-2 py-0.2 rounded-full bg-purple-950 text-purple-300 border border-purple-800 font-mono">0 / 41 位已參賽</span>
             </div>
             <div class="flex items-center space-x-1.5 text-[10px]">
               <span class="text-neutral-400">排序:</span>
@@ -18212,22 +18545,20 @@ window.resetAiTrainingData = resetAiTrainingData;
   const cfg = () => {
     try {
       const stored = JSON.parse(localStorage.getItem(LS) || '{}');
-      const proxyFromWindow = (typeof window !== 'undefined' && window.GEMINI_PROXY_URL) ? window.GEMINI_PROXY_URL : '';
       const defaultProxy = 'https://gudong-proxy.gjack61112.workers.dev/';
       const conf = Object.assign({
         on: true, // 預設直接啟用
         key: '',
-        proxy: proxyFromWindow || defaultProxy,
-        model: 'gemini-3.6-flash'
+        proxy: defaultProxy,
+        model: 'gemini-3.5-flash-lite'
       }, stored);
-      if (!conf.proxy) conf.proxy = defaultProxy;
-      if (proxyFromWindow && !conf.proxy) conf.proxy = proxyFromWindow;
-      if (!conf.key || !conf.key.trim()) {
-        conf.key = _getSysRuntimeAuthToken();
+      // 若使用者明確在儲存設定中清空了 proxy，嚴格尊重使用者設定，允許切換至直連模式
+      if (stored.proxy !== undefined) {
+        conf.proxy = stored.proxy;
       }
       return conf;
     } catch(e) {
-      return { on: true, key: _getSysRuntimeAuthToken(), proxy: '', model: 'gemini-3.6-flash' };
+      return { on: true, key: '', proxy: '', model: 'gemini-3.5-flash-lite' };
     }
   };
 
@@ -18248,33 +18579,44 @@ window.resetAiTrainingData = resetAiTrainingData;
   // 通用底層 API 呼叫器：支援自訂代理 (Proxy) 與官方 API 雙軌通訊
   async function ask(system, user, max, timeout) {
     const c = cfg();
-    const proxyUrl = (c.proxy && c.proxy.trim()) || (typeof window !== 'undefined' && window.GEMINI_PROXY_URL && window.GEMINI_PROXY_URL.trim()) || '';
+    const proxyUrl = (c.proxy && c.proxy.trim()) || '';
     const hasProxy = Boolean(proxyUrl);
     const effectiveKey = (c.key && c.key.trim()) ? c.key.trim() : _getSysRuntimeAuthToken();
 
     // 只要有啟用，且具備「代理伺服器網址」或「API Key」任一者即可連線
-    if (!c.on || (!hasProxy && !effectiveKey)) return null;
+    if (!c.on) return null;
+    if (!hasProxy && !effectiveKey) {
+      window.GeminiBrain = window.GeminiBrain || {};
+      window.GeminiBrain.lastError = '未設定代理網址且無有效 API 金鑰';
+      return null;
+    }
 
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), timeout || 9000);
+    const t = setTimeout(() => ctl.abort(), timeout || 12000);
 
     try {
       let reqUrl = '';
       let reqHeaders = { 'Content-Type': 'application/json' };
       let reqBody = {};
 
-      if (hasProxy) {
+            if (hasProxy) {
         reqUrl = proxyUrl;
-        // 走代理時瀏覽器端完全不帶 x-goog-api-key，安全性最高
+        // 符合 Google API 官方嚴格 Schema，絕不帶多餘的未知頂層欄位
         reqBody = {
-          model: c.model || 'gemini-3.6-flash',
-          system: system,
-          prompt: user,
-          maxTokens: max || 220,
-          temperature: 0.8
+          model: c.model || 'gemini-3.5-flash-lite',
+          contents: [{ role: 'user', parts: [{ text: user }] }],
+          systemInstruction: { parts: [{ text: system }] },
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: max || 220,
+            thinkingConfig: { thinkingBudget: 0 }
+          }
         };
+        if (effectiveKey && effectiveKey !== _getSysRuntimeAuthToken()) {
+          reqHeaders['x-goog-api-key'] = effectiveKey;
+        }
       } else {
-        reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
+        reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(effectiveKey)}`;
         reqHeaders['x-goog-api-key'] = effectiveKey;
         reqBody = {
           systemInstruction: { parts: [{ text: system }] },
@@ -18293,12 +18635,37 @@ window.resetAiTrainingData = resetAiTrainingData;
         headers: reqHeaders,
         body: JSON.stringify(reqBody)
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      if (!r.ok) {
+        let errDetail = '';
+        try {
+          const ej = await r.json();
+          errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
+        } catch(e) {
+          errDetail = await r.text().catch(() => '');
+        }
+        const formattedErr = `HTTP ${r.status}${errDetail ? ': ' + errDetail.slice(0, 100) : ''}`;
+        window.GeminiBrain = window.GeminiBrain || {};
+        window.GeminiBrain.lastError = formattedErr;
+        throw new Error(formattedErr);
+      }
+
       const j = await r.json();
+      if (j.error) {
+        const msg = j.error.message || j.error;
+        window.GeminiBrain = window.GeminiBrain || {};
+        window.GeminiBrain.lastError = msg;
+        throw new Error(msg);
+      }
 
       if (j.text) return j.text.trim();
-      return (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim() || null;
+      const candidateText = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+      return candidateText || null;
     } catch(e) {
+      window.GeminiBrain = window.GeminiBrain || {};
+      if (!window.GeminiBrain.lastError) {
+        window.GeminiBrain.lastError = (e.name === 'AbortError') ? '連線逾時 (Timeout)' : (e.message || 'CORS 跨域阻擋或網路中斷');
+      }
       console.warn('[GeminiBrain]', e.message);
       return null;
     } finally {
@@ -18365,17 +18732,25 @@ window.resetAiTrainingData = resetAiTrainingData;
     const pendingPlayers = passOrder.filter(id => id !== pov.myId && !alreadySpokenIds.includes(id)).map(id => nm(pov, id));
 
     const p = BotLearningEngine.getProfile(pov.myName, pov.myRole) || {};
+    const arch = (typeof BOT_ARCHETYPES !== 'undefined' && BOT_ARCHETYPES[pov.myName]) || {};
+    const archTitle = arch.title || (p.identity && p.identity.personaTitle) || '【推演AI】';
+    const samplePhrases = (arch.phrases || []).slice(0, 3).join('；');
     const w = p.weights || {};
 
     const sys = `你正在玩桌遊《古董局中局》，扮演玩家「${pov.myName}」（身分【${pov.myRole}】，屬於${pov.isGoodCamp ? '許願好人陣營' : '老朝奉壞人陣營'}）。
+【你的專屬個性風格與口吻（絕對關鍵）】：
+- 專屬稱號：${archTitle}
+- 標誌性口頭禪與語氣：${samplePhrases || '自然沉穩推理'}
+- 核心要求：發言必須徹底融入你的角色靈魂特質（例如老吳要拍桌跳針講三次、筑要綠茶假裝聽不懂暗諷、順欸要八點檔吐槽阿嬤都比你懂、Abby要賭博一番賞多巴胺、偉翔要重度策略桌遊策度、修宏要聖殿騎士守護公主自我感動等）！嚴禁使用死板公版發言！
 【標準桌遊發言三段式結構】：
 1. 報情資：說明自己查驗獸首的真假（若被偷襲/看不懂則說明；壞人可依草稿虛報）。
 2. 論前人：【絕對只能評論已經發言的人】！嚴格根據對方「實際說過的內容」進行反駁或質疑！前人沒說過的話（例如前人只說「我過」），絕對嚴禁無中生有造謠（例如造謠前人說獸首被襲）！若你是第一位發言，則評論傳遞順序或局勢。
 3. 施壓號召：提醒大家注意尚未開口的後置位玩家，或呼籲好人票源集中。
-【嚴格時序規則】：
+【嚴格發言禁令與時序規則】：
+- 【最高禁令】：絕對只准輸出角色講出口的「純繁體中文」台詞，字數 30～50 字！嚴禁輸出任何英文、嚴禁輸出思考過程（Chain-of-thought）、嚴禁輸出任何規則名稱或系統英文句子（絕對禁止出現「Strict timeline rule: No one before me」或任何「rule:」字樣）！
+- 若你是本輪第一位發言者，直接開口報出自己查驗的獸首真假，並對本回合手機傳遞順序與局勢發表看法，絕不可輸出「前面無人發言」等系統話語！
 - 尚未發言的人【根本還沒開口】，絕對不可以指責或聲稱後置位玩家說了什麼！
-- 字數嚴格限制：30～50 字，繁體中文，生動口語，絕不可有引號或 Markdown 格式。
-- 結論方向（獸首真偽）必須與規則草稿保持一致。`;
+- 絕不可有引號或 Markdown 格式，結論方向（獸首真偽）必須與規則草稿保持一致。`;
 
     const usr = `【當前局勢】：
 - 第${r + 1}回合，你是本輪【第 ${mySpeakerIdx} 位】發言者。
@@ -18388,7 +18763,25 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
 請嚴格遵循三段式結構與時序規則，將草稿改寫為 30～50 字的生動發言：`;
 
     return [sys, usr];
-  }  async function prepareSpeech(room, botId) {
+  }  function isValidBotSpeech(text) {
+    if (!text || typeof text !== 'string') return false;
+    let t = text.trim();
+    if (t.length < 4) return false;
+    // 嚴格過濾英文規則殘留、思考標籤與系統提示詞
+    if (/strict\s*timeline|no\s*one\s*before|timeline\s*rule|system|prompt|rule:|assistant|thought/i.test(t)) {
+      console.warn('[GeminiBrain] 攔截到英文規則或系統提示詞殘留:', t);
+      return false;
+    }
+    // 必須含有足夠的中文（至少 4 個繁簡漢字）
+    const chineseChars = t.match(/[一-龥]/g) || [];
+    if (chineseChars.length < 4) {
+      console.warn('[GeminiBrain] 攔截到非中文或中文字數不足發言:', t);
+      return false;
+    }
+    return true;
+  }
+
+  async function prepareSpeech(room, botId) {
     const c = cfg();
     if (!c.on || !window.BotDeductionEngine) return;
     const pov = BotDeductionEngine.buildPOV(room, botId);
@@ -18396,7 +18789,12 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
     const draft = BotDeductionEngine._origGenerateSpeech(pov, beliefs);
     const [s, u] = buildSpeechPrompt(pov, beliefs, draft);
     const out = await ask(s, u, 300, 8000);
-    if (out) cache['speech|' + botId + '|' + pov.currentRoundIdx] = out.replace(/^["「『]|["」』]$/g, '').slice(0, 100);
+    if (out) {
+      let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
+      if (isValidBotSpeech(cleaned)) {
+        cache['speech|' + botId + '|' + pov.currentRoundIdx] = cleaned.slice(0, 100);
+      }
+    }
   }
 
   // =========================================================================
@@ -18536,9 +18934,12 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
     applyDNA(pov);
     const k = 'speech|' + pov.myId + '|' + pov.currentRoundIdx;
     if (cache[k]) {
-      const t = cache[k];
+      let t = cache[k];
       delete cache[k];
-      return t;
+      t = t.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').trim();
+      if (t && typeof isValidBotSpeech === 'function' && isValidBotSpeech(t)) {
+        return t;
+      }
     }
     return BotDeductionEngine._origGenerateSpeech(pov, beliefs);
   };
@@ -18604,7 +19005,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
         });
         saveMem(m);
         BotLearningEngine.saveAllProfiles(allProfiles);
-        console.log('☁️ [GeminiBrain] 已成功自 Firestore 同步 35 位 BOT 雲端記憶與演化數據！');
+        console.log('☁️ [GeminiBrain] 已成功自 Firestore 同步 41 位 BOT 雲端記憶與演化數據！');
       }
     } catch(e) {
       console.warn('[GeminiBrain] Firestore 記憶載入降級為本機快取:', e.message);
@@ -18727,18 +19128,21 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
         on: d.querySelector('#gbOn').checked,
         key: rawKey,
         proxy: rawProxy,
-        model: d.querySelector('#gbModel').value.trim() || 'gemini-3.6-flash'
+        model: d.querySelector('#gbModel').value.trim() || 'gemini-3.5-flash-lite'
       };
       saveCfg(n);
 
       const m = d.querySelector('#gbMsg');
       m.innerHTML = '<span style="color:#f59e0b">⏳ 正在與 Gemini 連線測試中…</span>';
 
-      const r = await ask('只回一句繁體中文桌遊開場問候', '嗨', 40, 8000);
+      window.GeminiBrain = window.GeminiBrain || {};
+      window.GeminiBrain.lastError = null;
+      const r = await ask('只回一句繁體中文桌遊開場問候', '嗨', 40, 10000);
       if (r) {
         m.innerHTML = `<span style="color:#34d399">✅ 連線成功！AI 回應：「${r}」</span>`;
       } else {
-        m.innerHTML = '<span style="color:#f87171">❌ 連線失敗，請檢查金鑰、代理網址或網路環境。</span>';
+        const err = window.GeminiBrain.lastError || '網路逾時、CORS跨域未開或Worker內部錯誤';
+        m.innerHTML = `<span style="color:#f87171">❌ 連線失敗 (${err})。<br><small style="color:#a8a29e">若走代理請確認 Worker 已綁定 GEMINI_API_KEY；亦可清空代理網址改用自訂 Key 直連。</small></span>`;
       }
     };
 
