@@ -18609,7 +18609,7 @@ window.resetAiTrainingData = resetAiTrainingData;
           generationConfig: {
             temperature: 0.8,
             maxOutputTokens: max || 220,
-            thinkingConfig: { thinkingBudget: 0 }
+            
           }
         };
         if (effectiveKey && effectiveKey !== _getSysRuntimeAuthToken()) {
@@ -18624,7 +18624,7 @@ window.resetAiTrainingData = resetAiTrainingData;
           generationConfig: {
             temperature: 0.85,
             maxOutputTokens: max || 220,
-            thinkingConfig: { thinkingBudget: 0 }
+            
           }
         };
       }
@@ -19104,10 +19104,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
       <div style="font-size:11px;color:#a8a29e;margin-bottom:3px">模型名稱：</div>
       <input id="gbModel" value="${c.model}" style="width:100%;padding:6px;background:#0c0a09;color:#fff;border:1px solid #57534e;border-radius:6px;font-size:12px;margin-bottom:10px">
 
-      <div style="display:flex;gap:6px">
-        <button id="gbSave" style="flex:1;padding:8px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:bold;cursor:pointer">儲存並測試連線</button>
-        <button id="gbClr" style="padding:8px;background:#44403c;color:#fff;border:0;border-radius:6px;cursor:pointer">清空記憶</button>
-      </div>
+      <button id="gbSave" style="width:100%;padding:10px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px">儲存並測試連線</button>
 
       <div id="gbMsg" style="margin-top:8px;font-size:11px;color:#a8a29e;line-height:1.4"></div>
       <div style="margin-top:8px;font-size:10px;color:#78716c;border-top:1px solid #292524;padding-top:6px;line-height:1.3">
@@ -19146,10 +19143,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
       }
     };
 
-    d.querySelector('#gbClr').onclick = () => {
-      saveMem({});
-      d.querySelector('#gbMsg').innerHTML = '<span style="color:#a8a29e">已清空本機對局經驗記憶</span>';
-    };
+
   }
 
   window.GeminiBrain = {
