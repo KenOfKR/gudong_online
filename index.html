@@ -18651,6 +18651,8 @@ window.resetAiTrainingData = resetAiTrainingData;
       }
 
       const j = await r.json();
+      window.GeminiBrain = window.GeminiBrain || {};
+      window.GeminiBrain.currentActiveModel = j.model || j.modelVersion || c.model || 'gemini-3.5-flash-lite';
       if (j.error) {
         const msg = j.error.message || j.error;
         window.GeminiBrain = window.GeminiBrain || {};
@@ -19101,8 +19103,14 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
       </div>
       <input id="gbKey" type="password" placeholder="留空維持內建混淆金鑰；亦可貼入自訂金鑰" style="width:100%;padding:6px;background:#0c0a09;color:#fff;border:1px solid #57534e;border-radius:6px;margin-bottom:8px;font-size:12px">
 
-      <div style="font-size:11px;color:#a8a29e;margin-bottom:3px">模型名稱：</div>
-      <input id="gbModel" value="${c.model}" style="width:100%;padding:6px;background:#0c0a09;color:#fff;border:1px solid #57534e;border-radius:6px;font-size:12px;margin-bottom:10px">
+      <div style="font-size:11px;color:#a8a29e;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+        <span>AI 運行模型：</span>
+        <span id="gbModelTag" style="font-size:10px;color:#34d399;background:#064e3b;padding:1px 6px;border-radius:4px;font-weight:500;">自動最適配</span>
+      </div>
+      <div id="gbModelDisplay" style="width:100%;padding:8px 10px;background:#141210;color:#38bdf8;border:1px solid #44403c;border-radius:6px;font-family:monospace;font-size:12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;">
+        <span id="gbModelName">${c.model || 'gemini-3.5-flash-lite'}</span>
+        <span style="font-size:10px;color:#78716c;">(雲端動態調度)</span>
+      </div>
 
       <button id="gbSave" style="width:100%;padding:10px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px">儲存並測試連線</button>
 
@@ -19121,24 +19129,33 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
     d.querySelector('#gbSave').onclick = async () => {
       const rawKey = d.querySelector('#gbKey').value.trim();
       const rawProxy = d.querySelector('#gbProxy').value.trim();
+      const currCfg = cfg();
       const n = {
         on: d.querySelector('#gbOn').checked,
         key: rawKey,
         proxy: rawProxy,
-        model: d.querySelector('#gbModel').value.trim() || 'gemini-3.5-flash-lite'
+        model: currCfg.model || 'gemini-3.5-flash-lite'
       };
       saveCfg(n);
 
       const m = d.querySelector('#gbMsg');
-      m.innerHTML = '<span style="color:#f59e0b">⏳ 正在與 Gemini 連線測試中…</span>';
+      m.innerHTML = '<span style="color:#f59e0b">⏳ 正在連線並檢測可用模型…</span>';
 
       window.GeminiBrain = window.GeminiBrain || {};
       window.GeminiBrain.lastError = null;
       const r = await ask('只回一句繁體中文桌遊開場問候', '嗨', 40, 10000);
       if (r) {
-        m.innerHTML = `<span style="color:#34d399">✅ 連線成功！AI 回應：「${r}」</span>`;
+        const activeModel = window.GeminiBrain.currentActiveModel || currCfg.model || 'gemini-3.5-flash-lite';
+        d.querySelector('#gbModelName').innerText = activeModel;
+        d.querySelector('#gbModelTag').innerHTML = '✅ 正常在線';
+        d.querySelector('#gbModelTag').style.background = '#064e3b';
+        d.querySelector('#gbModelTag').style.color = '#34d399';
+        m.innerHTML = `<span style="color:#34d399;font-weight:bold;">✅ 連線成功！</span><br><small style="color:#e7e5e4;">運行模型：<b>${activeModel}</b></small><br><span style="color:#a8a29e;">AI 回應：「${r}」</span>`;
       } else {
         const err = window.GeminiBrain.lastError || '網路逾時、CORS跨域未開或Worker內部錯誤';
+        d.querySelector('#gbModelTag').innerHTML = '連線異常';
+        d.querySelector('#gbModelTag').style.background = '#7f1d1d';
+        d.querySelector('#gbModelTag').style.color = '#fca5a5';
         m.innerHTML = `<span style="color:#f87171">❌ 連線失敗 (${err})。<br><small style="color:#a8a29e">若走代理請確認 Worker 已綁定 GEMINI_API_KEY；亦可清空代理網址改用自訂 Key 直連。</small></span>`;
       }
     };
