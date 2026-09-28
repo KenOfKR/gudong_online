@@ -16,7 +16,8 @@
   
  <!-- Firebase Compat SDK (固定版本與相容載入) -->  
  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>  
- <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>  
+ <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>  
  <style>  
  :root {  
  --taste-bg: #0a0a0a;  
@@ -18985,8 +18986,21 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
   // =========================================================================
   // 賽後復盤與 Firestore 雲端跨裝置記憶持久化
   // =========================================================================
+  function _waitAuth() {
+    return new Promise(res => {
+      try {
+        if (typeof firebase === 'undefined' || !firebase.auth) return res();
+        const un = firebase.auth().onAuthStateChanged(u => {
+          un();
+          if (u) return res();
+          firebase.auth().signInAnonymously().then(() => res()).catch(() => res());
+        });
+      } catch (e) { res(); }
+    });
+  }
   async function loadBotMemoriesFromFirestore() {
     if (typeof isFirebaseReady === 'undefined' || !isFirebaseReady || !db) return;
+    await _waitAuth();
     try {
       const snap = await db.collection(FS_MEM_COLLECTION).get();
       if (!snap.empty) {
@@ -19016,6 +19030,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
 
   async function syncBotMemoriesToFirestore(memories) {
     if (typeof isFirebaseReady === 'undefined' || !isFirebaseReady || !db) return;
+    await _waitAuth();
     try {
       const batch = db.batch();
       const allProfiles = BotLearningEngine.getAllProfiles();
