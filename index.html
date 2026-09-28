@@ -18537,10 +18537,8 @@ window.resetAiTrainingData = resetAiTrainingData;
   const FS_MEM_COLLECTION = 'GudongBotProfiles';
 
   // 系統核心運行層：動態混淆金鑰種子，完全避開明文暴露與原始碼搜尋
-  const _sysKernelSeed = [126,110,17,126,93,7,109,113,9,116,104,18,85,83,114,102,70,92,91,101,70,11,103,118,114,106,7,69,83,83,14,76,14,110,86,92,14,126,111,105,116,84,77,81,126,74,119,109,125,7,87,81,88];
-  function _getSysRuntimeAuthToken() {
-    return _sysKernelSeed.map(b => String.fromCharCode(b ^ 0x3f)).join('');
-  }
+  const _sysKernelSeed = []; // 內建金鑰已移除
+  function _getSysRuntimeAuthToken() { return ''; }
 
   const cfg = () => {
     try {
@@ -18572,7 +18570,9 @@ window.resetAiTrainingData = resetAiTrainingData;
     } catch(e) {}
   };
 
-  const mem = () => { try { return JSON.parse(localStorage.getItem(MEM) || '{}'); } catch(e) { return {}; } };
+  const _cleanLesson = t => String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f`<>{}\[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const _cleanMem = raw => { const out = {}; try { Object.keys(raw || {}).slice(0, 100).forEach(n => { const arr = Array.isArray(raw[n]) ? raw[n] : []; const c = arr.map(_cleanLesson).filter(Boolean).slice(-8); if (c.length) out[String(n).slice(0, 30)] = c; }); } catch(e) {} return out; };
+  const mem = () => { try { return _cleanMem(JSON.parse(localStorage.getItem(MEM) || '{}')); } catch(e) { return {}; } };
   const saveMem = m => { try { localStorage.setItem(MEM, JSON.stringify(m)); } catch(e) {} };
   const cache = {};
 
@@ -18996,7 +18996,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
           const d = doc.data();
           if (d.nickname) {
             if (Array.isArray(d.lessons) && d.lessons.length > 0) {
-              m[d.nickname] = d.lessons;
+              m[d.nickname] = d.lessons.map(_cleanLesson).filter(Boolean).slice(-8);
             }
             if (allProfiles[d.nickname] && d.weights) {
               Object.assign(allProfiles[d.nickname].weights, d.weights);
@@ -19024,7 +19024,7 @@ ${spokenList || '（你是第一位發言，前面尚無人發言）'}
         const prof = allProfiles[name] || {};
         batch.set(docRef, {
           nickname: name,
-          lessons: lessons.slice(-10),
+          lessons: (Array.isArray(lessons) ? lessons : []).map(_cleanLesson).filter(Boolean).slice(-8),
           level: prof.level || 1,
           experience: prof.experience || 0,
           weights: prof.weights || {},
