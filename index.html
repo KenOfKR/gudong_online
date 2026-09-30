@@ -1676,13 +1676,23 @@ service cloud.firestore {
   
  <!-- 彈窗底部操作按鈕 -->  
  <div class="p-3 border-t border-neutral-800 bg-neutral-900/90 flex justify-between items-center text-xs">  
- <div class="flex items-center space-x-2">
- <button onclick="refreshStatsData()" class="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold transition flex items-center space-x-1">  
+ <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+ <button onclick="refreshStatsData()" class="px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold transition flex items-center space-x-1">  
  <span>🔄 重新整理</span>  
  </button>  
- <button onclick="openManualMatchEntryModal()" class="px-3 py-1.5 rounded-lg border border-amber-500/70 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 font-bold transition flex items-center space-x-1">  
- <span>➕ 手動補登對決</span>  
+ <button onclick="diagnoseLocalStorage()" title="檢查目前瀏覽器存有哪些舊戰績" class="px-2 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-cyan-400 font-bold transition flex items-center space-x-1">  
+ <span>🔍 檢測快取</span>  
  </button>  
+ <button onclick="openManualMatchEntryModal()" class="px-2.5 py-1.5 rounded-lg border border-amber-500/70 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 font-bold transition flex items-center space-x-1">  
+ <span>➕ 補登</span>  
+ </button>
+ <button onclick="exportGameHistoryJSON()" title="將所有歷史對局匯出成 JSON 備份檔，可自由轉移至其他瀏覽器或設備" class="px-2 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold transition flex items-center space-x-1">
+ <span>💾 匯出備份</span>
+ </button>
+ <label title="匯入其他瀏覽器（如 Chrome/手機）匯出的 JSON 戰績檔" class="px-2 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold transition flex items-center space-x-1 cursor-pointer">
+ <span>📥 匯入</span>
+ <input type="file" accept=".json" onchange="importGameHistoryJSON(event)" class="hidden">
+ </label>
  </div>
  <button onclick="closeStatsModal()" class="px-5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black transition">  
  關閉  
@@ -1769,7 +1779,7 @@ service cloud.firestore {
     const DEFAULT_VERIFIED_TONIGHT_MATCHES = [{"id": "match_20260930_2230_01", "timestamp": "2026-09-30T22:30:00.000Z", "dateKey": "2026-09-30", "formattedTime": "22:30:00", "formattedDateTime": "2026-09-30 22:30:00", "durationMinutes": 45, "playMode": "單機小幫手版", "isAllHuman": true, "isManual": true, "playerCount": 8, "totalScore": 7, "winningCamp": "許願陣營", "savedBeastsCount": 4, "laoCaughtByGood": false, "fangCaughtByYao": false, "xuCaughtByLao": false, "rounds": [{"roundNum": 1, "beasts": [{"name": "鼠", "isReal": true, "votes": 2, "position": 1}, {"name": "龍", "isReal": false, "votes": 0, "position": 2}, {"name": "蛇", "isReal": false, "votes": 1, "position": 3}, {"name": "馬", "isReal": true, "votes": 0, "position": 4}]}, {"roundNum": 2, "beasts": [{"name": "牛", "isReal": true, "votes": 2, "position": 1}, {"name": "虎", "isReal": false, "votes": 0, "position": 2}, {"name": "兔", "isReal": false, "votes": 1, "position": 3}, {"name": "羊", "isReal": true, "votes": 0, "position": 4}]}, {"roundNum": 3, "beasts": [{"name": "猴", "isReal": true, "votes": 1, "position": 1}, {"name": "雞", "isReal": false, "votes": 0, "position": 2}, {"name": "狗", "isReal": false, "votes": 0, "position": 3}, {"name": "豬", "isReal": true, "votes": 2, "position": 4}]}], "players": [{"id": 1, "name": "小舅", "colorId": "black", "role": "木戶加奈", "isWinner": true}, {"id": 2, "name": "蝦子", "colorId": "green", "role": "黃煙煙", "isWinner": true}, {"id": 3, "name": "青漢", "colorId": "yellow", "role": "方震", "isWinner": true}, {"id": 4, "name": "阿賢", "colorId": "blue", "role": "許願", "isWinner": true}, {"id": 5, "name": "凡", "colorId": "white", "role": "姬雲浮", "isWinner": true}, {"id": 6, "name": "彥", "colorId": "orange", "role": "老朝奉", "isWinner": false}, {"id": 7, "name": "瑞", "colorId": "red", "role": "藥不然", "isWinner": false}, {"id": 8, "name": "索娜", "colorId": "purple", "role": "鄭國渠", "isWinner": false}], "actionLogs": {"1": {"name": "小舅", "role": "木戶加奈", "colorId": "black", "r1": {"inspect": ["【鼠】 【真品】"], "ability": "無操作", "next": "紅色 瑞", "isStarter": true}, "r2": {"inspect": ["【虎】 無法辨別真偽！"], "ability": "無操作", "next": "紅色 瑞"}, "r3": {"inspect": ["【狗】 【贗品】"], "ability": "無操作", "next": "紫色 索娜", "isStarter": true}, "vote": "投給：黃色 (方震)"}, "2": {"name": "蝦子", "role": "黃煙煙", "colorId": "green", "r1": {"inspect": ["【鼠】 【真品】"], "ability": "無操作", "next": "白色 凡"}, "r2": {"inspect": ["你被幹了"], "ability": "無操作", "next": "黃色 青漢"}, "r3": {"inspect": ["你被幹了"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "vote": "投給：紫色 (鄭國渠)"}, "3": {"name": "青漢", "role": "方震", "colorId": "yellow", "r1": {"inspect": ["【鼠】 看不懂"], "ability": "查驗 藍色 阿賢 ➔ 許願陣營", "next": "紫色 索娜"}, "r2": {"inspect": ["【牛】 看不懂"], "ability": "查驗 紫色 索娜 ➔ 老朝奉陣營", "next": "紫色 索娜"}, "r3": {"inspect": ["【猴】 看不懂"], "ability": "查驗 紅色 瑞 ➔ 老朝奉陣營", "next": "橘色 彥"}, "vote": "投給：紅色 (藥不然)"}, "4": {"name": "阿賢", "role": "許願", "colorId": "blue", "r1": {"inspect": ["【鼠】 【真品】", "【龍】 無法辨別真偽！"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "r2": {"inspect": ["【牛】 【真品】", "【兔】 【贗品】"], "ability": "無操作", "next": "黑色 小舅", "isStarter": true}, "r3": {"inspect": ["【猴】 【真品】", "【雞】 【贗品】"], "ability": "無操作", "next": "黑色 小舅"}, "vote": "投給：紫色 (鄭國渠)"}, "5": {"name": "凡", "role": "姬雲浮", "colorId": "white", "r1": {"inspect": ["你眼前一片黑"], "ability": "無操作", "next": "黃色 青漢"}, "r2": {"inspect": ["你被偷襲了"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "r3": {"inspect": ["你被幹了"], "ability": "無操作", "next": "藍色 阿賢", "isStarter": true}, "vote": "投給：黃色 (方震)"}, "6": {"name": "彥", "role": "老朝奉", "colorId": "orange", "r1": {"inspect": ["【馬】 【真品】"], "ability": "未發動擾亂", "next": "藍色 阿賢"}, "r2": {"inspect": ["【兔】 【贗品】"], "ability": "發動擾亂（反轉好人真偽）", "next": "綠色 蝦子"}, "r3": {"inspect": ["【狗】 【贗品】"], "ability": "未發動擾亂", "next": "綠色 蝦子"}, "vote": "投給：黑色 (木戶加奈)"}, "7": {"name": "瑞", "role": "藥不然", "colorId": "red", "r1": {"inspect": ["【蛇】 【贗品】"], "ability": "偷襲 白色 凡", "next": "綠色 蝦子"}, "r2": {"inspect": ["【羊】 【真品】"], "ability": "偷襲 綠色 蝦子", "next": "橘色 彥"}, "r3": {"inspect": ["【猴】 無法辨別真偽！"], "ability": "偷襲 綠色 蝦子", "next": "黃色 青漢"}, "vote": "投給：白色 (姬雲浮)"}, "8": {"name": "索娜", "role": "鄭國渠", "colorId": "purple", "r1": {"inspect": ["【馬】 【真品】"], "ability": "封鎖【龍】(第2位)", "next": "橘色 彥"}, "r2": {"inspect": ["【虎】 【贗品】"], "ability": "封鎖【牛】(第1位)", "next": "白色 凡"}, "r3": {"inspect": ["【猴】 【真品】"], "ability": "封鎖【猴】(第1位)", "next": "紅色 瑞"}, "vote": "投給：綠色 (黃煙煙)"}}}];
 
 const FIRESTORE_COLLECTION = "GudongDatabase";  
- const OFFLINE_STORAGE_KEY = "gudong_offline_history_v3";  
+ const OFFLINE_STORAGE_KEY = "gudong_offline_history_v2";  
   
  var db = null;  
  var isFirebaseReady = false;
@@ -18383,7 +18393,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             curV3.unshift(g);
           }
         });
-        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(curV3));
+        localStorage.setItem('gudong_offline_history_v2', JSON.stringify(curV3));
+        localStorage.setItem('gudong_offline_history_v3', JSON.stringify(curV3));
       } catch(e) {}
 
       if (syncedCount > 0) {
@@ -18393,53 +18404,241 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     }
     window.scanAndSyncTonightMatches = scanAndSyncTonightMatches;
 
-    async function fetchAllHistoryGames() {
-      if (isFirebaseReady && db) {
+    // 深度檢索本機瀏覽器所有舊版本歷史儲存槽 (相容 v1, v2, v3 與狀態快照)
+    function getAllLocalHistoryGames() {
+      const allGames = [];
+      const seen = new Set();
+      const targetKeys = [
+        'gudong_offline_history_v2',
+        'gudong_offline_history_v3',
+        'gudong_offline_history_v1',
+        'gudong_offline_history',
+        'gudong_history_v1',
+        'gudong_history'
+      ];
+
+      try {
+        if (typeof localStorage !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.includes('history') || k.includes('gudong') || k.includes('record')) && !targetKeys.includes(k)) {
+              targetKeys.push(k);
+            }
+          }
+        }
+      } catch(e) {}
+
+      targetKeys.forEach(k => {
         try {
-          // 使用純 get() 避免缺少 createdAt 欄位或缺少索引而拋出異常
+          const raw = localStorage.getItem(k);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(g => {
+              const pList = Array.isArray(g.players) ? g.players : (g.players ? Object.values(g.players) : []);
+              if (g && g.winningCamp && g.totalScore !== undefined && pList.length >= 6) {
+                const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
+                if (!seen.has(uKey)) {
+                  seen.add(uKey);
+                  allGames.push({
+                    ...g,
+                    players: pList
+                  });
+                }
+              }
+            });
+          } else if (parsed && (parsed.lastCalculatedResult || (parsed.G && parsed.G.lastCalculatedResult))) {
+            const r = parsed.lastCalculatedResult || parsed.G.lastCalculatedResult;
+            if (r && r.winningCamp && r.totalScore !== undefined) {
+              const now = new Date(r.endTimestamp || r.startTimestamp || Date.now());
+              const dateKey = now.toISOString().slice(0, 10);
+              const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
+              const uKey = `${dateKey} ${timeStr}_${r.totalScore}`;
+              if (!seen.has(uKey)) {
+                seen.add(uKey);
+                allGames.push({
+                  timestamp: now.toISOString(),
+                  dateKey: dateKey,
+                  formattedTime: timeStr,
+                  formattedDateTime: `${dateKey} ${timeStr}`,
+                  durationMinutes: Math.max(30, r.durationMinutes || 45),
+                  playMode: '單機小幫手版',
+                  isAllHuman: true,
+                  playerCount: r.playerCount || (parsed.players || []).length || 8,
+                  totalScore: r.totalScore,
+                  winningCamp: r.winningCamp,
+                  savedBeastsCount: r.savedBeastsCount !== undefined ? r.savedBeastsCount : 2,
+                  rounds: r.rounds || parsed.rounds || [],
+                  players: r.players || parsed.players || []
+                });
+              }
+            }
+          }
+        } catch(e) {}
+      });
+      return allGames;
+    }
+    window.getAllLocalHistoryGames = getAllLocalHistoryGames;
+    function diagnoseLocalStorage() {
+      let report = [];
+      const keys = ['gudong_offline_history_v2', 'gudong_offline_history_v3', 'gudong_offline_history_v1', 'gudong_offline_history', 'gudong_state_v1'];
+      keys.forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const p = JSON.parse(raw);
+            const count = Array.isArray(p) ? p.length : (p.lastCalculatedResult ? '含終局快照' : '有資料');
+            report.push(`• ${k}: ${count}`);
+          } else {
+            report.push(`• ${k}: (無資料)`);
+          }
+        } catch(e) {
+          report.push(`• ${k}: 格式異常`);
+        }
+      });
+      const all = getAllLocalHistoryGames();
+      alert(`🔍【火狐/本機瀏覽器戰績快取診斷】\n\n${report.join('\n')}\n\n➡ 系統共成功提取出 ${all.length} 場對局！\n若有對局，系統已自動合併並同步至雲端。`);
+    }
+    window.diagnoseLocalStorage = diagnoseLocalStorage;
+
+
+    function exportGameHistoryJSON() {
+      const games = getAllLocalHistoryGames();
+      if (games.length === 0) {
+        showToast('目前本機尚無對局資料可供匯出', 'info', 2000);
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(games, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `古董局中局_戰績備份_${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('✓ 已成功匯出歷史對局備份檔！', 'success', 2500);
+    }
+    window.exportGameHistoryJSON = exportGameHistoryJSON;
+
+    async function importGameHistoryJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (!Array.isArray(imported)) {
+            alert('檔案格式錯誤：需為 JSON 陣列');
+            return;
+          }
+          let localGames = getAllLocalHistoryGames();
+          const seen = new Set(localGames.map(g => g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore)));
+          let addCount = 0;
+          for (const g of imported) {
+            const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
+            if (!seen.has(uKey)) {
+              seen.add(uKey);
+              localGames.push(g);
+              addCount++;
+              if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+                try {
+                  await db.collection(FIRESTORE_COLLECTION).add({
+                    ...g,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                  });
+                } catch(err) {}
+              }
+            }
+          }
+          localStorage.setItem('gudong_offline_history_v2', JSON.stringify(localGames));
+          localStorage.setItem('gudong_offline_history_v3', JSON.stringify(localGames));
+          alert(`🎉 成功匯入 ${addCount} 場歷史對局並同步至雲端戰績網！`);
+          await refreshStatsData();
+        } catch(err) {
+          alert('匯入解析失敗，請確認檔案內容為合法的戰績 JSON 格式。');
+        }
+      };
+      reader.readAsText(file);
+    }
+    window.importGameHistoryJSON = importGameHistoryJSON;
+
+    async function fetchAllHistoryGames() {
+      const combined = [];
+      const seenKeys = new Set();
+      let cloudConnected = false;
+
+      // 1. 取得雲端 Firestore 資料
+      if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+        try {
           const snapshot = await db.collection(FIRESTORE_COLLECTION).get();
-          const list = [];
           snapshot.forEach(doc => {
             const data = doc.data();
             const dateDisplay = data.formattedDateTime || 
               (data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleString("zh-TW") : 
               (data.timestamp ? new Date(data.timestamp).toLocaleString("zh-TW") : "歷史對局"));
-            list.push({
+            const item = {
               id: doc.id,
               ...data,
               formattedDateTime: dateDisplay
-            });
-          });
-
-          // 於前端依照時間戳記穩定倒序排列（最新在前）
-          list.sort((a, b) => {
-            const tA = a.timestamp ? new Date(a.timestamp).getTime() : (a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0);
-            const tB = b.timestamp ? new Date(b.timestamp).getTime() : (b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0);
-            return tB - tA;
-          });
-
-          // 若 Firestore 尚未寫入預載種子對局，自動合併預載種子
-          const seeds = (typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined') ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [];
-          const seenIds = new Set(list.map(x => x.id || x.timestamp));
-          seeds.forEach(s => {
-            if (!seenIds.has(s.id) && !seenIds.has(s.timestamp)) {
-              list.push(s);
+            };
+            const uKey = doc.id || item.timestamp || (item.formattedDateTime + '_' + item.totalScore);
+            if (!seenKeys.has(uKey)) {
+              seenKeys.add(uKey);
+              combined.push(item);
             }
           });
-          return { source: "Cloud Firestore 雲端資料庫", list };
+          cloudConnected = true;
         } catch (e) {
           console.warn("Firestore 讀取失敗，改讀本機快取", e);
         }
       }
-      let localList = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || "[]");
-      const seeds = (typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined') ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [];
-      const seenIds = new Set(localList.map(x => x.id || x.timestamp));
-      seeds.forEach(s => {
-        if (!seenIds.has(s.id) && !seenIds.has(s.timestamp)) {
-          localList.push(s);
+
+      // 2. 徹底合併所有舊版本與本機快取歷史紀錄 (v2, v3, v1 等所有 key)
+      const localGames = getAllLocalHistoryGames();
+      localGames.forEach(g => {
+        const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
+        if (!seenKeys.has(uKey)) {
+          seenKeys.add(uKey);
+          combined.push(g);
+
+          // 若雲端連線中且尚無此筆舊對局，自動在背景補傳至雲端永久備份
+          if (cloudConnected && db) {
+            try {
+              db.collection(FIRESTORE_COLLECTION).add({
+                ...g,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).catch(() => {});
+            } catch(e) {}
+          }
         }
       });
-      return { source: "本機快取", list: localList };
+
+      // 3. 合併內建實戰預載種子對局
+      const seeds = (typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined') ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [];
+      seeds.forEach(s => {
+        const uKey = s.id || s.timestamp || (s.formattedDateTime + '_' + s.totalScore);
+        if (!seenKeys.has(uKey)) {
+          seenKeys.add(uKey);
+          combined.push(s);
+        }
+      });
+
+      // 4. 依照時間戳記穩定倒序排列（最新在前）
+      combined.sort((a, b) => {
+        const tA = a.timestamp ? new Date(a.timestamp).getTime() : (a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0);
+        const tB = b.timestamp ? new Date(b.timestamp).getTime() : (b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0);
+        return tB - tA;
+      });
+
+      // 5. 將所有合併後的完整對局同時存回 v2 與 v3，確保本機資料庫永久完整不丟失！
+      try {
+        localStorage.setItem('gudong_offline_history_v2', JSON.stringify(combined));
+        localStorage.setItem('gudong_offline_history_v3', JSON.stringify(combined));
+      } catch(e) {}
+
+      return {
+        source: cloudConnected ? "Cloud Firestore 雲端資料庫（已與本機歷史完整合併）" : "本機快取（已合併所有舊版對局紀錄）",
+        list: combined
+      };
     }
 
     async function openStatsModal() {
@@ -18726,12 +18925,12 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       const games = [];
       (rawGames || []).forEach(g => {
         if (!Array.isArray(g.players) || g.players.length === 0) return;
+        // 排除純測試電腦局
         if (g.hasMockPlayers) return;
         const hasResult = !!(g.winningCamp && g.totalScore !== undefined);
         if (!hasResult) return;
-        const dur = g.durationMinutes || 0;
-        if (!g.isManual && dur > 0 && dur < MIN_GAME_DURATION_MINUTES) return;
 
+        // 過去所有歷史版本儲存的對局資料，一律完整保留並展示在戰績網中，絕不丟棄！
         const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
         if (!seenKeys.has(uKey)) {
           seenKeys.add(uKey);
