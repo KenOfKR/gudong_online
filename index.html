@@ -1476,9 +1476,9 @@
  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 text-center shadow-xl">  
  <div id="finalScoreBanner" class="p-5 rounded-2xl border mb-4 shadow-2xl"></div>  
   
- <!-- 雲端戰績與勝率統計卡片 (含 30 分鐘防洗數據機制提示) -->  
+ <!-- 雲端戰績與勝率統計卡片 (含 36 分鐘防洗數據機制提示) -->  
  <!-- 雲端戰績自動同步狀態卡片 (強制自動上傳，無須確認與按鈕) -->  
- <!-- 雲端戰績狀態卡片 (滿 30 分鐘強制自動上傳，未達 30 分鐘強制不上傳) -->  
+ <!-- 雲端戰績狀態卡片 (滿 36 分鐘強制自動上傳，未達 36 分鐘強制不上傳) -->  
   
  <div class="text-xs font-bold text-neutral-300 text-left mb-2">三回合投票保留之獸首真偽揭曉：</div>  
  <div id="allRoundsSummary" class="space-y-2 mb-5 text-left text-xs"></div>  
@@ -2531,7 +2531,7 @@ window.ActionEngine = ActionEngine;
  ============================================================ */  
  const STORAGE_KEY = 'gudong_boardgame_rules_v26';  
  const MASTER_PROFILES_KEY = 'gudong_master_profiles_v2';  
- const MIN_GAME_DURATION_MINUTES = 40; // 滿 40 分鐘防洗數據門檻  
+ const MIN_GAME_DURATION_MINUTES = 36; // 滿 36 分鐘防洗數據門檻  
   
  // 電腦玩家綽號辭庫（若後續有新的電腦玩家綽號，直接加入此辭庫，依需求 7）
  const BOT_NICKNAME_POOL = [
@@ -14415,9 +14415,9 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
       const hasMockPlayers = resolvedPlayers.some(p => p.id && p.id.startsWith('mock_p_'));
       gameOverData.hasMockPlayers = hasMockPlayers;
 
-      // 戰績網規則：只有「全真人對局」（無任何電腦玩家）且遊玩時間達 40 分鐘以上、且有出現最終結果才會保留在戰績網中
+      // 戰績網規則：只有「全真人對局」（無任何電腦玩家）且遊玩時間達 36 分鐘以上、且有出現最終結果才會保留在戰績網中
       const hasFinalResult = !!(winningCampName && totalScore !== undefined);
-      const isAllHuman = (!hasMockPlayers && (resolvedPlayers || []).length >= 7 && elapsed >= 40 && hasFinalResult);
+      const isAllHuman = (!hasMockPlayers && (resolvedPlayers || []).length >= 7 && elapsed >= MIN_GAME_DURATION_MINUTES && hasFinalResult);
 
       if (isAllHuman) {
         try {
@@ -14725,8 +14725,8 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
             </div>
             <div class="text-3xl font-black ${isXuWon ? 'text-emerald-400' : 'text-rose-300'} font-mono">最終總分：${gData.totalScore} 分</div>
             <div class="text-xs text-neutral-400 mt-1.5 mb-3">
-              對局時長：${gData.durationMinutes || 30} 分鐘 ｜ 
-              ${gData.hasMockPlayers ? '<span class="text-amber-400 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">🤖 測試版對局 (含電腦玩家)，不列入戰績網</span>' : (gData.durationMinutes >= 30 ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 全真人有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿30分鐘，不列入戰績網</span>')}
+              對局時長：${gData.durationMinutes || 0} 分鐘 ｜ 
+              ${gData.hasMockPlayers ? '<span class="text-amber-400 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">🤖 測試版對局 (含電腦玩家)，不列入戰績網</span>' : (gData.durationMinutes >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 全真人有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>')}
             </div>
             <div class="space-y-1.5 bg-neutral-950 p-3 rounded-xl border border-neutral-800 text-left">
               ${scoreDetailsHtml}
@@ -17722,12 +17722,17 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       };
 
       const banner = document.getElementById('finalScoreBanner');
+      const localElapsed = getElapsedGameMinutes();
       const winnerTitleHtml = isXuWon ? `
         <div class="text-xs text-amber-400 font-bold mb-1 tracking-widest">【對局最終結果】</div>
         <div class="text-3xl sm:text-4xl font-black text-amber-300 mb-2 leading-snug">
           🎉 許願陣營<br>獲勝！
         </div>
         <div class="text-3xl font-black text-emerald-400 font-mono">最終總分：${totalScore} 分</div>
+        <div class="text-xs text-neutral-400 mt-1 mb-2">
+          對局時長：${localElapsed} 分鐘 ｜ 
+          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>'}
+        </div>
         <div class="text-sm font-bold text-neutral-400 mt-0.5 mb-3">（≥ 6分）</div>
       ` : `
         <div class="text-xs text-rose-400 font-bold mb-1 tracking-widest">【對局最終結果】</div>
@@ -17735,6 +17740,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           😈 老朝奉陣營<br>獲勝！
         </div>
         <div class="text-3xl font-black text-rose-300 font-mono">最終總分：${totalScore} 分</div>
+        <div class="text-xs text-neutral-400 mt-1 mb-2">
+          對局時長：${localElapsed} 分鐘 ｜ 
+          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>'}
+        </div>
         <div class="text-sm font-bold text-neutral-400 mt-0.5 mb-3">（0～5分）</div>
       `;
 
@@ -17940,10 +17949,17 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         return;
       }
 
-      const elapsed = Math.max(30, getElapsedGameMinutes() || 35);
+      const elapsed = getElapsedGameMinutes();
       const hasFinalResult = !!(G.lastCalculatedResult && G.lastCalculatedResult.winningCamp && G.lastCalculatedResult.totalScore !== undefined);
       if (!hasFinalResult) {
         console.log("未達終局結算，不列入戰績網。");
+        G.currentGameUploaded = true;
+        saveState();
+        return;
+      }
+
+      if (elapsed < MIN_GAME_DURATION_MINUTES) {
+        console.log(`未達有效對局時間門檻（${elapsed}分鐘 < ${MIN_GAME_DURATION_MINUTES}分鐘），不自動列入戰績網。`);
         G.currentGameUploaded = true;
         saveState();
         return;
@@ -18056,6 +18072,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         };
       });
 
+      if (dur < MIN_GAME_DURATION_MINUTES) {
+        showToast(`⚠️ 遊玩時間須達 ${MIN_GAME_DURATION_MINUTES} 分鐘以上方可列入戰績網！`, 'warning', 2500);
+        return;
+      }
       const gameDoc = {
         timestamp: `${dateVal}T${timeStr}.000Z`,
         dateKey: dateVal,
@@ -18170,6 +18190,71 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       }
     }
     window.forceUploadCurrentLocalGame = forceUploadCurrentLocalGame;
+
+    async function forceUploadCurrentOnlineGame() {
+      if (!onlineRoomData || !onlineRoomData.gameOverData) {
+        showToast('⚠️ 目前尚無線上終局結算結果可供上傳', 'warning', 2500);
+        return;
+      }
+      const btn = document.getElementById('btnForceUploadOnlineGame');
+      if (btn) { btn.disabled = true; btn.innerText = '正在強制上傳中...'; }
+      const room = onlineRoomData;
+      const g = room.gameOverData;
+      const r = room.rounds || [];
+      const p = room.players || [];
+      const now = new Date();
+      const dateKey = now.toISOString().slice(0, 10);
+      const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
+      const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
+      const isXuWon = g.winningCamp === '許願陣營';
+
+      const gameDoc = {
+        timestamp: now.toISOString(),
+        dateKey: dateKey,
+        formattedTime: timeStr,
+        formattedDateTime: dateKey + ' ' + timeStr,
+        durationMinutes: Math.max(35, g.durationMinutes || 45),
+        playMode: '線上連線版',
+        isAllHuman: true,
+        isManual: true,
+        playerCount: p.length || 8,
+        totalScore: g.totalScore,
+        winningCamp: g.winningCamp,
+        savedBeastsCount: g.savedBeastsCount || 0,
+        laoCaughtByGood: !!g.laoCaught,
+        fangCaughtByYao: !!g.fangCaught,
+        xuCaughtByLao: !!g.xuCaught,
+        rounds: r,
+        players: p.map(x => ({
+          id: x.id,
+          name: x.name,
+          colorId: x.colorId,
+          role: (g.revealedRoles && g.revealedRoles[x.id]) ? g.revealedRoles[x.id] : x.role,
+          isWinner: isXuWon ? goodRoles.includes(x.role) : !goodRoles.includes(x.role)
+        })),
+        actionLogs: {}
+      };
+
+      try {
+        if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+          const docRef = await db.collection(FIRESTORE_COLLECTION).add({
+            ...gameDoc,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          gameDoc.id = docRef.id;
+        }
+        let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        localGames.unshift(gameDoc);
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        showToast('✅ 已成功將線上對決強制同步至雲端戰績網！', 'success', 3000);
+        if (btn) btn.innerText = '✓ 本局已成功上傳至戰績網';
+      } catch(err) {
+        console.error('線上強制上傳異常:', err);
+        showToast('⚠️ 上傳異常，已先存至本機快取', 'warning', 3000);
+        if (btn) { btn.disabled = false; btn.innerText = '📤 重新嘗試上傳'; }
+      }
+    }
+    window.forceUploadCurrentOnlineGame = forceUploadCurrentOnlineGame;
 
     async function clearAllGameDatabase() {
       if (!confirm("⚠️ 警告：確定要清空雲端與本機的所有歷史戰績嗎？\n此操作無法復原！")) return;
@@ -18641,8 +18726,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       const games = [];
       (rawGames || []).forEach(g => {
         if (!Array.isArray(g.players) || g.players.length === 0) return;
+        if (g.hasMockPlayers) return;
         const hasResult = !!(g.winningCamp && g.totalScore !== undefined);
         if (!hasResult) return;
+        const dur = g.durationMinutes || 0;
+        if (!g.isManual && dur > 0 && dur < MIN_GAME_DURATION_MINUTES) return;
 
         const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
         if (!seenKeys.has(uKey)) {
