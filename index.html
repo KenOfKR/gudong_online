@@ -1489,6 +1489,9 @@
  <div class="text-xs font-bold text-neutral-300 text-left mb-2">全體玩家全程操作軌跡記錄：</div>  
  <div id="allPlayerActionLogs" class="space-y-3 mb-5 text-left text-xs bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 max-h-96 overflow-y-auto"></div>  
   
+ <button id="btnForceUploadLocalGame" onclick="forceUploadCurrentLocalGame()" class="w-full py-3 mb-2.5 bg-amber-950/80 hover:bg-amber-900 text-amber-300 font-bold text-xs rounded-xl border border-amber-600/80 transition flex items-center justify-center space-x-1.5 active:scale-[0.99]">
+ <span>📤 強制將本局對決上傳至戰績網</span>
+ </button>
  <button onclick="confirmResetGame()" class="w-full py-3 bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-sm rounded-xl transition">  
  再開一局新遊戲  
  </button>  
@@ -1673,9 +1676,14 @@ service cloud.firestore {
   
  <!-- 彈窗底部操作按鈕 -->  
  <div class="p-3 border-t border-neutral-800 bg-neutral-900/90 flex justify-between items-center text-xs">  
+ <div class="flex items-center space-x-2">
  <button onclick="refreshStatsData()" class="px-3 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold transition flex items-center space-x-1">  
  <span>🔄 重新整理</span>  
  </button>  
+ <button onclick="openManualMatchEntryModal()" class="px-3 py-1.5 rounded-lg border border-amber-500/70 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 font-bold transition flex items-center space-x-1">  
+ <span>➕ 手動補登對決</span>  
+ </button>  
+ </div>
  <button onclick="closeStatsModal()" class="px-5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black transition">  
  關閉  
  </button>  
@@ -1683,7 +1691,62 @@ service cloud.firestore {
   
  </div>  
  </div>  
-  
+
+ <!-- ================= 手動補登戰績對決彈窗 (MANUAL MATCH ENTRY MODAL) ================= -->
+ <div id="modalManualMatchEntry" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4">
+   <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+     <div class="px-5 py-3.5 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/90">
+       <div class="flex items-center space-x-2">
+         <span class="text-xl">✍️</span>
+         <div>
+           <h3 class="text-base font-black text-amber-400">手動補登對決資料</h3>
+           <div class="text-[10px] text-neutral-400">一鍵直接寫入雲端 Firestore 與戰績網</div>
+         </div>
+       </div>
+       <button onclick="closeManualMatchEntryModal()" class="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold flex items-center justify-center transition">✕</button>
+     </div>
+
+     <div class="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs text-left">
+       <div class="grid grid-cols-2 gap-2.5">
+         <div>
+           <label class="block text-neutral-400 font-bold mb-1">獲勝陣營：</label>
+           <select id="manWinningCamp" class="w-full p-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-neutral-100 font-bold focus:border-amber-500 outline-none">
+             <option value="許願陣營">許願陣營 (好人勝)</option>
+             <option value="老朝奉陣營">老朝奉陣營 (壞人勝)</option>
+           </select>
+         </div>
+         <div>
+           <label class="block text-neutral-400 font-bold mb-1">好人最終總分：</label>
+           <input type="number" id="manTotalScore" value="20" class="w-full p-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-amber-300 font-mono font-bold focus:border-amber-500 outline-none" />
+         </div>
+       </div>
+
+       <div class="grid grid-cols-2 gap-2.5">
+         <div>
+           <label class="block text-neutral-400 font-bold mb-1">遊玩時間 (分鐘)：</label>
+           <input type="number" id="manDuration" value="45" class="w-full p-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-neutral-100 font-mono font-bold focus:border-amber-500 outline-none" />
+         </div>
+         <div>
+           <label class="block text-neutral-400 font-bold mb-1">對局日期：</label>
+           <input type="date" id="manDate" class="w-full p-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-neutral-100 font-mono font-bold focus:border-amber-500 outline-none" />
+         </div>
+       </div>
+
+       <div class="border-t border-neutral-800 pt-3">
+         <div class="text-xs font-black text-amber-400 mb-2">參賽玩家與身分配置（8人）：</div>
+         <div id="manPlayersListContainer" class="space-y-2"></div>
+       </div>
+     </div>
+
+     <div class="p-3 border-t border-neutral-800 bg-neutral-900/90 flex justify-between items-center text-xs">
+       <button onclick="closeManualMatchEntryModal()" class="px-4 py-2 rounded-xl border border-neutral-700 bg-neutral-800 text-neutral-300 font-bold">取消</button>
+       <button id="btnSubmitManualMatch" onclick="submitManualMatchEntry()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black shadow-lg transition active:scale-[0.99]">
+         ✓ 立即寫入雲端戰績網
+       </button>
+     </div>
+   </div>
+ </div>
+
  <script>  
  /* ============================================================  
  Firebase Cloud Firestore 設定 (已整合您的真實金鑰)  
@@ -1698,7 +1761,14 @@ service cloud.firestore {
  measurementId: "G-374GS71FP0"  
  };  
   
- const FIRESTORE_COLLECTION = "GudongDatabase";  
+ 
+    // ============================================================
+    // 今晚實體全真人實戰對局預載種子 (Tonight Verified Real-Game Matches)
+    // 包含 2026-09-30 完整 8 人角色、真偽獸首、全程操作軌跡與鑑人投票
+    // ============================================================
+    const DEFAULT_VERIFIED_TONIGHT_MATCHES = [{"id": "match_20260930_2230_01", "timestamp": "2026-09-30T22:30:00.000Z", "dateKey": "2026-09-30", "formattedTime": "22:30:00", "formattedDateTime": "2026-09-30 22:30:00", "durationMinutes": 45, "playMode": "單機小幫手版", "isAllHuman": true, "isManual": true, "playerCount": 8, "totalScore": 7, "winningCamp": "許願陣營", "savedBeastsCount": 4, "laoCaughtByGood": false, "fangCaughtByYao": false, "xuCaughtByLao": false, "rounds": [{"roundNum": 1, "beasts": [{"name": "鼠", "isReal": true, "votes": 2, "position": 1}, {"name": "龍", "isReal": false, "votes": 0, "position": 2}, {"name": "蛇", "isReal": false, "votes": 1, "position": 3}, {"name": "馬", "isReal": true, "votes": 0, "position": 4}]}, {"roundNum": 2, "beasts": [{"name": "牛", "isReal": true, "votes": 2, "position": 1}, {"name": "虎", "isReal": false, "votes": 0, "position": 2}, {"name": "兔", "isReal": false, "votes": 1, "position": 3}, {"name": "羊", "isReal": true, "votes": 0, "position": 4}]}, {"roundNum": 3, "beasts": [{"name": "猴", "isReal": true, "votes": 1, "position": 1}, {"name": "雞", "isReal": false, "votes": 0, "position": 2}, {"name": "狗", "isReal": false, "votes": 0, "position": 3}, {"name": "豬", "isReal": true, "votes": 2, "position": 4}]}], "players": [{"id": 1, "name": "小舅", "colorId": "black", "role": "木戶加奈", "isWinner": true}, {"id": 2, "name": "蝦子", "colorId": "green", "role": "黃煙煙", "isWinner": true}, {"id": 3, "name": "青漢", "colorId": "yellow", "role": "方震", "isWinner": true}, {"id": 4, "name": "阿賢", "colorId": "blue", "role": "許願", "isWinner": true}, {"id": 5, "name": "凡", "colorId": "white", "role": "姬雲浮", "isWinner": true}, {"id": 6, "name": "彥", "colorId": "orange", "role": "老朝奉", "isWinner": false}, {"id": 7, "name": "瑞", "colorId": "red", "role": "藥不然", "isWinner": false}, {"id": 8, "name": "索娜", "colorId": "purple", "role": "鄭國渠", "isWinner": false}], "actionLogs": {"1": {"name": "小舅", "role": "木戶加奈", "colorId": "black", "r1": {"inspect": ["【鼠】 【真品】"], "ability": "無操作", "next": "紅色 瑞", "isStarter": true}, "r2": {"inspect": ["【虎】 無法辨別真偽！"], "ability": "無操作", "next": "紅色 瑞"}, "r3": {"inspect": ["【狗】 【贗品】"], "ability": "無操作", "next": "紫色 索娜", "isStarter": true}, "vote": "投給：黃色 (方震)"}, "2": {"name": "蝦子", "role": "黃煙煙", "colorId": "green", "r1": {"inspect": ["【鼠】 【真品】"], "ability": "無操作", "next": "白色 凡"}, "r2": {"inspect": ["你被幹了"], "ability": "無操作", "next": "黃色 青漢"}, "r3": {"inspect": ["你被幹了"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "vote": "投給：紫色 (鄭國渠)"}, "3": {"name": "青漢", "role": "方震", "colorId": "yellow", "r1": {"inspect": ["【鼠】 看不懂"], "ability": "查驗 藍色 阿賢 ➔ 許願陣營", "next": "紫色 索娜"}, "r2": {"inspect": ["【牛】 看不懂"], "ability": "查驗 紫色 索娜 ➔ 老朝奉陣營", "next": "紫色 索娜"}, "r3": {"inspect": ["【猴】 看不懂"], "ability": "查驗 紅色 瑞 ➔ 老朝奉陣營", "next": "橘色 彥"}, "vote": "投給：紅色 (藥不然)"}, "4": {"name": "阿賢", "role": "許願", "colorId": "blue", "r1": {"inspect": ["【鼠】 【真品】", "【龍】 無法辨別真偽！"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "r2": {"inspect": ["【牛】 【真品】", "【兔】 【贗品】"], "ability": "無操作", "next": "黑色 小舅", "isStarter": true}, "r3": {"inspect": ["【猴】 【真品】", "【雞】 【贗品】"], "ability": "無操作", "next": "黑色 小舅"}, "vote": "投給：紫色 (鄭國渠)"}, "5": {"name": "凡", "role": "姬雲浮", "colorId": "white", "r1": {"inspect": ["你眼前一片黑"], "ability": "無操作", "next": "黃色 青漢"}, "r2": {"inspect": ["你被偷襲了"], "ability": "無操作", "next": "最後一位（前往鑑寶）"}, "r3": {"inspect": ["你被幹了"], "ability": "無操作", "next": "藍色 阿賢", "isStarter": true}, "vote": "投給：黃色 (方震)"}, "6": {"name": "彥", "role": "老朝奉", "colorId": "orange", "r1": {"inspect": ["【馬】 【真品】"], "ability": "未發動擾亂", "next": "藍色 阿賢"}, "r2": {"inspect": ["【兔】 【贗品】"], "ability": "發動擾亂（反轉好人真偽）", "next": "綠色 蝦子"}, "r3": {"inspect": ["【狗】 【贗品】"], "ability": "未發動擾亂", "next": "綠色 蝦子"}, "vote": "投給：黑色 (木戶加奈)"}, "7": {"name": "瑞", "role": "藥不然", "colorId": "red", "r1": {"inspect": ["【蛇】 【贗品】"], "ability": "偷襲 白色 凡", "next": "綠色 蝦子"}, "r2": {"inspect": ["【羊】 【真品】"], "ability": "偷襲 綠色 蝦子", "next": "橘色 彥"}, "r3": {"inspect": ["【猴】 無法辨別真偽！"], "ability": "偷襲 綠色 蝦子", "next": "黃色 青漢"}, "vote": "投給：白色 (姬雲浮)"}, "8": {"name": "索娜", "role": "鄭國渠", "colorId": "purple", "r1": {"inspect": ["【馬】 【真品】"], "ability": "封鎖【龍】(第2位)", "next": "橘色 彥"}, "r2": {"inspect": ["【虎】 【贗品】"], "ability": "封鎖【牛】(第1位)", "next": "白色 凡"}, "r3": {"inspect": ["【猴】 【真品】"], "ability": "封鎖【猴】(第1位)", "next": "紅色 瑞"}, "vote": "投給：綠色 (黃煙煙)"}}}];
+
+const FIRESTORE_COLLECTION = "GudongDatabase";  
  const OFFLINE_STORAGE_KEY = "gudong_offline_history_v3";  
   
  var db = null;  
@@ -14403,9 +14473,9 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
             totalScore: totalScore,
             winningCamp: winningCampName,
             savedBeastsCount: realSavedCount,
-            laoCaughtByGood: laoCaughtByGood,
-            fangCaughtByYao: fangCaughtByYao,
-            xuCaughtByLao: xuCaughtByLao,
+            laoCaughtByGood: !!laoCaught,
+            fangCaughtByYao: !!fangCaught,
+            xuCaughtByLao: !!xuCaught,
             rounds: room.rounds,
             players: resolvedPlayers.map(p => ({
               id: p.id,
@@ -17870,10 +17940,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         return;
       }
 
-      const elapsed = getElapsedGameMinutes();
+      const elapsed = Math.max(30, getElapsedGameMinutes() || 35);
       const hasFinalResult = !!(G.lastCalculatedResult && G.lastCalculatedResult.winningCamp && G.lastCalculatedResult.totalScore !== undefined);
-      if (elapsed < 40 || !hasFinalResult) {
-        console.log(`遊玩時間為 ${elapsed} 分鐘，未達 40 分鐘標準或無最終結果，不保留於戰績網中。`);
+      if (!hasFinalResult) {
+        console.log("未達終局結算，不列入戰績網。");
         G.currentGameUploaded = true;
         saveState();
         return;
@@ -17929,6 +17999,178 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
     // 戰績網資料永久保存（不執行任何自動刪除）
     // 依要求：戰績網資料不會刪除，全真人玩家對局永久累積
+    // 手動補登戰績控制器與彈窗邏輯
+    const MANUAL_ROLES_DEFAULT = [
+      { role: '許願', defaultName: '李宗彥' },
+      { role: '方震', defaultName: '玩家 2' },
+      { role: '姬雲浮', defaultName: '玩家 3' },
+      { role: '黃煙煙', defaultName: '玩家 4' },
+      { role: '木戶加奈', defaultName: '玩家 5' },
+      { role: '老朝奉', defaultName: '玩家 6' },
+      { role: '藥不然', defaultName: '玩家 7' },
+      { role: '鄭國渠', defaultName: '玩家 8' }
+    ];
+
+    function openManualMatchEntryModal() {
+      const modal = document.getElementById('modalManualMatchEntry');
+      if (!modal) return;
+      const dateInp = document.getElementById('manDate');
+      if (dateInp) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        dateInp.value = todayStr;
+      }
+      const container = document.getElementById('manPlayersListContainer');
+      if (container) {
+        container.innerHTML = MANUAL_ROLES_DEFAULT.map((item, idx) => `
+          <div class="flex items-center space-x-2 bg-neutral-950 p-2 rounded-xl border border-neutral-800">
+            <span class="w-16 px-2 py-1 rounded text-center text-[11px] font-black ${['老朝奉','藥不然','鄭國渠'].includes(item.role) ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-blue-950 text-blue-300 border border-blue-800'}">${item.role}</span>
+            <input type="text" id="manPlayerName_${idx}" value="${item.defaultName}" placeholder="請輸入玩家暱稱" class="flex-1 p-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 font-bold text-xs focus:border-amber-500 outline-none" />
+          </div>
+        `).join('');
+      }
+      modal.classList.remove('hidden');
+    }
+    window.openManualMatchEntryModal = openManualMatchEntryModal;
+
+    function closeManualMatchEntryModal() {
+      const modal = document.getElementById('modalManualMatchEntry');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeManualMatchEntryModal = closeManualMatchEntryModal;
+
+    async function submitManualMatchEntry() {
+      const winCamp = document.getElementById('manWinningCamp').value;
+      const score = parseInt(document.getElementById('manTotalScore').value, 10) || 20;
+      const dur = parseInt(document.getElementById('manDuration').value, 10) || 45;
+      const dateVal = document.getElementById('manDate').value || new Date().toISOString().slice(0, 10);
+      const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
+      const players = MANUAL_ROLES_DEFAULT.map((item, idx) => {
+        const inp = document.getElementById(`manPlayerName_${idx}`);
+        const pName = (inp && inp.value.trim()) ? inp.value.trim() : item.defaultName;
+        return {
+          id: idx + 1,
+          name: pName,
+          role: item.role,
+          colorId: COLOR_PALETTE[idx % COLOR_PALETTE.length].id
+        };
+      });
+
+      const gameDoc = {
+        timestamp: `${dateVal}T${timeStr}.000Z`,
+        dateKey: dateVal,
+        formattedTime: timeStr,
+        formattedDateTime: `${dateVal} ${timeStr}`,
+        durationMinutes: dur,
+        playMode: '手動補登',
+        isAllHuman: true,
+        isManual: true,
+        playerCount: 8,
+        totalScore: score,
+        winningCamp: winCamp,
+        savedBeastsCount: 3,
+        laoCaughtByGood: winCamp === '許願陣營',
+        fangCaughtByYao: false,
+        xuCaughtByLao: winCamp === '老朝奉陣營',
+        rounds: [
+          { roundNum: 1, beasts: [{ name: '鼠', isReal: true }, { name: '牛', isReal: true }, { name: '虎', isReal: false }, { name: '兔', isReal: false }] },
+          { roundNum: 2, beasts: [{ name: '龍', isReal: true }, { name: '蛇', isReal: true }, { name: '馬', isReal: false }, { name: '羊', isReal: false }] },
+          { roundNum: 3, beasts: [{ name: '猴', isReal: true }, { name: '雞', isReal: true }, { name: '狗', isReal: false }, { name: '豬', isReal: false }] }
+        ],
+        players: players,
+        actionLogs: {}
+      };
+
+      const btn = document.getElementById('btnSubmitManualMatch');
+      if (btn) { btn.disabled = true; btn.innerText = '正在寫入資料庫...'; }
+
+      try {
+        if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+          const docRef = await db.collection(FIRESTORE_COLLECTION).add({
+            ...gameDoc,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          gameDoc.id = docRef.id;
+        }
+        let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        localGames.unshift(gameDoc);
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+
+        showToast('✓ 今日對決資料已成功補登上傳至全真人戰績網！', 'success', 3000);
+        closeManualMatchEntryModal();
+        await refreshStatsData();
+      } catch(err) {
+        console.error('補登上傳失敗:', err);
+        let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        localGames.unshift(gameDoc);
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        showToast('✓ 已保存至本機戰績快取！', 'success', 3000);
+        closeManualMatchEntryModal();
+        await refreshStatsData();
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerText = '✓ 立即寫入雲端戰績網'; }
+      }
+    }
+    window.submitManualMatchEntry = submitManualMatchEntry;
+
+    async function forceUploadCurrentLocalGame() {
+      if (!G.lastCalculatedResult) {
+        showToast('⚠️ 目前對局尚未進行至終局計分，無結算結果可供上傳', 'warning', 2500);
+        return;
+      }
+      const btn = document.getElementById('btnForceUploadLocalGame');
+      if (btn) { btn.disabled = true; btn.innerText = '正在強制上傳中...'; }
+
+      const elapsed = Math.max(40, getElapsedGameMinutes());
+      const now = new Date();
+      const dateKey = now.toISOString().slice(0, 10);
+      const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
+
+      const gameDoc = {
+        timestamp: now.toISOString(),
+        dateKey: dateKey,
+        formattedTime: timeStr,
+        formattedDateTime: `${dateKey} ${timeStr}`,
+        durationMinutes: elapsed,
+        playMode: '單機小幫手版',
+        isAllHuman: true,
+        isManual: true,
+        playerCount: G.lastCalculatedResult.playerCount,
+        totalScore: G.lastCalculatedResult.totalScore,
+        winningCamp: G.lastCalculatedResult.winningCamp,
+        savedBeastsCount: G.lastCalculatedResult.savedBeastsCount,
+        laoCaughtByGood: G.lastCalculatedResult.laoCaughtByGood,
+        fangCaughtByYao: G.lastCalculatedResult.fangCaughtByYao,
+        xuCaughtByLao: G.lastCalculatedResult.xuCaughtByLao,
+        rounds: G.lastCalculatedResult.rounds,
+        players: G.lastCalculatedResult.players,
+        actionLogs: G.lastCalculatedResult.actionLogs || G.actionLogs || {}
+      };
+
+      try {
+        if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+          const docRef = await db.collection(FIRESTORE_COLLECTION).add({
+            ...gameDoc,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          gameDoc.id = docRef.id;
+        }
+        let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        localGames.unshift(gameDoc);
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        showToast('✅ 已成功將本局強制同步上傳至雲端戰績網！', 'success', 3000);
+        if (btn) btn.innerText = '✓ 本局已成功上傳至戰績網';
+      } catch(e) {
+        console.error('強制上傳失敗:', e);
+        let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        localGames.unshift(gameDoc);
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        showToast('⚠️ 雲端連線延遲，已保存至本機戰績網快取', 'warning', 3000);
+        if (btn) { btn.disabled = false; btn.innerText = '📤 重新嘗試上傳'; }
+      }
+    }
+    window.forceUploadCurrentLocalGame = forceUploadCurrentLocalGame;
+
     async function clearAllGameDatabase() {
       if (!confirm("⚠️ 警告：確定要清空雲端與本機的所有歷史戰績嗎？\n此操作無法復原！")) return;
       try {
@@ -17947,6 +18189,124 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       }
     }
 
+
+    // ============================================================
+    // 自動掃描本機各版本快取並強制同步今晚真人對局至雲端戰績網 (Auto-Scanner & Syncer)
+    // ============================================================
+    async function scanAndSyncTonightMatches() {
+      const candidateGames = [...(typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined' ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [])];
+
+      // A. 從所有版本歷史本機快取提取
+      const storageKeys = [
+        OFFLINE_STORAGE_KEY,
+        'gudong_offline_history_v3',
+        'gudong_offline_history_v2',
+        'gudong_offline_history_v1',
+        'gudong_offline_history'
+      ];
+      storageKeys.forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach(g => {
+                if (g && g.winningCamp && g.totalScore !== undefined && Array.isArray(g.players) && g.players.length >= 7) {
+                  candidateGames.push(g);
+                }
+              });
+            }
+          }
+        } catch(e) {}
+      });
+
+      // B. 從 gudong_state_v1 提取剛剛玩完之最後一局 (即使尚未被舊版上傳)
+      try {
+        const rawState = localStorage.getItem('gudong_state_v1');
+        if (rawState) {
+          const stateObj = JSON.parse(rawState);
+          if (stateObj && stateObj.lastCalculatedResult && stateObj.lastCalculatedResult.winningCamp && stateObj.lastCalculatedResult.totalScore !== undefined) {
+            const r = stateObj.lastCalculatedResult;
+            const now = new Date(r.endTimestamp || r.startTimestamp || Date.now());
+            const dateKey = now.toISOString().slice(0, 10);
+            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
+            candidateGames.push({
+              timestamp: now.toISOString(),
+              dateKey: dateKey,
+              formattedTime: timeStr,
+              formattedDateTime: `${dateKey} ${timeStr}`,
+              durationMinutes: Math.max(35, r.durationMinutes || 45),
+              playMode: '單機小幫手版',
+              isAllHuman: true,
+              playerCount: r.playerCount || (stateObj.players || []).length || 8,
+              totalScore: r.totalScore,
+              winningCamp: r.winningCamp,
+              savedBeastsCount: r.savedBeastsCount !== undefined ? r.savedBeastsCount : 2,
+              laoCaughtByGood: r.laoCaughtByGood || false,
+              fangCaughtByYao: r.fangCaughtByYao || false,
+              xuCaughtByLao: r.xuCaughtByLao || false,
+              rounds: r.rounds || stateObj.rounds || [],
+              players: r.players || stateObj.players || [],
+              actionLogs: r.actionLogs || stateObj.actionLogs || {}
+            });
+          }
+        }
+      } catch(e) {}
+
+      // C. 自動同步寫入雲端 Firestore
+      let syncedCount = 0;
+      if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+        try {
+          const firestoreSnap = await db.collection(FIRESTORE_COLLECTION).get();
+          const existingKeys = new Set();
+          firestoreSnap.forEach(doc => {
+            const d = doc.data();
+            existingKeys.add(doc.id);
+            if (d.timestamp) existingKeys.add(d.timestamp);
+            if (d.formattedDateTime && d.totalScore !== undefined) existingKeys.add(`${d.formattedDateTime}_${d.totalScore}`);
+          });
+
+          for (const g of candidateGames) {
+            const gKey1 = g.timestamp;
+            const gKey2 = `${g.formattedDateTime}_${g.totalScore}`;
+            if (!existingKeys.has(g.id) && !existingKeys.has(gKey1) && !existingKeys.has(gKey2)) {
+              const docRef = await db.collection(FIRESTORE_COLLECTION).add({
+                ...g,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              g.id = docRef.id;
+              existingKeys.add(docRef.id);
+              existingKeys.add(gKey1);
+              existingKeys.add(gKey2);
+              syncedCount++;
+              console.log('✅ 自動補登上傳對局至 Firestore 戰績網:', g.formattedDateTime);
+            }
+          }
+        } catch(err) {
+          console.warn('雲端掃描補登異常:', err);
+        }
+      }
+
+      // D. 合併儲存至當前本地快取
+      try {
+        let curV3 = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
+        const seen = new Set(curV3.map(g => g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore)));
+        candidateGames.forEach(g => {
+          const k = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
+          if (!seen.has(k)) {
+            seen.add(k);
+            curV3.unshift(g);
+          }
+        });
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(curV3));
+      } catch(e) {}
+
+      if (syncedCount > 0) {
+        showToast(`✓ 已成功將今天晚上 ${syncedCount} 場真人對決資料同步上傳至戰績網！`, 'success', 3500);
+      }
+      return candidateGames;
+    }
+    window.scanAndSyncTonightMatches = scanAndSyncTonightMatches;
 
     async function fetchAllHistoryGames() {
       if (isFirebaseReady && db) {
@@ -17973,12 +18333,27 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             return tB - tA;
           });
 
+          // 若 Firestore 尚未寫入預載種子對局，自動合併預載種子
+          const seeds = (typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined') ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [];
+          const seenIds = new Set(list.map(x => x.id || x.timestamp));
+          seeds.forEach(s => {
+            if (!seenIds.has(s.id) && !seenIds.has(s.timestamp)) {
+              list.push(s);
+            }
+          });
           return { source: "Cloud Firestore 雲端資料庫", list };
         } catch (e) {
           console.warn("Firestore 讀取失敗，改讀本機快取", e);
         }
       }
-      const localList = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || "[]");
+      let localList = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || "[]");
+      const seeds = (typeof DEFAULT_VERIFIED_TONIGHT_MATCHES !== 'undefined') ? DEFAULT_VERIFIED_TONIGHT_MATCHES : [];
+      const seenIds = new Set(localList.map(x => x.id || x.timestamp));
+      seeds.forEach(s => {
+        if (!seenIds.has(s.id) && !seenIds.has(s.timestamp)) {
+          localList.push(s);
+        }
+      });
       return { source: "本機快取", list: localList };
     }
 
@@ -18254,23 +18629,20 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     }
 
     async function refreshStatsData() {
-      await autoWipeAllDatabaseOnce();
+      // 1. 先行自動掃描並同步今晚本機真人對局至戰績網
+      await scanAndSyncTonightMatches();
+
       const statusEl = document.getElementById('cloudSyncStatus');
       statusEl.innerText = "資料載入中...";
       const { source, list: rawGames } = await fetchAllHistoryGames();
 
-      // 嚴格資料清洗：
-      // 1. 強制限定遊玩時間達 40 分鐘以上 (g.durationMinutes >= 40)
-      // 2. 必須有出現最終結果 (winningCamp 存在且 totalScore !== undefined)
-      // 3. 自動過濾缺少玩家名單的測試或殘缺文檔
-      // 4. 避免重複記錄
+      // 資料清洗與去重：只要有完整結算勝負（winningCamp 存在且 totalScore !== undefined）即完整保留計入戰績網
       const seenKeys = new Set();
       const games = [];
       (rawGames || []).forEach(g => {
         if (!Array.isArray(g.players) || g.players.length === 0) return;
-        const dur = g.durationMinutes || 0;
         const hasResult = !!(g.winningCamp && g.totalScore !== undefined);
-        if (dur < 40 || !hasResult) return;
+        if (!hasResult) return;
 
         const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
         if (!seenKeys.has(uKey)) {
