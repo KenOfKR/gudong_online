@@ -19282,10 +19282,36 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             }).join('');
           }
 
-          // 全體玩家全程操作軌跡記錄
+          // 全體玩家全程操作軌跡記錄 (支援從 players.inspectHistory 智慧回退重建)
           let actionLogsHtml = '';
-          if (g.actionLogs) {
-            actionLogsHtml = Object.entries(g.actionLogs).map(([pId, log]) => {
+          let effectiveLogs = g.actionLogs || {};
+          if (Object.keys(effectiveLogs).length === 0 && Array.isArray(g.players) && g.players.length > 0) {
+            effectiveLogs = {};
+            g.players.forEach(p => {
+              const pLog = {
+                name: p.name,
+                role: p.role,
+                colorId: p.colorId,
+                r1: { inspect: [], ability: '無操作', next: '' },
+                r2: { inspect: [], ability: '無操作', next: '' },
+                r3: { inspect: [], ability: '無操作', next: '' },
+                vote: p.personVoteTarget ? `指認【${p.personVoteTarget}】` : '未投票'
+              };
+              (p.inspectHistory || []).forEach(ins => {
+                const rKey = `r${ins.round || 1}`;
+                if (pLog[rKey]) pLog[rKey].inspect.push(`【${ins.beastName}】 ${ins.resultText || ''}`);
+              });
+              (p.abilityHistory || []).forEach(ab => {
+                const rKey = `r${ab.round || 1}`;
+                if (pLog[rKey]) pLog[rKey].ability = ab.actionText || ab.ability || '無操作';
+              });
+              effectiveLogs[p.id] = pLog;
+            });
+          }
+
+          const logEntries = Object.entries(effectiveLogs);
+          if (logEntries.length > 0) {
+            actionLogsHtml = logEntries.map(([pId, log]) => {
               const pObj = (g.players || []).find(x => String(x.id) === String(pId)) || {};
               const pName = pObj.name || log.name || `玩家${pId}`;
               const pRole = pObj.role || log.role || '未知';
@@ -19353,7 +19379,9 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                   <div class="text-xs font-bold text-amber-400 mb-1.5 flex items-center space-x-1">
                     <span>📜</span><span>全體玩家全程操作軌跡記錄：</span>
                   </div>
-                  <div class="space-y-1.5 max-h-80 overflow-y-auto pr-1">${actionLogsHtml}</div>
+                  <div class="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                    ${actionLogsHtml || '<div class="p-2.5 rounded-lg bg-neutral-900/60 border border-neutral-800 text-neutral-400 text-xs text-center">本局由舊版助手建立，當時未開啟/記錄細部玩家操作軌跡（但三回合獸首投票與勝負計分已完整保留）。</div>'}
+                  </div>
                 </div>
               </div>
             </div>
