@@ -18497,7 +18497,12 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         }
       });
       const all = getAllLocalHistoryGames();
-      alert(`🔍【火狐/本機瀏覽器戰績快取診斷】\n\n${report.join('\n')}\n\n➡ 系統共成功提取出 ${all.length} 場對局！\n若有對局，系統已自動合併並同步至雲端。`);
+      const matchLines = all.map((g, idx) => {
+        const time = g.formattedTime || (g.formattedDateTime ? g.formattedDateTime.slice(11) : (g.timestamp ? g.timestamp.slice(11, 19) : ''));
+        return `[第 ${idx + 1} 局] ${time} ｜ ${g.winningCamp} (${g.totalScore !== undefined ? g.totalScore : '?'}分)`;
+      });
+      alert(`🔍【火狐/本機瀏覽器戰績快取診斷】\n\n${report.join('\n')}\n\n➡ 系統共提取出 ${all.length} 場對局：\n${matchLines.join('\n')}\n\n已為您全數解除過濾，點擊確定立即為您全覽展示！`);
+      refreshStatsData();
     }
     window.diagnoseLocalStorage = diagnoseLocalStorage;
 
@@ -18925,13 +18930,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       const games = [];
       (rawGames || []).forEach(g => {
         if (!Array.isArray(g.players) || g.players.length === 0) return;
-        // 排除純測試電腦局
-        if (g.hasMockPlayers) return;
         const hasResult = !!(g.winningCamp && g.totalScore !== undefined);
         if (!hasResult) return;
 
         // 過去所有歷史版本儲存的對局資料，一律完整保留並展示在戰績網中，絕不丟棄！
-        const uKey = g.id || g.timestamp || (g.formattedDateTime + '_' + g.totalScore);
+        const uKey = (g.id ? g.id : '') + '_' + (g.timestamp ? g.timestamp : '') + '_' + (g.formattedDateTime || '') + '_' + g.totalScore;
         if (!seenKeys.has(uKey)) {
           seenKeys.add(uKey);
           games.push(g);
