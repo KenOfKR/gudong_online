@@ -4,10 +4,12 @@
  <meta charset="UTF-8">  
  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">  
  <meta name="apple-mobile-web-app-capable" content="yes">  
+ <meta name="mobile-web-app-capable" content="yes">
  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">  
  <meta name="apple-mobile-web-app-title" content="古董局中局">  
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
+ <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
  <title>古董局中局 (v3.0.0 旗艦版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
@@ -1901,7 +1903,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
  try {
    db.settings({
      experimentalAutoDetectLongPolling: true,
-     ignoreUndefinedProperties: true
+     ignoreUndefinedProperties: true,
+     merge: true
    });
  } catch(settingErr) {}
  isFirebaseReady = true;  
@@ -21066,7 +21069,7 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
         console.log('☁️ [GeminiBrain] 已成功自 Firestore 同步 41 位 BOT 雲端記憶與演化數據！');
       }
     } catch(e) {
-      console.warn('[GeminiBrain] Firestore 記憶載入降級為本機快取:', e.message);
+      console.debug('[GeminiBrain] Firestore 記憶載入降級為本機快取:', e.message);
     }
   }
 
