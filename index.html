@@ -4623,7 +4623,7 @@ class BotDeductionEngine {
     if (!beasts || beasts.length === 0) return [];
 
     const needed = (pov.myRole === '許願') ? 2 : 1;
-    const shuffled = [...beasts].sort(() => Math.random() - 0.5);
+    const shuffled = cryptoShuffle(beasts);
     return shuffled.slice(0, needed);
   }
 
@@ -9235,7 +9235,7 @@ async function kickOnlinePlayer(targetId, event) {
  // 確保房間內剛好有 8 位玩家 (若不足 8 位，自動以戰國武將補齊空位；若超過 8 位，保留前 8 位)  
  const neededCount = 8 - players.length;  
  if (neededCount > 0) {  
- const shuffledWarlords = [...WARLORD_MOCK_NAMES].sort(() => Math.random() - 0.5);  
+ const shuffledWarlords = cryptoShuffle(WARLORD_MOCK_NAMES);  
  const usedNames = new Set(players.map(p => p.name));  
  const usedColors = new Set(players.map(p => p.colorId));  
  const usedSeats = new Set(players.map(p => p.seatIndex));  
@@ -9330,19 +9330,13 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  });  
   
- const shuffledZodiac = [...ZODIAC_ORDER].sort(() => Math.random() - 0.5);  
+ const shuffledZodiac = cryptoShuffle(ZODIAC_ORDER);  
  const rounds = [];  
  for (let r = 0; r < 3; r++) {  
  const beasts4 = shuffledZodiac.slice(r * 4, (r + 1) * 4);  
- const realFlags = [true, true, false, false].sort(() => Math.random() - 0.5);  
  rounds.push({  
  roundNum: r + 1,  
- beasts: beasts4.map((bName, bIdx) => ({  
- name: bName,  
- isReal: realFlags[bIdx],  
- votes: 0,  
- position: bIdx + 1  
- })),  
+ beasts: createRoundBeasts(beasts4),  
  passOrder: [],  
  speeches: [],  
  votes: {},  
@@ -9601,7 +9595,8 @@ async function kickOnlinePlayer(targetId, event) {
  const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];  
  const used = new Set((room.players || []).map(p => p.role).filter(Boolean));  
  const unused = ALL_8_ROLES.filter(r => !used.has(r));  
- me.role = unused.length > 0 ? unused[0] : ALL_8_ROLES[Math.floor(Math.random() * ALL_8_ROLES.length)];  
+ const shuffledUnused = cryptoShuffle(unused);
+ me.role = shuffledUnused.length > 0 ? shuffledUnused[0] : cryptoShuffle(ALL_8_ROLES)[0];  
  }  
  const roleNameEl = document.getElementById('onlMyRoleName');  
  const campBadge = document.getElementById('onlMyCampBadge');  
@@ -15476,7 +15471,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
           });
 
           // 3. 依序補滿直到剛好 8 人整
-          const shuffledNicknames = [...BOT_NICKNAME_POOL].sort(() => Math.random() - 0.5);
+          const shuffledNicknames = cryptoShuffle(BOT_NICKNAME_POOL);
           const usedNames = new Set(players.map(p => p.name));
           let mockIdx = 0;
 
@@ -15605,7 +15600,7 @@ async function addMockPlayersAndStart() {
       });
 
       // 3. 補齊電腦玩家至 8 人
-      const shuffledNicknames = [...BOT_NICKNAME_POOL].sort(() => Math.random() - 0.5);
+      const shuffledNicknames = cryptoShuffle(BOT_NICKNAME_POOL);
       let mockIdx = 0;
       while (players.length < 8 && mockIdx < shuffledNicknames.length) {
         const n = shuffledNicknames[mockIdx++];
@@ -15647,7 +15642,7 @@ async function addMockPlayersAndStart() {
 
       // 4. 8人角色嚴格洗牌分發
       const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
-      const shuffledRoles = [...ALL_8_ROLES].sort(() => Math.random() - 0.5);
+      const shuffledRoles = cryptoShuffle(ALL_8_ROLES);
       players.forEach((p, idx) => {
         p.role = shuffledRoles[idx];
         p.roleConfirmed = true;
@@ -15663,19 +15658,13 @@ async function addMockPlayersAndStart() {
       });
 
       // 5. 生成 3 回合 12 獸首
-      const shuffledZodiac = [...ZODIAC_ORDER].sort(() => Math.random() - 0.5);
+      const shuffledZodiac = cryptoShuffle(ZODIAC_ORDER);
       const rounds = [];
       for (let r = 0; r < 3; r++) {
         const beasts4 = shuffledZodiac.slice(r * 4, (r + 1) * 4);
-        const realFlags = [true, true, false, false].sort(() => Math.random() - 0.5);
         rounds.push({
           roundNum: r + 1,
-          beasts: beasts4.map((bName, bIdx) => ({
-            name: bName,
-            isReal: realFlags[bIdx],
-            votes: 0,
-            position: bIdx + 1
-          })),
+          beasts: createRoundBeasts(beasts4),
           passOrder: [],
           speeches: [],
           votes: {},
@@ -16039,7 +16028,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       if (G.playerCount >= 8) {
         roleList.push('姬雲浮');
       }
-      roleList.sort(() => Math.random() - 0.5);
+      // 升級為密碼學 Fisher-Yates 嚴格均勻洗牌
+      roleList = cryptoShuffle(roleList);
 
       G.eggBlackHeibao = Math.random() < 0.10;
       G.eggWhiteBaihu = Math.random() < 0.10;
@@ -16059,17 +16049,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         }
       });
 
-      const shuffled = [...ZODIAC_ORDER].sort(() => Math.random() - 0.5);
+      const shuffled = cryptoShuffle(ZODIAC_ORDER);
       G.rounds = [];
       for (let r = 0; r < 3; r++) {
         const beasts4 = shuffled.slice(r * 4, (r + 1) * 4);
-        const realFlags = [true, true, false, false].sort(() => Math.random() - 0.5);
-        const roundBeastObjs = beasts4.map((bName, bIdx) => ({
-          name: bName,
-          isReal: realFlags[bIdx],
-          votes: 0,
-          position: bIdx + 1 // 1~4 位次
-        }));
+        const roundBeastObjs = createRoundBeasts(beasts4);
         G.rounds.push({
           roundNum: r + 1,
           beasts: roundBeastObjs,
@@ -18498,6 +18482,56 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       return 0;
     }
     window.safeParseDate = safeParseDate;
+    /* ============================================================
+       密碼學強隨機洗牌演算法 (Fisher-Yates / Knuth Shuffle)
+       - 徹底解決 Array.prototype.sort(() => Math.random() - 0.5) 產生的嚴重位置黏著偏態
+       - 採用 window.crypto.getRandomValues 取得硬體級真隨機熵，100% 絕對均勻分佈
+       ============================================================ */
+    function cryptoShuffle(array) {
+      if (!Array.isArray(array) || array.length <= 1) return [...(array || [])];
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        let rand = 0;
+        if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+          const buf = new Uint32Array(1);
+          window.crypto.getRandomValues(buf);
+          rand = buf[0] / (0xFFFFFFFF + 1);
+        } else {
+          rand = Math.random();
+        }
+        const j = Math.floor(rand * (i + 1));
+        const temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+      }
+      return arr;
+    }
+    window.cryptoShuffle = cryptoShuffle;
+    /* ============================================================
+       嚴格兩真兩假獸首生成守衛 (Strict 2 Real & 2 Fake Beasts Generator)
+       - 100% 絕對保證每回合 4 件獸首中「恰好 2 件真品、2 件贗品」
+       - 結合 Fisher-Yates 密碼學強隨機洗牌，消除任何位置偏態 (各位置真品機率嚴格 50.00%)
+       ============================================================ */
+    function createRoundBeasts(beastNames4) {
+      const names = (beastNames4 || []).slice(0, 4);
+      const realFlags = cryptoShuffle([true, true, false, false]);
+      
+      // 雙重安全斷言檢驗：確保嚴格恰好 2 真 2 假
+      const trueCount = realFlags.filter(Boolean).length;
+      if (trueCount !== 2) {
+        realFlags[0] = true; realFlags[1] = true; realFlags[2] = false; realFlags[3] = false;
+      }
+      
+      return names.map((bName, bIdx) => ({
+        name: bName,
+        isReal: realFlags[bIdx],
+        votes: 0,
+        position: bIdx + 1
+      }));
+    }
+    window.createRoundBeasts = createRoundBeasts;
+
+
 
     // 依使用者指示：精確清理 21:40 對局資料
     function purge2140Data() {
@@ -19646,8 +19680,8 @@ class BotSimulationEngine {
     }
 
     const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
-    const shuffledRoles = [...ALL_8_ROLES].sort(() => Math.random() - 0.5);
-    const shuffledNames = [...BOT_NICKNAME_POOL].sort(() => Math.random() - 0.5).slice(0, 8);
+    const shuffledRoles = cryptoShuffle(ALL_8_ROLES);
+    const shuffledNames = cryptoShuffle(BOT_NICKNAME_POOL).slice(0, 8);
     const players = [];
     for (let i = 0; i < 8; i++) {
       const name = shuffledNames[i];
@@ -19668,19 +19702,13 @@ class BotSimulationEngine {
       });
     }
 
-    const shuffledZodiac = [...ZODIAC_ORDER].sort(() => Math.random() - 0.5);
+    const shuffledZodiac = cryptoShuffle(ZODIAC_ORDER);
     const rounds = [];
     for (let r = 0; r < 3; r++) {
       const beasts4 = shuffledZodiac.slice(r * 4, (r + 1) * 4);
-      const realFlags = [true, true, false, false].sort(() => Math.random() - 0.5);
       rounds.push({
         roundNum: r + 1,
-        beasts: beasts4.map((bName, bIdx) => ({
-          name: bName,
-          isReal: realFlags[bIdx],
-          votes: 0,
-          position: bIdx + 1
-        })),
+        beasts: createRoundBeasts(beasts4),
         passOrder: [],
         speeches: [],
         votes: {},
@@ -19876,10 +19904,10 @@ class BotSimulationEngine {
 
   static runSingleGame(options = {}) {
     const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
-    const shuffledRoles = [...ALL_8_ROLES].sort(() => Math.random() - 0.5);
+    const shuffledRoles = cryptoShuffle(ALL_8_ROLES);
 
     // 從 41 位名單中挑選 8 位
-    const shuffledNames = [...BOT_NICKNAME_POOL].sort(() => Math.random() - 0.5).slice(0, 8);
+    const shuffledNames = cryptoShuffle(BOT_NICKNAME_POOL).slice(0, 8);
     const players = [];
     for (let i = 0; i < 8; i++) {
       const name = shuffledNames[i];
@@ -19901,19 +19929,13 @@ class BotSimulationEngine {
     }
 
     // 隨機抽取 3 回合獸首 (各4件，2真2假)
-    const shuffledZodiac = [...ZODIAC_ORDER].sort(() => Math.random() - 0.5);
+    const shuffledZodiac = cryptoShuffle(ZODIAC_ORDER);
     const rounds = [];
     for (let r = 0; r < 3; r++) {
       const beasts4 = shuffledZodiac.slice(r * 4, (r + 1) * 4);
-      const realFlags = [true, true, false, false].sort(() => Math.random() - 0.5);
       rounds.push({
         roundNum: r + 1,
-        beasts: beasts4.map((bName, bIdx) => ({
-          name: bName,
-          isReal: realFlags[bIdx],
-          votes: 0,
-          position: bIdx + 1
-        })),
+        beasts: createRoundBeasts(beasts4),
         passOrder: [],
         speeches: [],
         votes: {},
