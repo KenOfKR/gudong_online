@@ -16671,7 +16671,17 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       if (resBox) resBox.classList.remove('hidden');
       saveState();
       renderStepABeasts(curP);
-      smoothScrollTo('appraiseResultBox', 'start', 68);
+
+      // 許願專屬貼心優化：在能查驗 2 個獸首時，只點選第 1 個獸首絕不往下滑動（方便點選第 2 個）；選滿 2 個後才自動往下滑動！
+      // 其他角色在點完獸首後，維持既有貼心設計：自動平滑往下滑動至結果區
+      const targetInspectCount = (curP.role === '許願' && !isUnderAmbush) ? 2 : 1;
+      if (curP.role === '許願' && targetInspectCount === 2) {
+        if (G.inspectedBeastsInTurn.length >= 2) {
+          smoothScrollTo('appraiseResultBox', 'start', 68);
+        }
+      } else {
+        smoothScrollTo('appraiseResultBox', 'start', 68);
+      }
     }
 
     function goToStepB() {
