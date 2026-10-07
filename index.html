@@ -773,14 +773,38 @@
   
  <!-- 若輪到我發言：輸入框與發言完畢按鈕 -->  
  <div id="onlMySpeechInputBox" class="hidden p-3 bg-neutral-950 border-2 border-amber-500/80 rounded-xl space-y-2.5 shadow-lg">  
-   <div class="text-xs font-bold text-amber-300 flex items-center justify-between">  
+   <div class="text-xs font-bold text-amber-300 flex items-center justify-between flex-wrap gap-1.5">  
      <span class="flex items-center space-x-1">  
        <span class="animate-bounce">📢</span>  
        <span>請發言：</span>  
      </span>  
-     <span class="text-[10px] text-neutral-400">可使用下方快捷鍵填寫或打字</span>
+     <!-- 語音辨識與雙模式重點提煉工具列 -->
+     <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+       <button type="button" id="btnSpeechMic" onclick="toggleSpeechRecognition()" class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-xs transition flex items-center space-x-1 shadow-sm active:scale-95 cursor-pointer" title="啟動麥克風說話（Web Speech API）">
+         <span id="speechMicIcon">🎙️</span>
+         <span id="speechMicText">語音轉文字</span>
+       </button>
+       <button type="button" id="btnRefineNormal" onclick="summarizeSpeechKeyPoints('normal')" class="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-bold transition flex items-center space-x-1 shadow-sm active:scale-95 cursor-pointer" title="普通整理：只去除贅字理順語句，100%保留原意">
+         <span id="refineNormalIcon">✨</span>
+         <span id="refineNormalText">普通整理</span>
+       </button>
+       <button type="button" id="btnRefineTactics" onclick="summarizeSpeechKeyPoints('tactics')" class="px-2 py-1 rounded-lg bg-amber-950/70 hover:bg-amber-900 text-amber-300 border border-amber-600/70 text-xs font-bold transition flex items-center space-x-1 shadow-sm active:scale-95 cursor-pointer" title="博弈整理：俐落桌遊節奏，加強博弈感，但嚴禁無中生有添加判斷">
+         <span id="refineTacticsIcon">⚡</span>
+         <span id="refineTacticsText">博弈整理</span>
+       </button>
+     </div>
    </div>  
-   <textarea id="onlSpeechInputText" rows="2" placeholder="請打字輸入您的陳述、真偽推論或點選下方快捷詞彙..." class="w-full text-xs bg-neutral-900 border border-neutral-700 rounded-lg p-2.5 text-neutral-100 outline-none focus:border-amber-400 resize-none"></textarea>  
+
+   <!-- 麥克風正在收音動態指示條 -->
+   <div id="speechMicLiveStatus" class="hidden px-2.5 py-1.5 rounded-lg bg-rose-950/80 border border-rose-700/80 text-rose-200 text-[11px] font-bold flex items-center justify-between animate-pulse">
+     <div class="flex items-center space-x-1.5">
+       <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+       <span id="speechMicStatusMsg">正在聆聽中... 請對著麥克風說話（支援即時轉寫）</span>
+     </div>
+     <button type="button" onclick="stopSpeechRecognition()" class="text-[10px] text-amber-300 hover:text-white underline font-bold cursor-pointer">停止錄音 ⏹️</button>
+   </div>
+
+   <textarea id="onlSpeechInputText" rows="2" placeholder="可點擊「🎙️ 語音轉文字」說話，說完可按「✨ 普通整理」或「⚡ 博弈整理」修整發言，或直接打字..." class="w-full text-xs bg-neutral-900 border border-neutral-700 rounded-lg p-2.5 text-neutral-100 outline-none focus:border-amber-400 resize-none"></textarea>  
 
    <!-- 快捷詞彙按鈕區 -->
    <div class="space-y-2 pt-0.5">
@@ -12734,6 +12758,255 @@ window.unsealRoleMap = unsealRoleMap;
 
 // 發言快捷詞彙與直過操作輔助器
 // =========================================================================
+// =========================================================================
+// 真人玩家語音麥克風辨識與話語重點雙模式提煉引擎 (Web Speech API & Dual-Mode Refiner)
+// 核心架構原則：完全獨立於 AI 電腦推理大腦，純文字整理秘書，絕不替真人玩家自行推論！
+// =========================================================================
+let speechRecognizer = null;
+let isRecognizingSpeech = false;
+let speechTranscriptBuffer = '';
+
+function initSpeechRecognition() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) return null;
+
+  const recognizer = new SpeechRec();
+  recognizer.lang = 'zh-TW';
+  recognizer.continuous = true;
+  recognizer.interimResults = true;
+  recognizer.maxAlternatives = 1;
+
+  recognizer.onstart = () => {
+    isRecognizingSpeech = true;
+    updateSpeechMicUI(true);
+    showToast('🎙️ 麥克風已啟動，請開始說話...', 'info', 2000);
+  };
+
+  recognizer.onresult = (event) => {
+    let interimTranscript = '';
+    let finalTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript;
+      } else {
+        interimTranscript += event.results[i][0].transcript;
+      }
+    }
+
+    const textarea = document.getElementById('onlSpeechInputText');
+    if (textarea) {
+      if (finalTranscript) {
+        const cleanFinal = finalTranscript.trim();
+        if (cleanFinal) {
+          speechTranscriptBuffer = speechTranscriptBuffer ? (speechTranscriptBuffer + '，' + cleanFinal) : cleanFinal;
+        }
+        textarea.value = speechTranscriptBuffer;
+      } else if (interimTranscript) {
+        textarea.value = speechTranscriptBuffer ? (speechTranscriptBuffer + '，' + interimTranscript) : interimTranscript;
+      }
+    }
+  };
+
+  recognizer.onerror = (event) => {
+    console.warn('[語音辨識錯誤]:', event.error);
+    if (event.error === 'not-allowed') {
+      showToast('⚠️ 未取得麥克風使用權限，請在瀏覽器設定中允許麥克風權限！', 'warning', 4000);
+    } else if (event.error === 'no-speech') {
+      // 沒收到聲音，保持靜默
+    } else {
+      showToast(`語音提示: ${event.error}`, 'info', 2000);
+    }
+    stopSpeechRecognition();
+  };
+
+  recognizer.onend = () => {
+    isRecognizingSpeech = false;
+    updateSpeechMicUI(false);
+    const textarea = document.getElementById('onlSpeechInputText');
+    if (textarea && textarea.value.trim().length >= 6) {
+      showToast('🎙️ 語音辨識完成！可點選「✨ 普通整理」或「⚡ 博弈整理」修整發言。', 'success', 3500);
+    }
+  };
+
+  return recognizer;
+}
+
+function toggleSpeechRecognition() {
+  if (isRecognizingSpeech) {
+    stopSpeechRecognition();
+  } else {
+    startSpeechRecognition();
+  }
+}
+window.toggleSpeechRecognition = toggleSpeechRecognition;
+
+function startSpeechRecognition() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    alert('您的瀏覽器不支援語音辨識功能。建議使用 Chrome、Edge 或 Safari 瀏覽器！');
+    return;
+  }
+  if (!speechRecognizer) {
+    speechRecognizer = initSpeechRecognition();
+  }
+  if (!speechRecognizer) return;
+
+  const textarea = document.getElementById('onlSpeechInputText');
+  speechTranscriptBuffer = textarea ? textarea.value.trim() : '';
+
+  try {
+    speechRecognizer.start();
+  } catch(e) {
+    console.warn('speechRecognizer start error:', e);
+  }
+}
+window.startSpeechRecognition = startSpeechRecognition;
+
+function stopSpeechRecognition() {
+  if (speechRecognizer && isRecognizingSpeech) {
+    try {
+      speechRecognizer.stop();
+    } catch(e) {}
+  }
+  isRecognizingSpeech = false;
+  updateSpeechMicUI(false);
+}
+window.stopSpeechRecognition = stopSpeechRecognition;
+
+function updateSpeechMicUI(isRecording) {
+  const btn = document.getElementById('btnSpeechMic');
+  const icon = document.getElementById('speechMicIcon');
+  const text = document.getElementById('speechMicText');
+  const liveStatus = document.getElementById('speechMicLiveStatus');
+
+  if (isRecording) {
+    if (btn) {
+      btn.className = "px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition flex items-center space-x-1 shadow-md animate-pulse cursor-pointer";
+    }
+    if (icon) icon.innerText = '⏹️';
+    if (text) text.innerText = '停止錄音';
+    if (liveStatus) liveStatus.classList.remove('hidden');
+  } else {
+    if (btn) {
+      btn.className = "px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-xs transition flex items-center space-x-1 shadow-sm active:scale-95 cursor-pointer";
+    }
+    if (icon) icon.innerText = '🎙️';
+    if (text) text.innerText = '語音轉文字';
+    if (liveStatus) liveStatus.classList.add('hidden');
+  }
+}
+window.updateSpeechMicUI = updateSpeechMicUI;
+
+// 本地規則發言修整器 (離線或無網路時的精準雙模式備援，絕不添加未提及資訊)
+function localExtractSpeechKeyPoints(rawText, mode = 'normal') {
+  if (!rawText) return '';
+  let t = rawText.trim();
+
+  // 1. 去除口語贅詞與口頭禪
+  const fillerRegex = /(那個+|呃+|啊+|啦+|然後+|其實+|基本上+|就是說+|我覺得+|我個人覺得+|話說回來+|怎麼說呢+|你知道嗎+|我猜+|好像是+|應該是說+)/g;
+  t = t.replace(fillerRegex, '');
+
+  // 2. 標點標準化
+  t = t.replace(/[,，\s]+/g, '，').replace(/^，|，$/g, '');
+
+  if (mode === 'tactics') {
+    // 博弈整理模式（本地規則）：語句緊湊化，但嚴格不捏造任何人名或陣營判斷
+    if (t.length > 52) {
+      t = t.slice(0, 50) + '...';
+    }
+  } else {
+    // 普通整理模式（本地規則）：僅理順語法，忠實保留原樣
+    if (t.length > 65) {
+      t = t.slice(0, 62) + '...';
+    }
+  }
+  return t || rawText;
+}
+window.localExtractSpeechKeyPoints = localExtractSpeechKeyPoints;
+
+// 雙模式發言提煉：普通整理 (normal) vs 博弈整理 (tactics)
+// 鐵則：Gemini 僅作為文字修整秘書，不碰任何 AI 推理引擎，絕對嚴禁替真人玩家增加未說過的判斷！
+async function summarizeSpeechKeyPoints(mode = 'normal') {
+  const textarea = document.getElementById('onlSpeechInputText');
+  if (!textarea) return;
+  const rawText = textarea.value.trim();
+  if (!rawText || rawText === '過') {
+    showToast('⚠️ 請先說話或輸入發言草稿，再點擊整理重點！', 'warning', 2500);
+    return;
+  }
+
+  // 若正在錄音，先行停止
+  if (isRecognizingSpeech) {
+    stopSpeechRecognition();
+  }
+
+  const isTactics = (mode === 'tactics');
+  const btn = document.getElementById(isTactics ? 'btnRefineTactics' : 'btnRefineNormal');
+  const icon = document.getElementById(isTactics ? 'refineTacticsIcon' : 'refineNormalIcon');
+  const textEl = document.getElementById(isTactics ? 'refineTacticsText' : 'refineNormalText');
+
+  const origIcon = isTactics ? '⚡' : '✨';
+  const origText = isTactics ? '博弈整理' : '普通整理';
+
+  if (btn) btn.disabled = true;
+  if (icon) icon.innerText = '⏳';
+  if (textEl) textEl.innerText = '整理中...';
+
+  try {
+    let condensedText = null;
+
+    // 優先使用 Gemini AI 進行嚴格約束的文字整理（完全不碰遊戲推論）
+    if (window.GeminiBrain && window.GeminiBrain.cfg && window.GeminiBrain.cfg().on && typeof window.GeminiBrain.ask === 'function') {
+      let sys = '';
+      if (isTactics) {
+        sys = "你是一位桌遊現場發言修飾秘書。你的唯一任務是將真人玩家的口語草稿修飾得更精煉、更有桌遊現場博弈節奏感（35~50字）：\n" +
+              "1. 俐落表達玩家提及的獸首真假判斷、對特定玩家的質疑/附和、以及跟票要求。\n" +
+              "2. 【極度嚴格禁令】：可以讓語氣更俐落篤定，但【絕對禁止增加真人沒有說過的任何判斷或指控】！若玩家只說「我覺得子鼠是真的」，你絕對不能擅自補充「紅色XX是老朝奉」或增加未提及的人名！\n" +
+              "3. 語氣俐落有力，去贅字，只輸出修整後的純對白，嚴禁多餘解說、嚴禁條列式、嚴禁加引號。";
+      } else {
+        sys = "你是一位桌遊速記秘書。你的唯一職責是為真人玩家整理口語語音轉文字的草稿：\n" +
+              "1. 去除「那個」、「呃」、「然後」、「其實」、「基本上」等冗贅口頭禪，理順標點符號與語句。\n" +
+              "2. 【最高鐵則】：100% 嚴格忠於玩家原意！【絕對禁止增加玩家未提及的任何判斷、身分推論或玩家指控】！若玩家沒說誰是老朝奉或壞人，你絕對不能擅自推測或添加！\n" +
+              "3. 輸出純發言對白文字，嚴禁多餘解說、嚴禁條列式、嚴禁加引號。";
+      }
+
+      const usr = `玩家原始口語草稿：\n${rawText}\n\n請整理為發言文本：`;
+      condensedText = await window.GeminiBrain.ask(sys, usr, 80, 5000);
+      if (condensedText) {
+        condensedText = condensedText.replace(/^["「『]|["」』]$/g, '').trim();
+      }
+    }
+
+    // 若離線、逾時或回傳空值，無縫退回本地智能規則整理
+    if (!condensedText) {
+      condensedText = localExtractSpeechKeyPoints(rawText, mode);
+    }
+
+    if (condensedText) {
+      textarea.value = condensedText;
+      speechTranscriptBuffer = condensedText;
+      if (isTactics) {
+        showToast('⚡ 已完成博弈整理：已提煉為俐落對局重點，未增加任何額外判斷！', 'success', 3500);
+      } else {
+        showToast('✨ 已完成普通整理：已去贅字並理順語句，100%保留原意！', 'success', 3500);
+      }
+    }
+  } catch (err) {
+    console.warn('整理發言異常，退回本地整理:', err);
+    const fallbackText = localExtractSpeechKeyPoints(rawText, mode);
+    textarea.value = fallbackText;
+    speechTranscriptBuffer = fallbackText;
+    showToast('✨ 已以本地規則為您完成發言整理！', 'info', 2500);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (icon) icon.innerText = origIcon;
+    if (textEl) textEl.innerText = origText;
+  }
+}
+window.summarizeSpeechKeyPoints = summarizeSpeechKeyPoints;
+
+
 function appendSpeechQuickText(textToAppend) {
   const textarea = document.getElementById('onlSpeechInputText');
   if (!textarea) return;
@@ -15406,7 +15679,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
           inspectHtml = '<div class="text-[11px] text-neutral-500">無查驗紀錄</div>';
         }
 
-        // 2. 各輪鑑寶投票與戰術目的：(依需求3標題規範)
+        // 2. 各輪鑑寶投票與戰術目的：(依需求3標題規範，嚴密修復 0 票灌入與真贗因果倒置 BUG)
         let roundVotesHtml = '';
         (room.rounds || []).forEach((r, rIdx) => {
           const rNum = r.roundNum || (rIdx + 1);
@@ -15417,49 +15690,67 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
 
           const tLog = (r.turnLogs || {})[p.id] || {};
           const inspectedRealNames = (tLog.inspect || []).filter(x => x.resultText && x.resultText.includes('真品')).map(x => x.beastName);
+          const inspectedFakeNames = (tLog.inspect || []).filter(x => x.resultText && x.resultText.includes('贗品')).map(x => x.beastName);
 
           const voteEntries = Object.entries(vMap);
+          // 關鍵修復：嚴格只篩選「實際投出票數 > 0」的獸首，絕對不將 0 票之獸首列入投票與戰術統計！
+          const actuallyVoted = voteEntries.filter(([_, vCount]) => (parseInt(vCount) || 0) > 0);
           let voteDescStr = '';
           let purposeStr = '';
 
-          if (voteEntries.length === 0) {
-            voteDescStr = '本回合未投出有效票';
-            purposeStr = '本輪因策略考量或未及時出票。';
+          if (actuallyVoted.length === 0) {
+            voteDescStr = '本回合全數棄權（投 0 票，保留選票籌碼）';
+            purposeStr = isGood 
+              ? '<b>戰術目的</b>：資訊尚不明朗或無十足把握，選擇保守存票，將籌碼保留至後續回合集中發力！'
+              : '<b>戰術目的</b>：身為反派，故意隱藏投票傾向，保留選票籌碼，避免過早暴露反派立場！';
           } else {
-            const voteParts = voteEntries.map(([bName, vCount]) => {
+            const voteParts = actuallyVoted.map(([bName, vCount]) => {
               const isReal = !!beastRealMap[bName];
               return `投給【${bName}】${vCount} 票（${isReal ? '<span class="text-emerald-400 font-bold">真品</span>' : '<span class="text-rose-400 font-bold">贗品</span>'}）`;
             });
             voteDescStr = voteParts.join('、');
 
+            const hasFake = actuallyVoted.some(([bName]) => !beastRealMap[bName]);
+            const allReal = actuallyVoted.every(([bName]) => !!beastRealMap[bName]);
+            const allFake = actuallyVoted.every(([bName]) => !beastRealMap[bName]);
+
             if (isGood) {
-              const allReal = voteEntries.every(([bName]) => !!beastRealMap[bName]);
               if (allReal) {
-                const personallyVerified = voteEntries.some(([bName]) => inspectedRealNames.includes(bName));
+                const personallyVerified = actuallyVoted.some(([bName]) => inspectedRealNames.includes(bName));
                 if (personallyVerified) {
                   purposeStr = `<b>戰術目的</b>：以親身查驗為真品之最高鐵證為依據，集中票源全力保送真品進入前兩名，替好人陣營鎖定得分！`;
                 } else {
                   purposeStr = `<b>戰術目的</b>：自身雖未直接查驗該獸首，但觀察場上好人發言共識與尾家歸票導向，積極並票避免分票分散力量！`;
                 }
+              } else if (allFake) {
+                purposeStr = `<b>檢討</b>：本回合受到場上帶風向的發言誤導，不慎將選票全數投給了贗品，讓假貨搶下高票，是好人陣營的重大失誤，必須深刻反省！`;
               } else {
-                purposeStr = `<b>檢討</b>：本回合受到場上帶風向的發言誤導，不慎將票投給了贗品，讓贗品搶下高票，是好人陣營的重大失誤，必須深刻反省！`;
+                purposeStr = `<b>檢討</b>：選票分散且部分落入贗品，受到敵方混淆干擾，未能將好人力量完全凝聚在真品上！`;
               }
             } else if (p.role === '老朝奉') {
-              const hasFake = voteEntries.some(([bName]) => !beastRealMap[bName]);
-              if (hasFake) {
+              if (allFake) {
                 purposeStr = `<b>戰術目的</b>：身為老朝奉，明知為贗品仍全力偷渡！目標是將贗品推進前兩名奪取積分並擾亂好人局勢！`;
+              } else if (hasFake) {
+                purposeStr = `<b>戰術目的</b>：身為老朝奉，採取混和操盤策略，推動贗品衝票奪分的同時，以部分票分化好人陣營！`;
               } else {
+                // 投了純真品
                 purposeStr = `<b>戰術目的</b>：採取深度偽裝策略，故意順應好人共識投真品，藉此建立高信用度以掩護後續鑑人與其他贗品偷渡！`;
               }
             } else if (p.role === '藥不然') {
-              const hasFake = voteEntries.some(([bName]) => !beastRealMap[bName]);
-              if (hasFake) {
+              if (allFake) {
                 purposeStr = `<b>戰術目的</b>：身為老朝奉副手，全力推動贗品得票，暗中拉抬贗品排名搶分！`;
+              } else if (hasFake) {
+                purposeStr = `<b>戰術目的</b>：身為老朝奉副手，主打混和投票，掩護隊友老朝奉並暗中拉抬贗品！`;
               } else {
-                purposeStr = `<b>戰術目的</b>：投真品做掩護，隱藏爪牙身分，以便在暗中觀察誰是真正的方震！`;
+                // 投了純真品
+                purposeStr = `<b>戰術目的</b>：投真品做掩護，隱藏爪牙身分，避免提早暴露，以便在暗中觀察誰是真正的方震！`;
               }
             } else { // 鄭國渠
-              purposeStr = `<b>戰術目的</b>：身為心腹，全力跟進贗品票型或製造票型混亂，打散好人陣營的凝聚力！`;
+              if (hasFake) {
+                purposeStr = `<b>戰術目的</b>：身為心腹，全力跟進贗品票型或製造票型混亂，打散好人陣營的凝聚力！`;
+              } else {
+                purposeStr = `<b>戰術目的</b>：身為心腹，刻意打散票型偽裝平民，替老朝奉與藥不然製造行動掩護！`;
+              }
             }
           }
 
@@ -21321,9 +21612,13 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
     const beasts = (curRound && curRound.beasts) ? curRound.beasts.map(b => b.name) : pov.currentBeasts;
     const inspectStr = (pov.myInspectLogs || []).map(ins => `【${ins.beastName}】${ins.resultText}`).join('、') || '無查驗資訊';
 
+    // 提取親身查驗已知之真品與贗品名單
+    const personallyInspectedReal = (pov.myInspectLogs || []).filter(ins => ins.resultText && ins.resultText.includes('真品')).map(ins => ins.beastName);
+    const personallyInspectedFake = (pov.myInspectLogs || []).filter(ins => ins.resultText && ins.resultText.includes('贗品')).map(ins => ins.beastName);
+
     // 提取本輪發言紀錄
     const roundSpeeches = (curRound && curRound.speeches && curRound.speeches.length > 0)
-      ? curRound.speeches.map(s => `【${s.speakerName || s.playerId}】: ${s.text}`).join('\\n')
+      ? curRound.speeches.map(s => `【${s.speakerName || s.playerId}】: ${s.text}`).join('\n')
       : '本輪尚未發言或無發言紀錄';
 
     // 兩真兩假推演假設
@@ -21334,22 +21629,44 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
       return `【${b}】: 推測${status} (真分:${bs.real.toFixed(1)}, 假分:${bs.fake.toFixed(1)})`;
     }).join('；');
 
+    let campGoalInstructions = '';
+    let evilSpecialNotice = '';
+
+    if (pov.isGoodCamp) {
+      campGoalInstructions = `【好人陣營（許願/方震/姬雲浮/黃煙煙/木戶加奈）核心目標】：
+- 你的唯一得分目標是集合好人票數，鎖定【真品】進入前兩名！
+- 若你親身查驗某獸首為【真品】，請全力投給該真品！
+- 若你親身查驗某獸首為【贗品】，絕對不要投給該贗品！
+- 嚴防壞人偷渡贗品！`;
+    } else {
+      campGoalInstructions = `【壞人陣營（老朝奉/藥不然/鄭國渠）核心目標・極度重要・反向思維】：
+- 你的唯一得分目標是把【贗品 (假貨)】推進得票前兩名奪取積分！
+- ⚠️ 鐵則 1：若你親身查驗或推測某獸首為【贗品】（例如你驗到了某獸首為贗品），你必須【全力將選票灌給該贗品】，護送它進入前兩名！
+- ⚠️ 鐵則 2：若你親身查驗某獸首為【真品】，這代表它是好人要的！身為壞人你【絕對嚴禁投給該真品】！因為本輪 4 隻獸首嚴格恰好 2 真 2 假，當你確認它是真品，代表其餘 3 隻獸首中必定包含贗品，你應該將選票投給其餘可能是贗品的獸首，絕不能幫好人衝真品分數！
+- 除非極端避嫌，否則壞人絕對優先投【贗品】！`;
+
+      if (personallyInspectedFake.length > 0) {
+        evilSpecialNotice = `\n⚠️ 【壞人必看情報】：你已確認【${personallyInspectedFake.join('、')}】是贗品，請全力將票投給該贗品奪分！`;
+      } else if (personallyInspectedReal.length > 0) {
+        evilSpecialNotice = `\n⚠️ 【壞人必看情報】：你已確認【${personallyInspectedReal.join('、')}】是真品，千萬別投給它！請將票投給其餘 3 隻可能為贗品的獸首！`;
+      }
+    }
+
     const sys = `你在玩桌遊《古董局中局》，扮演玩家「${pov.myName}」，身分【${pov.myRole}】(${pov.isGoodCamp ? '好人' : '壞人'})。
 現在進入第 ${pov.currentRoundIdx + 1} 回合鑑寶投票。
 規則極為嚴格：本輪 4 件獸首中【嚴格恰好 2 件真品、2 件贗品】！
 投票結果前兩名勝出（第1名封存加分，第2名公開真偽）。
-- 好人陣營目標：集合票數鎖定 2 件真品進入前兩名，絕不可分散票數導致贗品偷渡！
-- 壞人陣營目標：集中火力將至少 1 件贗品灌進前兩名奪分，或分化好人票源。
+${campGoalInstructions}
 你本輪最多可投 ${maxVotes} 票（可全投一隻、分散投票或投0票存票）。
 請輸出純 JSON 格式：
 {
-  "reasoning": "分析本輪發言、親身查驗與兩真兩假假設，說明你的選票集中策略",
+  "reasoning": "分析本輪發言、親身查驗與兩真兩假假設，說明你的選票配置策略",
   "beastVotes": { "獸首名": 票數, ... }
-} (總票數不得超過 ${maxVotes} 票)`;
+} (只填有投出的獸首與票數，總票數不得超過 ${maxVotes} 票)`;
 
     const usr = `【當前投票盤面】
 - 本輪 4 獸首：${beasts.join('、')}
-- 我的親身查驗：${inspectStr}
+- 我的親身查驗：${inspectStr}${evilSpecialNotice}
 - 獸首綜合真偽研判 (嚴格兩真兩假)：${beastAnalysis}
 - 本輪玩家發言紀錄：
 ${roundSpeeches}
@@ -21365,9 +21682,22 @@ ${roundSpeeches}
           const ballot = {};
           beasts.forEach(b => {
             const v = Math.max(0, parseInt(parsed.beastVotes[b]) || 0);
-            ballot[b] = v;
-            sum += v;
+            if (v > 0) {
+              ballot[b] = v;
+              sum += v;
+            }
           });
+
+          // 核心防護守衛：壞人絕對不可無腦將全票投給親身查驗為真品之獸首（LLM 角色混淆攔截）
+          if (!pov.isGoodCamp && personallyInspectedReal.length > 0) {
+            const votedKeys = Object.keys(ballot);
+            const votedRealOnly = votedKeys.length > 0 && votedKeys.every(b => personallyInspectedReal.includes(b));
+            if (votedRealOnly) {
+              console.warn(`[GeminiBrain prepareVote] 阻擋壞人【${pov.myName}】誤投已驗真品【${personallyInspectedReal.join('、')}】，改由本地安全引擎接手投票！`);
+              return null; // 回退給本地決定引擎，確保壞人投贗品！
+            }
+          }
+
           if (sum <= maxVotes) {
             cache['vote|' + botId + '|' + pov.currentRoundIdx] = ballot;
             rememberDecisionContext('vote', room, botId);
