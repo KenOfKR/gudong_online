@@ -1951,6 +1951,32 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
   var myPrivateRoleData = null;
   var myPrivateRoleUnsubscribe = null;
 
+  function getOnlineMePlayer(room) {
+    if (!room || !Array.isArray(room.players)) return null;
+    let me = room.players.find(p => p.id === myOnlinePlayerId);
+    if (!me) return null;
+    if (!me.role || me.role === '') {
+      if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
+        try {
+          const map = unsealRoleMap(room.sealedRolesToken);
+          if (map && map[myOnlinePlayerId]) me.role = map[myOnlinePlayerId];
+        } catch(e) {}
+      }
+      if (!me.role) {
+        try {
+          const sRole = sessionStorage.getItem('gudong_active_role_' + myOnlinePlayerId);
+          if (sRole) me.role = sRole;
+        } catch(e) {}
+      }
+      if (!me.role && myPrivateRoleData && myPrivateRoleData.role) {
+        const isFresh = (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
+        if (isFresh) me.role = myPrivateRoleData.role;
+      }
+    }
+    return me;
+  }
+  window.getOnlineMePlayer = getOnlineMePlayer;
+
   function ensureAnonymousAuth() {
     return new Promise(function(resolve) {
       if (typeof firebase === 'undefined' || !firebase.auth) {
@@ -2002,19 +2028,31 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
     var privatePath = ONLINE_ROOM_DOC + '/private/' + myOnlinePlayerId;
     myPrivateRoleUnsubscribe = db.doc(privatePath).onSnapshot(function(docSnap) {
       if (docSnap.exists && docSnap.data()) {
-        myPrivateRoleData = docSnap.data();
-        console.log('🔒 [v2.4.0 私有角色] 已安全同步本人身分:', myPrivateRoleData ? myPrivateRoleData.role : 'none');
-        if (onlineRoomData && Array.isArray(onlineRoomData.players)) {
-          var me = onlineRoomData.players.find(function(p) { return p.id === myOnlinePlayerId; });
-          if (me) {
-            me.role = myPrivateRoleData.role || me.role;
-            if (myPrivateRoleData.confusedRound !== undefined) {
-              me.confusedRound = myPrivateRoleData.confusedRound;
+        var pData = docSnap.data();
+        var isStale = (onlineRoomData && onlineRoomData.startTimestamp && pData.assignedAt && pData.assignedAt < onlineRoomData.startTimestamp - 3000);
+        if (!isStale) {
+          myPrivateRoleData = pData;
+          console.log('🔒 [v2.4.0 私有角色] 已安全同步本人身分:', myPrivateRoleData ? myPrivateRoleData.role : 'none');
+          if (onlineRoomData && Array.isArray(onlineRoomData.players)) {
+            var me = getOnlineMePlayer(onlineRoomData) || onlineRoomData.players.find(function(p) { return p.id === myOnlinePlayerId; });
+            if (me) {
+              me.role = myPrivateRoleData.role || me.role;
+              if (myPrivateRoleData.confusedRound !== undefined) {
+                me.confusedRound = myPrivateRoleData.confusedRound;
+              }
+              try {
+                sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
+                if (onlineRoomData.startTimestamp) {
+                  sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(onlineRoomData.startTimestamp));
+                }
+              } catch(e) {}
+            }
+            if (onlineRoomData.status === 'roles') {
+              renderOnlineRoleReveal(onlineRoomData, me);
             }
           }
-          if (onlineRoomData.status === 'roles') {
-            renderOnlineRoleReveal(onlineRoomData, me);
-          }
+        } else {
+          console.warn('⚠️ [私有角色] 忽略舊對局殘留私有資料:', pData.role, 'assignedAt:', pData.assignedAt);
         }
       }
     }, function(err) {
@@ -8475,6 +8513,11 @@ service cloud.firestore {
   
  function resetAllOnlineClientState() {  
  window._isDealingRoles = false;  
+ myPrivateRoleData = null;
+ try {
+   sessionStorage.removeItem('gudong_active_role_' + myOnlinePlayerId);
+   sessionStorage.removeItem('gudong_active_role_start_' + myOnlinePlayerId);
+ } catch(e) {}  
  _lobbyCountdownPendingStart = false;  
  if (_lobbyCountdownTimer) {  
  clearInterval(_lobbyCountdownTimer);  
@@ -8763,7 +8806,7 @@ onlineRoomData = room;
  }  
   
  const players = room.players || [];  
- let me = players.find(p => p.id === myOnlinePlayerId);  
+ let me = getOnlineMePlayer(room) || players.find(p => p.id === myOnlinePlayerId);  
   
  // 保持自身獨立的 Tab-level ID，絕不掠奪其他玩家席位 ID  
   
@@ -8793,12 +8836,40 @@ onlineRoomData = room;
  // 依要求：若房間已進入遊戲階段 (roles, playing, discussion, voting, person_voting, gameover)，檢測並確保 8 位玩家皆有角色且不重複  
  if (room.status && room.status !== 'waiting' && Array.isArray(room.players)) {  
  // P0 安全架構：線上模式嚴格實施「公私角色分離 (Role Privacy Separation)」
- // 公共 room.players 絕不持有真人玩家 role 欄位，嚴防任何 F12 / DevTools 竊窺！
- // 真人角色 100% 透過 private/{playerId} 私有子節點取得，只有遊戲終局 (gameover) 才在 gameOverData 解密公開！
- if (myPrivateRoleData && myPrivateRoleData.role && me) {
-   me.role = myPrivateRoleData.role;
-   if (myPrivateRoleData.confusedRound !== undefined) {
-     me.confusedRound = myPrivateRoleData.confusedRound;
+ // 角色三重防護鎖：sealedRolesToken (防篡改密令) > 本局新鮮私有資料 > 本局 sessionStorage > 房間公開 players.role
+ if (me) {
+   let sealedRole = null;
+   if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
+     try {
+       const tMap = unsealRoleMap(room.sealedRolesToken);
+       if (tMap && tMap[myOnlinePlayerId]) sealedRole = tMap[myOnlinePlayerId];
+     } catch(e) {}
+   }
+   const isPrivateFresh = myPrivateRoleData && myPrivateRoleData.role &&
+     (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
+   let sessionRole = null;
+   try {
+     sessionRole = sessionStorage.getItem('gudong_active_role_' + myOnlinePlayerId);
+   } catch(e) {}
+
+   if (sealedRole) {
+     me.role = sealedRole;
+   } else if (isPrivateFresh) {
+     me.role = myPrivateRoleData.role;
+     if (myPrivateRoleData.confusedRound !== undefined) {
+       me.confusedRound = myPrivateRoleData.confusedRound;
+     }
+   } else if (sessionRole) {
+     me.role = sessionRole;
+   }
+
+   if (me.role) {
+     try {
+       sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
+       if (room.startTimestamp) {
+         sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(room.startTimestamp));
+       }
+     } catch(e) {}
    }
  }  
  }  
@@ -9679,6 +9750,21 @@ async function kickOnlinePlayer(targetId, event) {
    console.warn('[v2.4.0] 私有角色寫入記錄:', pErr);
  }
 
+ // 立即在本地客戶端快照並鎖定本人真實角色，杜絕異步快照延遲
+ const mySelfPlayer = players.find(p => p.id === myOnlinePlayerId);
+ if (mySelfPlayer) {
+   myPrivateRoleData = {
+     playerId: mySelfPlayer.id,
+     role: mySelfPlayer.role,
+     confusedRound: mySelfPlayer.confusedRound,
+     assignedAt: now
+   };
+   try {
+     sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, mySelfPlayer.role);
+     sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(now));
+   } catch(e) {}
+ }
+
  // 建立加密密令，待終局 (gameover) 自動解密供結算勝負與覆盤
  const sealedRoleMap = {};
  players.forEach(p => {
@@ -9905,14 +9991,34 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  }  
  // 需求2：線上多人版完全移除長按防窺鎖定機制，卡片直接展示！  
- RoleRevealCard({ isOfflineMode: false, player: me });  
  if (!me.role) {  
- const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];  
- const used = new Set((room.players || []).map(p => p.role).filter(Boolean));  
- const unused = ALL_8_ROLES.filter(r => !used.has(r));  
- const shuffledUnused = cryptoShuffle(unused);
- me.role = shuffledUnused.length > 0 ? shuffledUnused[0] : cryptoShuffle(ALL_8_ROLES)[0];  
- }  
+   if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
+     try {
+       const tMap = unsealRoleMap(room.sealedRolesToken);
+       if (tMap && tMap[myOnlinePlayerId]) me.role = tMap[myOnlinePlayerId];
+     } catch(e) {}
+   }
+   if (!me.role && myPrivateRoleData && myPrivateRoleData.role) {
+     const isFresh = (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
+     if (isFresh) me.role = myPrivateRoleData.role;
+   }
+   if (!me.role) {
+     const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];  
+     const used = new Set((room.players || []).map(p => p.role).filter(Boolean));  
+     const unused = ALL_8_ROLES.filter(r => !used.has(r));  
+     const shuffledUnused = cryptoShuffle(unused);
+     me.role = shuffledUnused.length > 0 ? shuffledUnused[0] : cryptoShuffle(ALL_8_ROLES)[0];  
+   }
+ }
+ if (me && me.role) {
+   try {
+     sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
+     if (room.startTimestamp) {
+       sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(room.startTimestamp));
+     }
+   } catch(e) {}
+ }
+ RoleRevealCard({ isOfflineMode: false, player: me });  
  const roleNameEl = document.getElementById('onlMyRoleName');  
  const campBadge = document.getElementById('onlMyCampBadge');  
  const roleDesc = document.getElementById('onlMyRoleDesc');  
@@ -10562,6 +10668,7 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  window.toggleActiveTurnHistoryCollapse = toggleActiveTurnHistoryCollapse;  
   
  function renderOnlineMyActiveTurn(room, me, curRound) {  
+ me = getOnlineMePlayer(room) || me;
  renderPassOrderRows(room, curRound);  
  renderActiveTurnCircleSeats(room, me, curRound);  
   
@@ -10774,6 +10881,8 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  // 核心查驗獸首處理函式 (所有角色均可正常查驗)  
  async function onlInspectBeast(b, pos, room, me) {
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
+ room = onlineRoomData || room;
+ me = getOnlineMePlayer(room) || me;
  const curRound = room.rounds[room.currentRoundIdx];  
  if (!curRound.turnLogs) curRound.turnLogs = {};  
  if (!curRound.turnLogs[myOnlinePlayerId]) curRound.turnLogs[myOnlinePlayerId] = {};  
@@ -10856,7 +10965,7 @@ else {
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
  if (window.soundCtrl) window.soundCtrl.playScrollTransition();  
  const room = onlineRoomData;  
- const me = room.players.find(p => p.id === myOnlinePlayerId);  
+ const me = getOnlineMePlayer(room) || room.players.find(p => p.id === myOnlinePlayerId);  
  const isUnderAmbush = me.isAmbushed || me.isPermanentlyAmbushed;  
  const targetCount = (me.role === '許願' && !isUnderAmbush) ? 2 : 1;  
   
@@ -11159,6 +11268,18 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  `;  
  return;  
  }  
+
+  // 防禦性回退：若角色無主動技能或未匹配，安全提供下一步按鈕，絕不卡死
+  if (!container.innerHTML.trim()) {
+    container.innerHTML = `
+    <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl text-center space-y-2">
+      <div class="text-xs text-neutral-400">當前角色（${me.role || '無技能'}）無主動技能。</div>
+      <button id="btnOnlGoToStepC" onclick="onlGoToStepC()" class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-100 font-bold text-xs rounded-xl border border-neutral-700">
+        ${nextStepBtnLabel}
+      </button>
+    </div>
+    `;
+  }
  }  
   
  function onlSelectFangTarget(pId) {  
@@ -16290,6 +16411,35 @@ async function addMockPlayersAndStart() {
       const starter = players[Math.floor(Math.random() * players.length)];
       rounds[0].starterPlayerId = starter.id;
       rounds[0].passOrder = [starter.id];
+
+           // S-1: 同時寫入各玩家的私有角色資料 (Private Subcollections)，徹底同步避免殘留覆蓋
+      try {
+        players.forEach((p) => {
+          const privDocRef = db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`);
+          transaction.set(privDocRef, {
+            playerId: p.id,
+            role: p.role,
+            confusedRound: p.confusedRound,
+            assignedAt: now
+          });
+        });
+      } catch(pErr) {
+        console.warn('私有角色寫入記錄:', pErr);
+      }
+
+      // 立即在本地快照並鎖定本人真實角色與 Session
+      if (me) {
+        myPrivateRoleData = {
+          playerId: me.id,
+          role: me.role,
+          confusedRound: me.confusedRound,
+          assignedAt: now
+        };
+        try {
+          sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
+          sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(now));
+        } catch(e) {}
+      }
 
       const sealedRoleMap = {};
       players.forEach(p => { sealedRoleMap[p.id] = p.role; });
