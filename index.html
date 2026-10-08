@@ -8775,6 +8775,7 @@ service cloud.firestore {
  function resetAllOnlineClientState() {  
  window._isDealingRoles = false;  
  myPrivateRoleData = null;
+ if (window._lobbyWatchdogTimer) { clearInterval(window._lobbyWatchdogTimer); window._lobbyWatchdogTimer = null; }
  try {
    sessionStorage.removeItem('gudong_active_role_' + myOnlinePlayerId);
    sessionStorage.removeItem('gudong_active_role_start_' + myOnlinePlayerId);
@@ -8892,6 +8893,34 @@ function handleOnlineRoomUpdate(room) {
  console.warn('⚡ [看門狗自癒] 8 人全員就緒超過 3.5 秒未開局，任何在線客戶端自動發起強制救援開局！');  
  executeOnlineStartDeal(room, true);  
  }  
+
+ // 設置定期看門狗定時器，防止無 Firestore 寫入時客戶端停擺
+ if (!window._lobbyWatchdogTimer) {
+   window._lobbyWatchdogTimer = setInterval(() => {
+     if (!onlineRoomData || onlineRoomData.status !== 'waiting') {
+       clearInterval(window._lobbyWatchdogTimer);
+       window._lobbyWatchdogTimer = null;
+       return;
+     }
+     const rPlayers = onlineRoomData.players || [];
+     const rReady = rPlayers.filter(p => p.readyToStart).length;
+     if (rPlayers.length < 8 || rReady < 8) {
+       clearInterval(window._lobbyWatchdogTimer);
+       window._lobbyWatchdogTimer = null;
+       return;
+     }
+     const elapsed = Date.now() - (window._lobbyAllReadyStartTime || Date.now());
+     const amLeader = !window.isOnlineSpectator && isCurrentDynamicLeader(onlineRoomData);
+     if (!window._isDealingRoles) {
+       if ((amLeader && elapsed >= 3200) || elapsed >= 4500) {
+         clearInterval(window._lobbyWatchdogTimer);
+         window._lobbyWatchdogTimer = null;
+         console.log('👑 [看門狗定期心跳] 8人全員就緒，自動觸發開局！');
+         executeOnlineStartDeal(onlineRoomData, elapsed >= 4500);
+       }
+     }
+   }, 500);
+ }
   
  // 3. 超過 4.0 秒按鈕緊急旁路 (Emergency Bypass)  
  if (allReadyElapsed >= 4000) {  
@@ -9107,6 +9136,7 @@ onlineRoomData = room;
    } else if (sessionRole) {
      me.role = sessionRole;
    }
+ }
  }
  
  // 依要求1：安全的狀態機 (State Machine) 重置過渡邏輯：監聽到 resetting 時鎖定 UI 並暫停舊資料處理  
@@ -9365,6 +9395,50 @@ async function kickOnlinePlayer(targetId, event) {
  }  
 }  
   
+  function startLobbyCountdown(room) {
+    const countdownBox = document.getElementById('onlStartCountdownOverlay');
+    const countdownNum = document.getElementById('onlCountdownNum');
+    if (!countdownBox || !countdownNum) return;
+
+    if (_lobbyCountdownTimer) return;
+
+    countdownBox.classList.remove('hidden');
+    _lobbyCountdownVal = 3;
+    countdownNum.innerText = '3';
+
+    speak('遊戲即將開始，請確認座位順序');
+    speak('3');
+
+    _lobbyCountdownTimer = setInterval(() => {
+      _lobbyCountdownVal--;
+      if (_lobbyCountdownVal > 0) {
+        countdownNum.innerText = String(_lobbyCountdownVal);
+        speak(String(_lobbyCountdownVal));
+      } else {
+        clearInterval(_lobbyCountdownTimer);
+        _lobbyCountdownTimer = null;
+        countdownNum.innerText = '0';
+        countdownBox.classList.add('hidden');
+
+        const firstHuman = (room.players || []).find(p => p.id && !p.id.startsWith('mock_p_'));
+        if (!firstHuman || firstHuman.id === myOnlinePlayerId) {
+          executeOnlineStartDeal(room);
+        }
+      }
+    }, 1000);
+  }
+
+  function stopLobbyCountdown() {  
+    if (_lobbyCountdownTimer) {  
+      clearInterval(_lobbyCountdownTimer);  
+      _lobbyCountdownTimer = null;  
+    }  
+    const countdownBox = document.getElementById('onlStartCountdownOverlay');  
+    if (countdownBox) countdownBox.classList.add('hidden');  
+  }  
+  window.startLobbyCountdown = startLobbyCountdown;
+  window.stopLobbyCountdown = stopLobbyCountdown;
+
  function renderOnlineLobby(room, me) {  
  const players = room.players || [];  
  const badge = document.getElementById('onlLobbyPlayerCountBadge');  
@@ -9508,52 +9582,6 @@ async function kickOnlinePlayer(targetId, event) {
  }  
   
  
-  function startLobbyCountdown(room) {  
-    const countdownBox = document.getElementById('onlStartCountdownOverlay');  
-    const countdownNum = document.getElementById('onlCountdownNum');  
-    if (!countdownBox || !countdownNum) return;  
-    
-    if (_lobbyCountdownTimer) return; // 已在倒數中  
-    
-    countdownBox.classList.remove('hidden');  
-    countdownNum.innerText = '...';  
-    
-    speak('遊戲即將開始，請確認座位順序', () => {  
-      _lobbyCountdownVal = 3;  
-      countdownNum.innerText = _lobbyCountdownVal;  
-      speak('3');  
-      
-      _lobbyCountdownTimer = setInterval(() => {  
-        _lobbyCountdownVal--;  
-        if (_lobbyCountdownVal > 0) {  
-          countdownNum.innerText = _lobbyCountdownVal;  
-          speak(`${_lobbyCountdownVal}`);  
-        } else {  
-          clearInterval(_lobbyCountdownTimer);  
-          _lobbyCountdownTimer = null;  
-          countdownNum.innerText = '0';  
-          countdownBox.classList.add('hidden');  
-          
-          const firstHuman = (room.players || []).find(p => !p.id.startsWith('mock_p_'));  
-          if (!firstHuman || firstHuman.id === myOnlinePlayerId) {  
-            executeOnlineStartDeal(room);  
-          }  
-        }  
-      }, 1000);  
-    });  
-  }  
-  
-  function stopLobbyCountdown() {  
-    if (_lobbyCountdownTimer) {  
-      clearInterval(_lobbyCountdownTimer);  
-      _lobbyCountdownTimer = null;  
-    }  
-    const countdownBox = document.getElementById('onlStartCountdownOverlay');  
-    if (countdownBox) countdownBox.classList.add('hidden');  
-  }  
-  window.startLobbyCountdown = startLobbyCountdown;
-  window.stopLobbyCountdown = stopLobbyCountdown;
-
   // 當 8 人全員就緒時，自動啟動 3 秒倒數計時！  
  if (isAllReady && room.status === 'waiting') {  
  startLobbyCountdown(room);  
@@ -9802,7 +9830,6 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  window.toggleMyReadyStart = toggleMyReadyStart;  
   
- }
  // 8 人全員確認後，開局發牌事務 (原子交易，100% 成功，嚴格保證 8 人皆有角色且不重複)  
  // =========================================================================  
  // 1. 【確定性動態協調者選舉】(Deterministic Leader Election)  
@@ -20744,12 +20771,19 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       return (Math.random() < 0.2) ? `${baseName}國` : `${baseName}色`;
     }
 
-    function speak(text) {
-      if (!voiceActive || !window.speechSynthesis) return;
+    function speak(text, callback) {
+      if (!voiceActive || !window.speechSynthesis) {
+        if (typeof callback === 'function') callback();
+        return;
+      }
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'zh-TW';
       utter.rate = 0.95;
+      if (typeof callback === 'function') {
+        utter.onend = () => callback();
+        utter.onerror = () => callback();
+      }
       window.speechSynthesis.speak(utter);
     }
   
