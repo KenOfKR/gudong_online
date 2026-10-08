@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (v3.7.3 壞人被誤認老朝奉統計版)</title>  
+ <title>古董局中局 (v3.7.4 無效資料自動扣減分母精算版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1590,7 +1590,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.7.3 (壞人被誤認老朝奉統計版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.7.4 (無效資料自動扣減分母精算版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -2690,7 +2690,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.7.3 壞人被誤認老朝奉統計版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.7.4 無效資料自動扣減分母精算版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -21107,65 +21107,71 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       return order;
     }
 
-    // 計算特定角色在該玩家手中的深度細節數據 (a~g 各角色專屬大數據)
+    // 百分比格式化輔助函式：若該項目當局未收集到相關資訊，則該場不計入分母（分母為 0 時回傳 '-'）
+    function calcRateWithValidDenom(numerator, denominator) {
+      if (!denominator || denominator <= 0) return '-';
+      return (Math.round((numerator / denominator) * 1000) / 10) + '%';
+    }
+
+    // 計算特定角色在該玩家手中的深度細節數據 (a~g 各角色專屬大數據，實施單項無效場次自動扣減分母)
     function calculatePlayerRoleDetailStats(roleName, playerMatches) {
       const isGood = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(roleName);
       let games = 0;
       let wins = 0;
 
-      // 許願細節
-      let xuNotCaughtByLao = 0;
-      let xuDoubleRealOrFake = 0;
-      let xuInspectTurns = 0;
-      let xuVotedLao = 0;
-      let xuMistakenAsFang = 0;
+      // 許願細節 (分子與各自專屬獨立分母)
+      let xuNotCaughtByLao = 0, xuNotCaughtDenom = 0;
+      let xuDoubleRealOrFake = 0, xuInspectTurns = 0;
+      let xuVotedLao = 0, xuVotedLaoDenom = 0;
+      let xuMistakenAsFang = 0, xuMistakenAsFangDenom = 0;
 
       // 方震細節
-      let fangNotFoundByYao = 0;
-      let fangTwoPlusEvil = 0;
-      let fangVotedLao = 0;
-      let fangMistakenAsXu = 0;
+      let fangNotFoundByYao = 0, fangNotFoundDenom = 0;
+      let fangTwoPlusEvil = 0, fangTwoPlusEvilDenom = 0;
+      let fangVotedLao = 0, fangVotedLaoDenom = 0;
+      let fangMistakenAsXu = 0, fangMistakenAsXuDenom = 0;
 
       // 姬雲浮細節
-      let jiTwoReal = 0;
-      let jiNeverAmbushed = 0;
-      let jiR1Ambushed = 0;
-      let jiVotedLao = 0;
-      let jiMistakenAsXu = 0;
-      let jiMistakenAsFang = 0;
+      let jiTwoReal = 0, jiTwoRealDenom = 0;
+      let jiNeverAmbushed = 0, jiNeverAmbushedDenom = 0;
+      let jiR1Ambushed = 0, jiR1AmbushedDenom = 0;
+      let jiVotedLao = 0, jiVotedLaoDenom = 0;
+      let jiMistakenAsXu = 0, jiMistakenAsXuDenom = 0;
+      let jiMistakenAsFang = 0, jiMistakenAsFangDenom = 0;
 
       // 鄭國渠細節 (依回合獨立計算，每回合封印就產生一個數據)
       let zhengSealedRoundRatios = [];
       let zhengSealPositions = { 1: 0, 2: 0, 3: 0, 4: 0 };
-      let zhengAmbushedByYao = 0;
+      let zhengAmbushedByYao = 0, zhengAmbushedDenom = 0;
       let zhengSkipSealRounds = 0;
       let zhengTotalRounds = 0;
-      let zhengMistakenAsLao = 0; // 被誤認為老朝奉 (好人票過半)
+      let zhengMistakenAsLao = 0, zhengMistakenAsLaoDenom = 0;
 
       // 藥不然細節 (每回合不偷襲就獨立計算)
-      let yaoFoundFang = 0;
+      let yaoFoundFang = 0, yaoFoundFangDenom = 0;
       let yaoAmbushTeammate = 0;
       let yaoAmbushFang = 0;
       let yaoAmbushJi = 0;
-      let yaoPassedToAmbushed = 0;
+      let yaoPassedToAmbushed = 0, yaoPassedDenom = 0;
       let yaoSkipAmbushRounds = 0;
       let yaoTotalAmbushes = 0;
       let yaoTotalRounds = 0;
-      let yaoMistakenAsLao = 0; // 被誤認為老朝奉 (好人票過半)
+      let yaoMistakenAsLao = 0, yaoMistakenAsLaoDenom = 0;
 
       // 老朝奉細節 (每回合開啟擾亂就獨立計算)
-      let laoFoundXu = 0;
+      let laoFoundXu = 0, laoFoundXuDenom = 0;
       let laoActivatedDisruptRounds = 0;
       let laoTotalRounds = 0;
       let laoPerfectHiddenSuccess = 0; // 完美躲藏 (0 好人投)
       let laoHiddenSuccess = 0;        // 躲藏成功 (好人票未過半)
-      let laoNeverDisruptedGame = 0;
+      let laoHiddenDenom = 0;          // 終局好人投票紀錄有效之場次
+      let laoNeverDisruptedGame = 0, laoNeverDisruptedDenom = 0;
 
       // 木戶加奈 / 黃煙煙細節
-      let appFoundLao = 0;
-      let appMistakenAsXu = 0;
-      let appMistakenAsFang = 0;
-      let appZeroInspectGame = 0;
+      let appFoundLao = 0, appFoundLaoDenom = 0;
+      let appMistakenAsXu = 0, appMistakenAsXuDenom = 0;
+      let appMistakenAsFang = 0, appMistakenAsFangDenom = 0;
+      let appZeroInspectGame = 0, appZeroInspectDenom = 0;
 
       playerMatches.forEach(({ g, p }) => {
         if (p.role !== roleName) return;
@@ -21183,11 +21189,15 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         const yaoVotedId = yaoP ? getVotedTargetId(yaoP, g) : null;
 
         if (roleName === '許願') {
-          // 不被老朝奉找到
-          const caught = (g.xuCaughtByLao === true) || (laoVotedId === String(p.id)) || (laoVotedRole === '許願' && laoVotedId === String(p.id));
-          if (!caught) xuNotCaughtByLao++;
+          // 不被老朝奉找到：若當局有老朝奉指認紀錄才計入分母
+          const hasLaoVoteInfo = (g.xuCaughtByLao !== undefined) || (laoP && (laoVotedId !== null || laoVotedRole !== null));
+          if (hasLaoVoteInfo) {
+            xuNotCaughtDenom++;
+            const caught = (g.xuCaughtByLao === true) || (laoVotedId === String(p.id)) || (laoVotedRole === '許願' && laoVotedId === String(p.id));
+            if (!caught) xuNotCaughtByLao++;
+          }
 
-          // 查驗雙真/贋品機率
+          // 查驗雙真/贋品機率：有實際查驗 2 隻獸首之回合才列入分母
           const roundIns = {};
           (p.inspectHistory || []).forEach(ins => {
             const r = ins.round || 1;
@@ -21203,76 +21213,123 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             }
           });
 
-          // 投到老朝奉
-          if (pVotedRole === '老朝奉') xuVotedLao++;
+          // 投到老朝奉：若當局有許願投票紀錄才計入分母
+          if (pVotedRole !== null) {
+            xuVotedLaoDenom++;
+            if (pVotedRole === '老朝奉') xuVotedLao++;
+          }
 
-          // 被誤認為方震 (藥不然鑑人投票投許願)
-          if (yaoVotedId === String(p.id)) xuMistakenAsFang++;
+          // 被誤認為方震：若當局有藥不然鑑人投票紀錄才計入分母
+          const hasYaoVoteInfo = (g.fangCaughtByYao !== undefined) || (yaoP && (yaoVotedId !== null || yaoVotedRole !== null));
+          if (hasYaoVoteInfo) {
+            xuMistakenAsFangDenom++;
+            if (yaoVotedId === String(p.id)) xuMistakenAsFang++;
+          }
         }
         else if (roleName === '方震') {
-          // 不被藥不然找到
-          const caught = (g.fangCaughtByYao === true) || (yaoVotedId === String(p.id)) || (yaoVotedRole === '方震' && yaoVotedId === String(p.id));
-          if (!caught) fangNotFoundByYao++;
+          // 不被藥不然找到：若當局有藥不然鑑人紀錄才計入分母
+          const hasYaoVoteInfo = (g.fangCaughtByYao !== undefined) || (yaoP && (yaoVotedId !== null || yaoVotedRole !== null));
+          if (hasYaoVoteInfo) {
+            fangNotFoundDenom++;
+            const caught = (g.fangCaughtByYao === true) || (yaoVotedId === String(p.id)) || (yaoVotedRole === '方震' && yaoVotedId === String(p.id));
+            if (!caught) fangNotFoundByYao++;
+          }
 
-          // 每局查驗到2位以上老朝奉陣營
-          let evilInsCount = 0;
-          (p.abilityHistory || []).forEach(ab => {
-            const txt = ab.actionText || ab.ability || '';
-            if (txt.includes('老朝奉陣營')) evilInsCount++;
-          });
-          if (evilInsCount >= 2) fangTwoPlusEvil++;
+          // 每局查驗到2位以上老朝奉陣營：有技能操作紀錄才計入分母
+          const hasAbilityInfo = Array.isArray(p.abilityHistory) && p.abilityHistory.length > 0;
+          if (hasAbilityInfo) {
+            fangTwoPlusEvilDenom++;
+            let evilInsCount = 0;
+            p.abilityHistory.forEach(ab => {
+              const txt = ab.actionText || ab.ability || '';
+              if (txt.includes('老朝奉陣營')) evilInsCount++;
+            });
+            if (evilInsCount >= 2) fangTwoPlusEvil++;
+          }
 
-          // 投到老朝奉
-          if (pVotedRole === '老朝奉') fangVotedLao++;
+          // 投到老朝奉：有方震投票紀錄才計入分母
+          if (pVotedRole !== null) {
+            fangVotedLaoDenom++;
+            if (pVotedRole === '老朝奉') fangVotedLao++;
+          }
 
-          // 被誤認為許願 (老朝奉鑑人投票投方震)
-          if (laoVotedId === String(p.id)) fangMistakenAsXu++;
+          // 被誤認為許願：有老朝奉鑑人投票紀錄才計入分母
+          const hasLaoVoteInfo = (g.xuCaughtByLao !== undefined) || (laoP && (laoVotedId !== null || laoVotedRole !== null));
+          if (hasLaoVoteInfo) {
+            fangMistakenAsXuDenom++;
+            if (laoVotedId === String(p.id)) fangMistakenAsXu++;
+          }
         }
         else if (roleName === '姬雲浮') {
-          // 每局查到2個真品
-          let realBCount = 0;
-          (p.inspectHistory || []).forEach(ins => {
-            if (ins.isReal) realBCount++;
-          });
-          if (realBCount >= 2) jiTwoReal++;
+          // 每局查到2個真品：有查驗紀錄才計入分母
+          if (Array.isArray(p.inspectHistory) && p.inspectHistory.length > 0) {
+            jiTwoRealDenom++;
+            let realBCount = 0;
+            p.inspectHistory.forEach(ins => {
+              if (ins.isReal) realBCount++;
+            });
+            if (realBCount >= 2) jiTwoReal++;
+          }
 
-          // 整場不被偷襲
-          const ambushed = p.isAmbushed || p.isPermanentlyAmbushed || (p.inspectHistory || []).some(ins => ins.resultText && ins.resultText.includes('偷襲'));
-          if (!ambushed) jiNeverAmbushed++;
-
-          // 第一局就被偷襲機率
-          let r1WasAmbushed = false;
+          // 整場不被偷襲：當局有藥不然且有行動軌跡才計入分母
           if (yaoP) {
-            const yaoR1Log = (g.actionLogs && g.actionLogs[yaoP.id] && g.actionLogs[yaoP.id].r1) || {};
-            const yaoR1Ability = yaoR1Log.ability || '';
-            if (yaoR1Ability.includes('偷襲') && !yaoR1Ability.includes('跳過') && (yaoR1Ability.includes(p.name) || yaoR1Ability.includes('姬雲浮'))) {
+            jiNeverAmbushedDenom++;
+            const ambushed = p.isAmbushed || p.isPermanentlyAmbushed || (p.inspectHistory || []).some(ins => ins.resultText && ins.resultText.includes('偷襲'));
+            if (!ambushed) jiNeverAmbushed++;
+          }
+
+          // 第一局就被偷襲機率：當局有第一輪行動數據才計入分母
+          const hasR1Info = (yaoP && g.actionLogs && g.actionLogs[yaoP.id] && g.actionLogs[yaoP.id].r1) || (p.inspectHistory || []).some(ins => ins.round === 1) || p.ambushedRound !== undefined;
+          if (hasR1Info) {
+            jiR1AmbushedDenom++;
+            let r1WasAmbushed = false;
+            if (yaoP) {
+              const yaoR1Log = (g.actionLogs && g.actionLogs[yaoP.id] && g.actionLogs[yaoP.id].r1) || {};
+              const yaoR1Ability = yaoR1Log.ability || '';
+              if (yaoR1Ability.includes('偷襲') && !yaoR1Ability.includes('跳過') && (yaoR1Ability.includes(p.name) || yaoR1Ability.includes('姬雲浮'))) {
+                r1WasAmbushed = true;
+              }
+            }
+            if (!r1WasAmbushed) {
+              const r1Ins = (p.inspectHistory || []).filter(ins => ins.round === 1);
+              if (r1Ins.some(ins => ins.resultText && (ins.resultText.includes('偷襲') || ins.resultText.includes('一片黑')))) {
+                r1WasAmbushed = true;
+              }
+            }
+            if (!r1WasAmbushed && p.ambushedRound === 1) {
               r1WasAmbushed = true;
             }
+            if (r1WasAmbushed) jiR1Ambushed++;
           }
-          if (!r1WasAmbushed) {
-            const r1Ins = (p.inspectHistory || []).filter(ins => ins.round === 1);
-            if (r1Ins.some(ins => ins.resultText && (ins.resultText.includes('偷襲') || ins.resultText.includes('一片黑')))) {
-              r1WasAmbushed = true;
-            }
-          }
-          if (!r1WasAmbushed && p.ambushedRound === 1) {
-            r1WasAmbushed = true;
-          }
-          if (r1WasAmbushed) jiR1Ambushed++;
 
           // 投到老朝奉
-          if (pVotedRole === '老朝奉') jiVotedLao++;
+          if (pVotedRole !== null) {
+            jiVotedLaoDenom++;
+            if (pVotedRole === '老朝奉') jiVotedLao++;
+          }
 
           // 被誤認許願 / 方震
-          if (laoVotedId === String(p.id)) jiMistakenAsXu++;
-          if (yaoVotedId === String(p.id)) jiMistakenAsFang++;
+          if (laoP && (laoVotedId !== null || laoVotedRole !== null)) {
+            jiMistakenAsXuDenom++;
+            if (laoVotedId === String(p.id)) jiMistakenAsXu++;
+          }
+          if (yaoP && (yaoVotedId !== null || yaoVotedRole !== null)) {
+            jiMistakenAsFangDenom++;
+            if (yaoVotedId === String(p.id)) jiMistakenAsFang++;
+          }
         }
         else if (roleName === '鄭國渠') {
-          if (p.isAmbushed || p.isPermanentlyAmbushed) zhengAmbushedByYao++;
+          if (yaoP) {
+            zhengAmbushedDenom++;
+            if (p.isAmbushed || p.isPermanentlyAmbushed) zhengAmbushedByYao++;
+          }
 
           [1, 2, 3].forEach(rNum => {
+            const log = pLogs[`r${rNum}`];
+            // 若當回合無操作日誌資訊，則該輪分母不計入
+            if (!log || log.ability === undefined) return;
+
             zhengTotalRounds++;
-            const log = pLogs[`r${rNum}`] || {};
             const abText = log.ability || '';
             const match = abText.match(/封鎖【(.*?)】\(第(\d+)位\)/);
 
@@ -21286,15 +21343,12 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
               const zhengIdx = roundOrder.indexOf(String(p.id));
               const subsequentIds = zhengIdx !== -1 ? roundOrder.slice(zhengIdx + 1) : [];
 
-              // 篩選出「處於可以查獸首狀態」的玩家：
-              // 排除方震 (查陣營不查獸首)、排除處於被偷襲黑化狀態的玩家
               let eligibleCount = 0;
               let inspectedCount = 0;
 
               subsequentIds.forEach(subId => {
                 const subP = (g.players || []).find(x => String(x.id) === String(subId));
-                if (!subP) return;
-                if (subP.role === '方震') return;
+                if (!subP || subP.role === '方震') return;
 
                 const isPermAmbushed = subP.isPermanentlyAmbushed;
                 const isRoundAmbushed = subP.isAmbushed && (subP.ambushedRound === rNum || subP.ambushedRound === (rNum - 1));
@@ -21307,38 +21361,46 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
               });
 
               if (eligibleCount > 0) {
-                // 當回合有封印就獨立計算一個數據 (例如 2/3 = 66.66%)
                 zhengSealedRoundRatios.push(inspectedCount / eligibleCount);
               }
             } else {
-              // 當回合不封印就計算一次
               zhengSkipSealRounds++;
             }
           });
 
-          // 計算終局好人陣營投給鄭國渠的票數（被誤認為老朝奉機率：好人票數過半）
+          // 計算終局好人陣營投給鄭國渠的票數（被誤認為老朝奉機率）
           let totalGoodCountZheng = 0;
           let goodVotesForZheng = 0;
           (g.players || []).forEach(oth => {
             if (['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(oth.role)) {
-              totalGoodCountZheng++;
               const tgtR = getVotedTargetRole(oth, g);
               const tgtI = getVotedTargetId(oth, g);
-              if (tgtR === '鄭國渠' || tgtI === String(p.id)) {
-                goodVotesForZheng++;
+              if (tgtR !== null || tgtI !== null) {
+                totalGoodCountZheng++;
+                if (tgtR === '鄭國渠' || tgtI === String(p.id)) {
+                  goodVotesForZheng++;
+                }
               }
             }
           });
-          if (totalGoodCountZheng > 0 && goodVotesForZheng >= (totalGoodCountZheng / 2)) {
-            zhengMistakenAsLao++;
+          if (totalGoodCountZheng > 0) {
+            zhengMistakenAsLaoDenom++;
+            if (goodVotesForZheng >= (totalGoodCountZheng / 2)) {
+              zhengMistakenAsLao++;
+            }
           }
         }
         else if (roleName === '藥不然') {
-          if (pVotedRole === '方震' || yaoVotedRole === '方震') yaoFoundFang++;
+          if (pVotedRole !== null || yaoVotedRole !== null) {
+            yaoFoundFangDenom++;
+            if (pVotedRole === '方震' || yaoVotedRole === '方震') yaoFoundFang++;
+          }
 
           [1, 2, 3].forEach(rNum => {
+            const log = pLogs[`r${rNum}`];
+            if (!log || log.ability === undefined) return;
+
             yaoTotalRounds++;
-            const log = pLogs[`r${rNum}`] || {};
             const abText = log.ability || '';
             const nextText = log.next || '';
 
@@ -21353,77 +21415,108 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                 if (tgtP.role === '老朝奉' || tgtP.role === '鄭國渠') yaoAmbushTeammate++;
                 if (tgtP.role === '方震') yaoAmbushFang++;
                 if (tgtP.role === '姬雲浮') yaoAmbushJi++;
-                if (nextText.includes(tgtP.name)) yaoPassedToAmbushed++;
+                if (nextText) {
+                  yaoPassedDenom++;
+                  if (nextText.includes(tgtP.name)) yaoPassedToAmbushed++;
+                }
               }
             } else {
-              // 當回合不偷襲就獨立計算
               yaoSkipAmbushRounds++;
             }
           });
 
-          // 計算終局好人陣營投給藥不然的票數（被誤認為老朝奉機率：好人票數過半）
+          // 計算終局好人陣營投給藥不然的票數（被誤認為老朝奉機率）
           let totalGoodCountYao = 0;
           let goodVotesForYao = 0;
           (g.players || []).forEach(oth => {
             if (['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(oth.role)) {
-              totalGoodCountYao++;
               const tgtR = getVotedTargetRole(oth, g);
               const tgtI = getVotedTargetId(oth, g);
-              if (tgtR === '藥不然' || tgtI === String(p.id)) {
-                goodVotesForYao++;
+              if (tgtR !== null || tgtI !== null) {
+                totalGoodCountYao++;
+                if (tgtR === '藥不然' || tgtI === String(p.id)) {
+                  goodVotesForYao++;
+                }
               }
             }
           });
-          if (totalGoodCountYao > 0 && goodVotesForYao >= (totalGoodCountYao / 2)) {
-            yaoMistakenAsLao++;
+          if (totalGoodCountYao > 0) {
+            yaoMistakenAsLaoDenom++;
+            if (goodVotesForYao >= (totalGoodCountYao / 2)) {
+              yaoMistakenAsLao++;
+            }
           }
         }
         else if (roleName === '老朝奉') {
-          if (pVotedRole === '許願' || laoVotedRole === '許願') laoFoundXu++;
+          if (pVotedRole !== null || laoVotedRole !== null) {
+            laoFoundXuDenom++;
+            if (pVotedRole === '許願' || laoVotedRole === '許願') laoFoundXu++;
+          }
 
+          let gameHasDisruptLogs = false;
           let gameDisruptCount = 0;
           [1, 2, 3].forEach(rNum => {
+            const log = pLogs[`r${rNum}`];
+            if (!log || log.ability === undefined) return;
+
+            gameHasDisruptLogs = true;
             laoTotalRounds++;
-            const log = pLogs[`r${rNum}`] || {};
             const abText = log.ability || '';
             if (abText.includes('發動擾亂')) {
-              // 當回合擾亂就獨立計算
               laoActivatedDisruptRounds++;
               gameDisruptCount++;
             }
           });
-          if (gameDisruptCount === 0) laoNeverDisruptedGame++;
+          if (gameHasDisruptLogs) {
+            laoNeverDisruptedDenom++;
+            if (gameDisruptCount === 0) laoNeverDisruptedGame++;
+          }
 
           // 計算終局好人陣營投給老朝奉的票數
           let totalGoodCount = 0;
           let goodVotesForLao = 0;
           (g.players || []).forEach(oth => {
             if (['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(oth.role)) {
-              totalGoodCount++;
               const tgtR = getVotedTargetRole(oth, g);
               const tgtI = getVotedTargetId(oth, g);
-              if (tgtR === '老朝奉' || tgtI === String(p.id)) {
-                goodVotesForLao++;
+              if (tgtR !== null || tgtI !== null) {
+                totalGoodCount++;
+                if (tgtR === '老朝奉' || tgtI === String(p.id)) {
+                  goodVotesForLao++;
+                }
               }
             }
           });
 
-          // 1. 完美躲藏：終局沒有任何好人陣營玩家投中自己 (0 票)
-          if (goodVotesForLao === 0) {
-            laoPerfectHiddenSuccess++;
-          }
-
-          // 2. 躲藏成功：終局好人陣營玩家投中自己的票數「未過半」
-          // 例如 5 位好人中，投中票數 <= 2 票 (2 < 2.5) 即未過半
-          if (totalGoodCount > 0 && goodVotesForLao < (totalGoodCount / 2)) {
-            laoHiddenSuccess++;
+          if (totalGoodCount > 0) {
+            laoHiddenDenom++;
+            // 完美躲藏：0 票
+            if (goodVotesForLao === 0) {
+              laoPerfectHiddenSuccess++;
+            }
+            // 躲藏成功：票數未過半
+            if (goodVotesForLao < (totalGoodCount / 2)) {
+              laoHiddenSuccess++;
+            }
           }
         }
         else if (roleName === '木戶加奈' || roleName === '黃煙煙') {
-          if (pVotedRole === '老朝奉') appFoundLao++;
-          if (laoVotedId === String(p.id)) appMistakenAsXu++;
-          if (yaoVotedId === String(p.id)) appMistakenAsFang++;
-          if ((p.inspectHistory || []).length === 0) appZeroInspectGame++;
+          if (pVotedRole !== null) {
+            appFoundLaoDenom++;
+            if (pVotedRole === '老朝奉') appFoundLao++;
+          }
+          if (laoP && (laoVotedId !== null || laoVotedRole !== null)) {
+            appMistakenAsXuDenom++;
+            if (laoVotedId === String(p.id)) appMistakenAsXu++;
+          }
+          if (yaoP && (yaoVotedId !== null || yaoVotedRole !== null)) {
+            appMistakenAsFangDenom++;
+            if (yaoVotedId === String(p.id)) appMistakenAsFang++;
+          }
+          if (Array.isArray(p.inspectHistory)) {
+            appZeroInspectDenom++;
+            if (p.inspectHistory.length === 0) appZeroInspectGame++;
+          }
         }
       });
 
@@ -21434,47 +21527,47 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         wins,
         winRate: games > 0 ? Math.round((wins / games) * 100) + '%' : '0%',
         metrics: {
-          xuNotCaughtByLao: games > 0 ? (Math.round((xuNotCaughtByLao / games) * 1000) / 10) + '%' : '0%',
-          xuDoubleRealOrFake: xuInspectTurns > 0 ? (Math.round((xuDoubleRealOrFake / xuInspectTurns) * 1000) / 10) + '%' : '0%',
-          xuVotedLao: games > 0 ? (Math.round((xuVotedLao / games) * 1000) / 10) + '%' : '0%',
-          xuMistakenAsFang: games > 0 ? (Math.round((xuMistakenAsFang / games) * 1000) / 10) + '%' : '0%',
+          xuNotCaughtByLao: calcRateWithValidDenom(xuNotCaughtByLao, xuNotCaughtDenom),
+          xuDoubleRealOrFake: calcRateWithValidDenom(xuDoubleRealOrFake, xuInspectTurns),
+          xuVotedLao: calcRateWithValidDenom(xuVotedLao, xuVotedLaoDenom),
+          xuMistakenAsFang: calcRateWithValidDenom(xuMistakenAsFang, xuMistakenAsFangDenom),
 
-          fangNotFoundByYao: games > 0 ? (Math.round((fangNotFoundByYao / games) * 1000) / 10) + '%' : '0%',
-          fangTwoPlusEvil: games > 0 ? (Math.round((fangTwoPlusEvil / games) * 1000) / 10) + '%' : '0%',
-          fangVotedLao: games > 0 ? (Math.round((fangVotedLao / games) * 1000) / 10) + '%' : '0%',
-          fangMistakenAsXu: games > 0 ? (Math.round((fangMistakenAsXu / games) * 1000) / 10) + '%' : '0%',
+          fangNotFoundByYao: calcRateWithValidDenom(fangNotFoundByYao, fangNotFoundDenom),
+          fangTwoPlusEvil: calcRateWithValidDenom(fangTwoPlusEvil, fangTwoPlusEvilDenom),
+          fangVotedLao: calcRateWithValidDenom(fangVotedLao, fangVotedLaoDenom),
+          fangMistakenAsXu: calcRateWithValidDenom(fangMistakenAsXu, fangMistakenAsXuDenom),
 
-          jiTwoReal: games > 0 ? (Math.round((jiTwoReal / games) * 1000) / 10) + '%' : '0%',
-          jiNeverAmbushed: games > 0 ? (Math.round((jiNeverAmbushed / games) * 1000) / 10) + '%' : '0%',
-          jiR1Ambushed: games > 0 ? (Math.round((jiR1Ambushed / games) * 1000) / 10) + '%' : '0%',
-          jiVotedLao: games > 0 ? (Math.round((jiVotedLao / games) * 1000) / 10) + '%' : '0%',
-          jiMistakenAsXu: games > 0 ? (Math.round((jiMistakenAsXu / games) * 1000) / 10) + '%' : '0%',
-          jiMistakenAsFang: games > 0 ? (Math.round((jiMistakenAsFang / games) * 1000) / 10) + '%' : '0%',
+          jiTwoReal: calcRateWithValidDenom(jiTwoReal, jiTwoRealDenom),
+          jiNeverAmbushed: calcRateWithValidDenom(jiNeverAmbushed, jiNeverAmbushedDenom),
+          jiR1Ambushed: calcRateWithValidDenom(jiR1Ambushed, jiR1AmbushedDenom),
+          jiVotedLao: calcRateWithValidDenom(jiVotedLao, jiVotedLaoDenom),
+          jiMistakenAsXu: calcRateWithValidDenom(jiMistakenAsXu, jiMistakenAsXuDenom),
+          jiMistakenAsFang: calcRateWithValidDenom(jiMistakenAsFang, jiMistakenAsFangDenom),
 
-          zhengSealedInspected: zhengSealedRoundRatios.length > 0 ? (Math.round((zhengSealedRoundRatios.reduce((a, b) => a + b, 0) / zhengSealedRoundRatios.length) * 1000) / 10) + '%' : '0%',
+          zhengSealedInspected: zhengSealedRoundRatios.length > 0 ? (Math.round((zhengSealedRoundRatios.reduce((a, b) => a + b, 0) / zhengSealedRoundRatios.length) * 1000) / 10) + '%' : '-',
           zhengSealRank: [1, 2, 3, 4].sort((a, b) => (zhengSealPositions[b] || 0) - (zhengSealPositions[a] || 0)).join('>'),
-          zhengAmbushedByYao: games > 0 ? (Math.round((zhengAmbushedByYao / games) * 1000) / 10) + '%' : '0%',
-          zhengSkipSeal: zhengTotalRounds > 0 ? (Math.round((zhengSkipSealRounds / zhengTotalRounds) * 1000) / 10) + '%' : '0%',
-          zhengMistakenAsLao: games > 0 ? (Math.round((zhengMistakenAsLao / games) * 1000) / 10) + '%' : '0%',
+          zhengAmbushedByYao: calcRateWithValidDenom(zhengAmbushedByYao, zhengAmbushedDenom),
+          zhengSkipSeal: calcRateWithValidDenom(zhengSkipSealRounds, zhengTotalRounds),
+          zhengMistakenAsLao: calcRateWithValidDenom(zhengMistakenAsLao, zhengMistakenAsLaoDenom),
 
-          yaoFoundFang: games > 0 ? (Math.round((yaoFoundFang / games) * 1000) / 10) + '%' : '0%',
-          yaoAmbushTeammate: yaoTotalAmbushes > 0 ? (Math.round((yaoAmbushTeammate / yaoTotalAmbushes) * 1000) / 10) + '%' : '0%',
-          yaoAmbushFang: yaoTotalAmbushes > 0 ? (Math.round((yaoAmbushFang / yaoTotalAmbushes) * 1000) / 10) + '%' : '0%',
-          yaoAmbushJi: yaoTotalAmbushes > 0 ? (Math.round((yaoAmbushJi / yaoTotalAmbushes) * 1000) / 10) + '%' : '0%',
-          yaoPassedToAmbushed: yaoTotalAmbushes > 0 ? (Math.round((yaoPassedToAmbushed / yaoTotalAmbushes) * 1000) / 10) + '%' : '0%',
-          yaoSkipAmbush: yaoTotalRounds > 0 ? (Math.round((yaoSkipAmbushRounds / yaoTotalRounds) * 1000) / 10) + '%' : '0%',
-          yaoMistakenAsLao: games > 0 ? (Math.round((yaoMistakenAsLao / games) * 1000) / 10) + '%' : '0%',
+          yaoFoundFang: calcRateWithValidDenom(yaoFoundFang, yaoFoundFangDenom),
+          yaoAmbushTeammate: calcRateWithValidDenom(yaoAmbushTeammate, yaoTotalAmbushes),
+          yaoAmbushFang: calcRateWithValidDenom(yaoAmbushFang, yaoTotalAmbushes),
+          yaoAmbushJi: calcRateWithValidDenom(yaoAmbushJi, yaoTotalAmbushes),
+          yaoPassedToAmbushed: calcRateWithValidDenom(yaoPassedToAmbushed, yaoPassedDenom),
+          yaoSkipAmbush: calcRateWithValidDenom(yaoSkipAmbushRounds, yaoTotalRounds),
+          yaoMistakenAsLao: calcRateWithValidDenom(yaoMistakenAsLao, yaoMistakenAsLaoDenom),
 
-          laoFoundXu: games > 0 ? (Math.round((laoFoundXu / games) * 1000) / 10) + '%' : '0%',
-          laoActivatedDisrupt: laoTotalRounds > 0 ? (Math.round((laoActivatedDisruptRounds / laoTotalRounds) * 1000) / 10) + '%' : '0%',
-          laoPerfectHidden: games > 0 ? (Math.round((laoPerfectHiddenSuccess / games) * 1000) / 10) + '%' : '0%',
-          laoHiddenSuccess: games > 0 ? (Math.round((laoHiddenSuccess / games) * 1000) / 10) + '%' : '0%',
-          laoNeverDisruptedGame: games > 0 ? (Math.round((laoNeverDisruptedGame / games) * 1000) / 10) + '%' : '0%',
+          laoFoundXu: calcRateWithValidDenom(laoFoundXu, laoFoundXuDenom),
+          laoActivatedDisrupt: calcRateWithValidDenom(laoActivatedDisruptRounds, laoTotalRounds),
+          laoPerfectHidden: calcRateWithValidDenom(laoPerfectHiddenSuccess, laoHiddenDenom),
+          laoHiddenSuccess: calcRateWithValidDenom(laoHiddenSuccess, laoHiddenDenom),
+          laoNeverDisruptedGame: calcRateWithValidDenom(laoNeverDisruptedGame, laoNeverDisruptedDenom),
 
-          appFoundLao: games > 0 ? (Math.round((appFoundLao / games) * 1000) / 10) + '%' : '0%',
-          appMistakenAsXu: games > 0 ? (Math.round((appMistakenAsXu / games) * 1000) / 10) + '%' : '0%',
-          appMistakenAsFang: games > 0 ? (Math.round((appMistakenAsFang / games) * 1000) / 10) + '%' : '0%',
-          appZeroInspectGame: games > 0 ? (Math.round((appZeroInspectGame / games) * 1000) / 10) + '%' : '0%'
+          appFoundLao: calcRateWithValidDenom(appFoundLao, appFoundLaoDenom),
+          appMistakenAsXu: calcRateWithValidDenom(appMistakenAsXu, appMistakenAsXuDenom),
+          appMistakenAsFang: calcRateWithValidDenom(appMistakenAsFang, appMistakenAsFangDenom),
+          appZeroInspectGame: calcRateWithValidDenom(appZeroInspectGame, appZeroInspectDenom)
         }
       };
     }
