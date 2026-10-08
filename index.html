@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (v3.6.7 密碼學真隨機雙向分發版)</title>  
+ <title>古董局中局 (v3.6.8 訪客唯讀預設與隱私無碼版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1590,7 +1590,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.6.7 (密碼學真隨機雙向分發版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.6.8 (訪客唯讀預設與隱私無碼版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -1762,7 +1762,7 @@ service cloud.firestore {
  <button onclick="refreshStatsData()" class="px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold transition flex items-center space-x-1">  
  <span>🔄 重新整理</span>  
  </button>
- <button id="btnStatsAdminToggle" onclick="toggleStatsAdminMode()" title="點擊切換管理員模式與訪客唯讀模式" class="px-2 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1 border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-neutral-200">
+ <button id="btnStatsAdminToggle" onclick="toggleStatsAdminMode()" title="身分權限狀態" class="px-2 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1 border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-neutral-200">
  <span id="txtStatsAdminBadge">🔒 訪客唯讀</span>
  </button>
  <div id="statsAdminToolsWrapper" class="hidden flex items-center space-x-1.5 flex-wrap gap-y-1">
@@ -2690,7 +2690,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.6.7 密碼學真隨機雙向分發版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.6.8 訪客唯讀預設與隱私無碼版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -20596,17 +20596,15 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
     // ============================================================
     // 戰績網訪客唯讀權限守門員 (Stats Portal Guest View-Only Guard)
-    // 其他手機預設為訪客唯讀瀏覽模式（隱藏刪除、補登、匯入、匯出、檢測快取按鈕）
-    // 主機設備可輸入密碼 8888 解鎖完整管理員權限
+    // 嚴格預設：任何設備開啟一律為「訪客唯讀瀏覽模式」（隱藏刪除、補登、匯入、匯出、快取檢測）
+    // 隱私無碼提示：密碼絕不洩露於畫面上或對話框中，唯有主機管理員輸入正確密碼方可解鎖
     // ============================================================
     function isStatsAdminUnlocked() {
       try {
-        // 主機已開局過或本機有對局紀錄者，預設具備管理員身分
-        const hostToken = localStorage.getItem('gudong_admin_unlocked');
-        if (hostToken === 'true') return true;
-        if (hostToken === 'false') return false;
-        const localMatches = localStorage.getItem('gudong_offline_history_v2');
-        if (localMatches && localMatches.length > 50) return true;
+        const sessionToken = sessionStorage.getItem('gudong_admin_unlocked');
+        if (sessionToken === 'true') return true;
+        const localToken = localStorage.getItem('gudong_admin_unlocked');
+        if (localToken === 'true') return true;
       } catch(e) {}
       return false;
     }
@@ -20634,15 +20632,24 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       const current = isStatsAdminUnlocked();
       if (current) {
         if (confirm('🔒 是否切換為「訪客唯讀瀏覽模式」？\n切換後將隱藏刪除、補登、匯入等管理功能。')) {
-          try { localStorage.setItem('gudong_admin_unlocked', 'false'); } catch(e) {}
+          try {
+            sessionStorage.removeItem('gudong_admin_unlocked');
+            localStorage.removeItem('gudong_admin_unlocked');
+          } catch(e) {}
           showToast('已切換為訪客唯讀模式', 'info', 2000);
           updateStatsAdminUI();
           refreshStatsData();
         }
       } else {
-        const pin = prompt('🔑 請輸入管理員解鎖密碼（預設密碼：8888）：');
-        if (pin === '8888' || pin === '7878' || pin === '6666') {
-          try { localStorage.setItem('gudong_admin_unlocked', 'true'); } catch(e) {}
+        const savedPin = (function() {
+          try { return localStorage.getItem('gudong_admin_pin') || '8888'; } catch(e) { return '8888'; }
+        })();
+        const pin = prompt('🔑 請輸入管理員解鎖密碼：');
+        if (pin && (pin === savedPin || pin === '7878' || pin === '6666')) {
+          try {
+            sessionStorage.setItem('gudong_admin_unlocked', 'true');
+            localStorage.setItem('gudong_admin_unlocked', 'true');
+          } catch(e) {}
           showToast('🔓 已成功解鎖管理員權限！', 'success', 2500);
           updateStatsAdminUI();
           refreshStatsData();
