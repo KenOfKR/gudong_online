@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (v3.0.1 正常玩家推理 + Gemini 真決策強化版)</title>  
+ <title>古董局中局 (v3.6.3 小助手獸首語音變調校正版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1590,7 +1590,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.0.0 (旗艦版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.6.3 (小助手獸首語音變調校正版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -2678,7 +2678,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v2.5.0 AI成長進化版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.6.3 小助手獸首語音變調校正版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -5039,6 +5039,7 @@ class BotDeductionEngine {
       roundBeastsObj: (curRound.beasts || []).map(b => ({ name: b.name })),
       passOrders: (room.rounds || []).map(r => r.passOrder || []),
       speeches: (room.rounds || []).map(r => r.speeches || []),
+      speechOrders: (room.rounds || []).map(r => r.speechOrder || []),
       voteResults: (room.rounds || []).map(r => r.voteResults || null),
       pastVotes: (room.rounds || []).map(r => r.votes || {}),
       myInspectLogs: myCurrentInspect,
@@ -5888,11 +5889,10 @@ class BotDeductionEngine {
       const prevDesc = prevSpeechPlayer ? getPlayerColorDesc(prevSpeechPlayer) : null;
       const pickStatus = () => Math.random() < 0.52 ? '真品' : '贗品';
 
-      // 1. 少量沿用偷襲前真正驗過的情報，避免行為突然像「失憶」。
-      if (priorKnown.length > 0 && Math.random() < 0.22) {
-        const old = pickOne(priorKnown);
-        const oldStatus = old.resultText.includes('真品') ? '真品' : '贗品';
-        return finalize(`我先沿用前面自己摸到的資訊：【${old.beastName}】我仍然偏${oldStatus}，但這輪新東西我不敢講死，先看大家怎麼對票。`);
+      // 1. 針對當前回合獸首給出謹慎判斷，絕不提過去輪次非當局獸首
+      if (roundBeasts.length > 0 && Math.random() < 0.22) {
+        const b = pickOne(roundBeasts);
+        return finalize(`我先看【${b}】，手感比較偏${pickStatus()}，但這輪我沒有百分之百把握，大家把前後發言一起對照。`);
       }
 
       // 2. 約四分之一：像普通玩家一樣報一件獸首＋隨機真假。
@@ -5956,6 +5956,22 @@ class BotDeductionEngine {
       if (suspectNames) {
         return finalize(`我上一輪親手驗【${pov._disruptedBeast}】明明是${pov._disruptedMyClaim}，但公開揭曉竟然是${pov._disruptedActual}！這百分之百是老朝奉在前面開了擾亂！排在我前面傳遞的【${suspectNames}】肯定有人在動手腳，後面傳遞的人嫌疑可以先排除！`);
       }
+    }
+
+    // =========================================================================
+    // v3.6.0 新決策層：先解析本輪公開發言（誰說哪個獸首真假／誰重複誰／誰矛盾），
+    // 再結合傳遞位置與發言位置，依盤面選本輪發言任務。出錯或無可用戰術時才退回下方舊流程。
+    // =========================================================================
+    try {
+      if (typeof SpeechStrategist !== 'undefined') {
+        const _tac = SpeechStrategist.compose(pov, beliefs, { pickOne: pickOne, desc: getPlayerColorDesc, traits: w });
+        if (_tac && _tac.text) {
+          pov._lastSpeechTactic = _tac.tactic;
+          return finalize(_tac.text);
+        }
+      }
+    } catch (tacErr) {
+      console.warn('[SpeechStrategist] 例外，改走舊版發言流程:', tacErr);
     }
 
     // -------------------------------------------------------------------------
@@ -6484,6 +6500,463 @@ class BotDeductionEngine {
 
   
   
+
+/* =========================================================================
+   v3.6.0 電腦發言決策層 (SpeechStrategist)
+   不再是「每人固定：報一個獸首 → 號票」。流程：
+   1. 解析本輪已發言內容 → 誰說哪個獸首真/假、誰重複誰、誰跟誰矛盾
+   2. 把「傳遞位置(seat)」與「發言位置(speech)」一起算：
+        seatAdvantage    = 傳遞越前，資訊理論上越乾淨 (中間被老朝奉動手腳的機會小)
+        contaminationRisk= 發言越晚、越像聽完才報，越容易被懷疑跟風
+   3. 自己的查驗 vs 前面公開資訊 → 衝突時往前追「老朝奉擾亂」的資訊鏈
+   4. 依盤面選「本輪發言任務」(tactic)，再生成口語
+   ========================================================================= */
+class SpeechStrategist {
+  static clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+  static r2(x) { return Math.round(x * 100) / 100; }
+
+  // ---------- 1. 解析單則發言：抓出「獸首 + 真/假」 ----------
+  static parseClaims(text, beastNames) {
+    if (!text || typeof text !== 'string') return [];
+    const names = (beastNames || []).filter(Boolean);
+    if (names.length === 0) return [];
+    const clauses = text.split(/[，,。！!？?；;、\n]/);
+    const claims = [];
+    const seen = new Set();
+    let carry = null, carryAge = 0;
+    const stRe = /(不是|不太像|不像|不算|並非|非|不)?(偏向?真|像真|真品|真的|是真|保真|沉實|真|偏向?假|像假|贗品|偏贗|贗|假的|是假|假貨|偽造|偏偽|假)/g;
+    clauses.forEach(cl => {
+      if (!cl) return;
+      const mentions = [];
+      names.forEach(n => {
+        const re = new RegExp('【' + n + '】|' + n + '(?:首|頭)|' + n + '(?=[不否非是偏判看摸驗說像應確感覺真假贗])', 'g');
+        let m;
+        while ((m = re.exec(cl))) mentions.push({ n, idx: m.index });
+      });
+      mentions.sort((a, b) => a.idx - b.idx);
+      const statuses = [];
+      let m2;
+      stRe.lastIndex = 0;
+      while ((m2 = stRe.exec(cl))) {
+        const word = m2[2];
+        let real = /真|沉實|保真/.test(word) && !/假|贗|偽/.test(word);
+        if (m2[1]) real = !real;
+        statuses.push({ idx: m2.index, real });
+      }
+      const hedge = /偏|像|感覺|應該|可能|似乎|大概|不敢|百分之百|保留|不一定/.test(cl);
+      if (statuses.length === 0) {
+        if (mentions.length) { carry = mentions[mentions.length - 1].n; carryAge = 0; }
+        else if (carry && ++carryAge > 1) carry = null;
+        return;
+      }
+      statuses.forEach(st => {
+        let b = null;
+        if (mentions.length) {
+          let best = null;
+          mentions.forEach(mn => {
+            const d = st.idx - mn.idx;
+            const score = d >= 0 ? d : 100 - d;
+            if (best === null || score < best.score) best = { n: mn.n, score };
+          });
+          b = best.n;
+        } else b = carry;
+        if (b && !seen.has(b)) { seen.add(b); claims.push({ beast: b, real: st.real, hedge }); }
+      });
+      carry = null;
+    });
+    return claims;
+  }
+
+  static myInfo(pov) {
+    const blindRe = /(偷襲|一片黑|被幹|暈眩|致盲|無法辨別)/;
+    return (pov.myInspectLogs || [])
+      .filter(l => l && l.beastName && l.resultText && !blindRe.test(l.resultText) && /真品|贗品/.test(l.resultText))
+      .map(l => ({ beast: l.beastName, real: l.resultText.includes('真品') }));
+  }
+
+  // ---------- 2. 本輪盤面分析 ----------
+  static analyze(pov) {
+    const r = pov.currentRoundIdx || 0;
+    const beasts = pov.currentBeasts || [];
+    const others = pov.otherPlayers || [];
+    const passOrder = (pov.passOrders && pov.passOrders[r]) || [];
+    const speeches = (pov.speeches && pov.speeches[r]) || [];
+    const byId = {};
+    others.forEach(p => { byId[p.id] = p; });
+    const spoken = [];
+    speeches.forEach((s, i) => {
+      const pid = s && (s.playerId || s.speakerId);
+      if (!pid || pid === pov.myId) return;
+      spoken.push({
+        id: pid,
+        name: (byId[pid] && byId[pid].name) || s.speakerName || '某位玩家',
+        speechPos: i,
+        passPos: passOrder.indexOf(pid),
+        text: s.text || '',
+        claims: SpeechStrategist.parseClaims(s.text, beasts)
+      });
+    });
+    const byBeast = {};
+    spoken.forEach(sp => sp.claims.forEach(c => {
+      const e = byBeast[c.beast] || (byBeast[c.beast] = { real: [], fake: [] });
+      (c.real ? e.real : e.fake).push(sp);
+    }));
+    const contradictions = Object.keys(byBeast)
+      .filter(b => byBeast[b].real.length && byBeast[b].fake.length)
+      .map(b => ({ beast: b, real: byBeast[b].real, fake: byBeast[b].fake }));
+    const echoes = [];
+    spoken.forEach(later => {
+      if (!later.claims.length) return;
+      const ms = later.claims.map(c => {
+        const e = spoken.find(x => x.speechPos < later.speechPos && x.claims.some(y => y.beast === c.beast && y.real === c.real));
+        return e ? { earlier: e, beast: c.beast, real: c.real } : null;
+      });
+      if (ms.every(Boolean)) {
+        echoes.push({
+          later, earlier: ms[0].earlier, beast: ms[0].beast, real: ms[0].real,
+          laterHasCleanerSeat: later.passPos >= 0 && ms[0].earlier.passPos >= 0 && later.passPos < ms[0].earlier.passPos
+        });
+      }
+    });
+    const rich = spoken.filter(s => s.claims.length >= 2);
+    return { r, beasts, passOrder, spoken, byBeast, contradictions, echoes, rich, byId };
+  }
+
+  // 資訊鏈：兩人查驗結果互相矛盾時，誰有機會在中間動手腳（含對方本人）
+  static chainBetween(passOrder, myPos, otherPos, excludeIds) {
+    if (myPos < 0 || otherPos < 0 || myPos === otherPos) return [];
+    const ex = new Set(excludeIds || []);
+    let ids;
+    if (otherPos > myPos) ids = passOrder.slice(myPos + 1, otherPos + 1);   // 我之後、對方之前(含對方)
+    else ids = passOrder.slice(otherPos, myPos);                            // 對方起、我之前(含對方)
+    return ids.filter(id => !ex.has(id));
+  }
+
+  // ---------- 3. 規劃：算位置、衝突、挑戰術 ----------
+  static plan(pov, beliefs, helpers) {
+    helpers = helpers || {};
+    const an = SpeechStrategist.analyze(pov);
+    const r = an.r;
+    const n = 8;
+    const info = SpeechStrategist.myInfo(pov);
+    const isEvil = !!pov.isEvilCamp;
+    const role = pov.myRole;
+    const isBlinded = !!pov.myInspectWasBlinded;
+    const myPass = an.passOrder.indexOf(pov.myId);
+    const mySpeechPos = ((pov.speeches && pov.speeches[r]) || []).length;
+    const seatAdvantage = SpeechStrategist.r2(myPass < 0 ? 0.5 : 1 - myPass / (n - 1));
+    const lateness = SpeechStrategist.r2(Math.min(1, mySpeechPos / (n - 1)));
+    const teammates = pov.knownTeammateIds || [];
+
+    const conflicts = [], agrees = [];
+    info.forEach(it => {
+      const e = an.byBeast[it.beast];
+      if (!e) return;
+      const opp = it.real ? e.fake : e.real;
+      const same = it.real ? e.real : e.fake;
+      if (opp.length) conflicts.push({ beast: it.beast, mineReal: it.real, others: opp });
+      if (same.length) agrees.push({ beast: it.beast, real: it.real, claimers: same });
+    });
+
+    const contaminationRisk = SpeechStrategist.clamp(
+      0.12 + 0.5 * lateness + 0.2 * (1 - seatAdvantage) + (agrees.length ? 0.25 : 0), 0, 1);
+    const earlySeatLateSpeak = seatAdvantage >= 0.6 && lateness >= 0.55;
+
+    const traits = Object.assign({ aggression: 0.5, skepticism: 0.5, deception: 0.5, voteIndependence: 0.5 },
+      helpers.traits || {});
+
+    const ctx = {
+      r, role, isEvil, isBlinded, info, myPass, mySpeechPos, seatAdvantage, lateness,
+      contaminationRisk: SpeechStrategist.r2(contaminationRisk), earlySeatLateSpeak,
+      an, conflicts, agrees, traits, teammates, beliefs: beliefs || {}, pov
+    };
+
+    const T = [];
+    const add = (id, w) => { if (w > 0) T.push({ id, w }); };
+    const hasInfo = info.length > 0;
+    const hidesRole = (role === '許願' || role === '方震');
+
+    // v3.6.1 戰術權重：大幅提高「實質報出獸首」的策略，降低純觀望比例
+    if (hasInfo && !isBlinded) add('hardReport', 4.5 * (conflicts.length ? 0.6 : 1) * (isEvil ? 0.9 : 1.1));
+    if (conflicts.length) add('rebut', (isEvil ? 3.5 : 5.0) * (0.7 + traits.aggression * 0.6));
+    if (agrees.length && !isBlinded) add('independentConfirm', 3.8 + contaminationRisk * 2 + (earlySeatLateSpeak ? 2 : 0));
+    if (an.contradictions.length) add('analyzeContradiction', 3.5 * (0.8 + traits.skepticism * 0.4));
+    if (an.echoes.length) {
+      const cleaner = an.echoes.some(e => e.laterHasCleanerSeat);
+      add('copySuspect', (2.8 + (cleaner ? 1.5 : 0)) * (0.7 + traits.skepticism * 0.6));
+    }
+    if (isEvil) add('bluffTest', 2.0 * (0.6 + traits.deception));
+    else if (role === '方震' || role === '姬雲浮' || isBlinded) add('bluffTest', 1.5);
+    if (isEvil && (an.spoken.length || beliefs)) add('roleProbe', 1.5);
+    if (r >= 1 && beliefs && beliefs.badDeedsRanking && beliefs.badDeedsRanking.length) add('suspectPush', 1.5 * (0.7 + traits.aggression * 0.6));
+    if (r === 0) add('testPlayers', 1.2 * (0.7 + traits.skepticism * 0.6));
+    else if (an.spoken.length >= 2) add('testPlayers', 0.6);
+    add('deferVote', 0.8 + (an.contradictions.length && !hasInfo ? 1.0 : 0));
+    if (hasInfo || isBlinded) add('holdBack', 0.8 + (hidesRole ? 0.5 : 0));
+
+    // 加權亂序：權重越大越容易排前面，但不是每次都選最大的
+    const ranked = T.map(t => ({ id: t.id, key: Math.pow(Math.random(), 1 / t.w) }))
+      .sort((a, b) => b.key - a.key).map(t => t.id);
+    return { ctx, ranked, tactic: ranked[0], weights: T };
+  }
+
+  // ---------- 4. 組出最終發言 ----------
+  static compose(pov, beliefs, helpers) {
+    const plan = pov._speechPlan || SpeechStrategist.plan(pov, beliefs, helpers);
+    if (pov._speechPlan) delete pov._speechPlan;
+    for (const id of plan.ranked) {
+      const text = SpeechStrategist.realize(id, plan.ctx, helpers || {});
+      if (text) { plan.used = id; SpeechStrategist.lastPlan = plan; return { text, tactic: id, plan }; }
+    }
+    return null;
+  }
+
+  static label(id) {
+    return ({
+      hardReport: '直接報自己的硬情報', holdBack: '有情報但先保留、不下死結論', bluffTest: '故意丟一個說法測大家反應',
+      rebut: '正面反駁與自己查驗衝突的人，並往前追老朝奉擾亂', analyzeContradiction: '分析同一獸首的正反矛盾，不急著只抓一個人',
+      copySuspect: '點出後面發言只是抄前面、不算獨立情報', independentConfirm: '與前面一致，但強調自己是獨立判斷',
+      roleProbe: '從資訊量與發言位置盤可能的許願／方震／姬雲浮', suspectPush: '盤出目前最可疑的人但先不鎖死',
+      testPlayers: '第一輪用提問測玩家', deferVote: '暫時不定票，等後面資訊補齊'
+    })[id] || id;
+  }
+
+  // ---------- 文字生成 ----------
+  static realize(id, ctx, h) {
+    const pickOne = h.pickOne || (a => a[Math.floor(Math.random() * a.length)]);
+    const an = ctx.an;
+    const S = real => real ? '真品' : '贗品';
+    const D = pid => {
+      const p = an.byId[pid];
+      if (p && typeof h.desc === 'function') return h.desc(p);
+      return '【' + ((p && p.name) || '那位玩家') + '】';
+    };
+    const nameOf = pid => D(pid);
+    const mate = id2 => ctx.isEvil && ctx.teammates.includes(id2);
+    const posNo = x => (x >= 0 ? '第' + (x + 1) + '位' : '');
+    const seatTxt = () => {
+      if (ctx.seatAdvantage >= 0.6) return pickOne(['我傳遞位置偏前，中間被動手腳的機會比較小，', '我算比較早摸到這組獸首，', '']);
+      if (ctx.seatAdvantage <= 0.3) return pickOne(['我排在傳遞後段，這個結果要拿去跟前面對照才有意義，', '我拿到時已經過手不少人了，所以只當參考，']);
+      return '';
+    };
+    const chainNames = (otherPos) => {
+      const ids = SpeechStrategist.chainBetween(an.passOrder, ctx.myPass, otherPos, [ctx.pov.myId].concat(ctx.isEvil ? ctx.teammates : []));
+      return ids.map(nameOf);
+    };
+    const others = an.spoken.filter(s => !mate(s.id));
+
+    switch (id) {
+      case 'hardReport': {
+        if (!ctx.info.length) return null;
+        let chosen;
+        if (ctx.isEvil) chosen = [SpeechStrategist.evilClaim(ctx, pickOne)];
+        else if (ctx.role === '許願' && ctx.info.length >= 2 && Math.random() < 0.15) chosen = ctx.info.slice(0, 2);
+        else chosen = [pickOne(ctx.info)];
+        const st = seatTxt();
+        if (chosen.length === 2) {
+          return `${st}我這輪摸了兩件：【${chosen[0].beast}】${S(chosen[0].real)}、【${chosen[1].beast}】${S(chosen[1].real)}，兩件我都敢講。先記下來，後面誰跟這兩個對不上，就是可以追的點。`;
+        }
+        const c = chosen[0];
+        const vote = c.real ? pickOne(['票我先朝【' + c.beast + '】放。', '', '這件我會給票。']) : pickOne(['這件我不會給票。', '']);
+        return pickOne([
+          `${st}【${c.beast}】我親手驗的，結果是${S(c.real)}；其他沒碰過的我不亂講。${vote}`,
+          `我只報我自己摸過的：【${c.beast}】${S(c.real)}。${st}沒驗到的那幾件，我寧可空著也不補故事。${vote}`,
+          `${st}這輪我拿到的結論很單純，【${c.beast}】是${S(c.real)}，後面有人說法不同，我會直接拿這個去對。${vote}`
+        ]);
+      }
+
+      case 'holdBack': {
+        const prev = an.spoken.slice(-2).filter(s => !mate(s.id));
+        const wait = prev.length ? `等${prev.map(s => D(s.id)).join('、')}把細節講完` : '等後面幾位把說法攤開';
+        const myC = ctx.info.length > 0 ? (ctx.isEvil ? SpeechStrategist.evilClaim(ctx, pickOne) : pickOne(ctx.info)) : { beast: pickOne(an.beasts.filter(Boolean) || ['鼠']), real: Math.random() < 0.5 };
+        return pickOne([
+          `我這輪摸了【${myC.beast}】偏向${S(myC.real)}，但${ctx.seatAdvantage >= 0.6 ? '位置偏前，講太死反而變成別人對答案的基準，' : '現在講死只會被拿去對號，'}我先不急著把整盤定死，${wait}，再看票怎麼下。`,
+          `我先交代我這棒看【${myC.beast}】是${S(myC.real)}，不過其他幾件我不想第一時間講死，${wait}，我再決定要不要跟票。`,
+          `【${myC.beast}】我看是${S(myC.real)}。其他獸首情報我先保留一點，${wait}，哪邊對得上、哪邊對不上，我再一起算。`
+        ]);
+      }
+
+      case 'bluffTest': {
+        const beasts = an.beasts.filter(Boolean);
+        if (!beasts.length) return null;
+        let b, real;
+        if (ctx.isEvil) { const c = SpeechStrategist.evilClaim(ctx, pickOne); b = c.beast; real = c.real; }
+        else { b = pickOne(beasts); real = Math.random() < 0.5; }
+        return pickOne([
+          `我這輪先看【${b}】，手感偏${S(real)}，我自己大概有八成把握；誰的說法跟我不一樣，我很想聽他怎麼解釋。`,
+          `【${b}】我傾向${S(real)}，不敢說百分之百。想看看大家聽完會不會直接跟，還是會回頭追問來源。`,
+          `我先丟一個判斷：【${b}】${S(real)}。不用急著信，反而是看誰馬上附和、誰會追問傳遞順序，這比我說什麼更重要。`
+        ]);
+      }
+
+      case 'rebut': {
+        if (!ctx.conflicts.length) return null;
+        const cf = pickOne(ctx.conflicts);
+        const opp = cf.others.filter(s => !mate(s.id));
+        if (!opp.length) return null;
+        const o = opp[0];
+        const names = chainNames(o.passPos);
+        let chain = '';
+        if (names.length) {
+          const isAdjacent = Math.abs(o.passPos - ctx.myPass) <= 1;
+          if (isAdjacent) {
+            chain = (o.passPos > ctx.myPass)
+              ? `我${posNo(ctx.myPass)}直接傳給他${posNo(o.passPos)}，中間根本沒有其他人經手，若不是他看錯，就是他在撒謊！`
+              : `他${posNo(o.passPos)}直接傳給我${posNo(ctx.myPass)}，中間沒有其他人經手，我們兩個說法完全相反，必有一人在說謊！`;
+          } else {
+            chain = (o.passPos > ctx.myPass)
+              ? `我${posNo(ctx.myPass)}、他${posNo(o.passPos)}，中間經手的是${names.join('、')}，老朝奉如果在這段擾亂，就說得通。`
+              : `他${posNo(o.passPos)}比我早摸到，若兩邊都誠實，就是他之後、我之前被動過，這段經手的是${names.join('、')}，先別放過。`;
+          }
+        }
+        return pickOne([
+          `${D(o.id)}你說【${cf.beast}】${S(!cf.mineReal)}，但我手上驗到的是${S(cf.mineReal)}，我們兩個總有一邊被動過手腳。${chain}`,
+          `我要直接回${D(o.id)}：【${cf.beast}】我這邊是${S(cf.mineReal)}，跟你講的對不上。不是說你一定說謊，而是${chain || '傳遞過程一定有地方出了問題。'}`
+        ]);
+      }
+
+      case 'analyzeContradiction': {
+        const cd = pickOne(an.contradictions);
+        if (!cd) return null;
+        const A = cd.real.filter(s => !mate(s.id))[0] || cd.real[0];
+        const B = cd.fake.filter(s => !mate(s.id))[0] || cd.fake[0];
+        const pa = (A.passPos >= 0 && B.passPos >= 0)
+          ? `${A.name}${posNo(A.passPos)}、${B.name}${posNo(B.passPos)}傳遞`
+          : `${A.name}和${B.name}的傳遞位置`;
+        const lo = Math.min(A.passPos, B.passPos), hi = Math.max(A.passPos, B.passPos);
+        const mid = (lo >= 0 && hi > lo)
+          ? an.passOrder.slice(lo, hi + 1).filter(x => x !== ctx.pov.myId && !(ctx.isEvil && ctx.teammates.includes(x))).map(nameOf) : [];
+        const mineHere = ctx.info.find(i => i.beast === cd.beast);
+        const lean = mineHere ? `我自己驗到偏${S(mineHere.real)}，所以我先傾向${mineHere.real ? A.name : B.name}那邊，但中間有人動過手也不奇怪。` : '我自己這件沒有硬證據，所以先不站邊。';
+        return `【${cd.beast}】現在${A.name}說真、${B.name}說假，不能直接認定誰是壞人。要看${pa}，${mid.length ? '以及中間經手的' + mid.join('、') + '，' : ''}有人擾亂才會變成這樣。${lean}`;
+      }
+
+      case 'copySuspect': {
+        const cand = an.echoes.filter(e => !mate(e.later.id));
+        if (!cand.length) return null;
+        const e = cand.find(x => x.laterHasCleanerSeat) || pickOne(cand);
+        const seatLine = e.laterHasCleanerSeat
+          ? `你傳遞位置還比${e.earlier.name}前面，卻拖到後面才講，這要交代清楚。` : '';
+        return pickOne([
+          `${D(e.later.id)}你講的【${e.beast}】${S(e.real)}，跟前面${e.earlier.name}一模一樣，也沒多一個自己的細節，我會懷疑你是聽完才報，不算獨立情報。${seatLine}`,
+          `我先記一筆：${D(e.later.id)}的【${e.beast}】${S(e.real)}是接在${e.earlier.name}後面講的，而且完全同向。這種說法我只算半票，除非你能補出他沒講過的東西。${seatLine}`
+        ]);
+      }
+
+      case 'independentConfirm': {
+        if (!ctx.agrees.length) return null;
+        const ag = pickOne(ctx.agrees);
+        const first = ag.claimers[0];
+        const why = ctx.earlySeatLateSpeak
+          ? `我知道我${posNo(ctx.myPass)}就摸到了，卻排到後面才發言，看起來像在等答案，但我的結果在發言開始前就定了。`
+          : (ctx.lateness >= 0.55
+            ? '我雖然比較晚講，但我驗的時候還沒有任何人開口，所以不是被帶著走。'
+            : pickOne(['我驗的時候還沒聽到這個說法，所以不是跟風。', '這是我自己摸出來的結果，不是順著他講。']));
+        return `【${ag.beast}】我這邊也是${S(ag.real)}，跟${first.name}一致。${why}兩個獨立來源疊在一起，這件的可信度我會往上調。`;
+      }
+
+      case 'roleProbe': {
+        const rs = (ctx.beliefs && ctx.beliefs.roleScores) || {};
+        const pool = ctx.pov.otherPlayers.filter(p => p.id !== ctx.pov.myId && !ctx.teammates.includes(p.id));
+        if (!pool.length) return null;
+        const richIds = new Set(an.rich.map(s => s.id));
+        const mention = s => /陣營|查驗了|驗了【|我是/.test(s.text || '');
+        const score = (p, key) => ((rs[p.id] && rs[p.id][key]) || 10) + (key === 'xuYuan' && richIds.has(p.id) ? 30 : 0)
+          + (key === 'fangZhen' && an.spoken.some(s => s.id === p.id && mention(s)) ? 25 : 0);
+        const kinds = [['xuYuan', '許願'], ['fangZhen', '方震'], ['jiYunFu', '姬雲浮']];
+        let best = null;
+        kinds.forEach(([k, nm]) => pool.forEach(p => { const sc = score(p, k); if (!best || sc > best.sc) best = { p, k, nm, sc }; }));
+        if (!best) return null;
+        const T = D(best.p.id);
+        const named = Math.random() < 0.25;
+        const reason = richIds.has(best.p.id)
+          ? '一次報得特別完整，又沒被任何人推翻' : '這輪的說法和傳遞位置搭得太乾淨';
+        const myC = ctx.info.length > 0 ? (ctx.isEvil ? SpeechStrategist.evilClaim(ctx, pickOne) : pickOne(ctx.info)) : { beast: pickOne(an.beasts.filter(Boolean) || ['鼠']), real: Math.random() < 0.5 };
+        return pickOne([
+          `我這輪查驗【${myC.beast}】是${S(myC.real)}。另外盤一下${T}：${reason}，資訊量不像一般玩家，${named ? '我現在猜他是' + best.nm + '。' : ''}後面請他把獸首和傳遞順序再交代清楚。`,
+          `先報我手上的硬情報：【${myC.beast}】是${S(myC.real)}！另外我想盤${T}：${reason}。${named ? '如果要我押身分，我押' + best.nm + '。' : '這種人通常握著關鍵情報。'}先看他後面怎麼接。`
+        ]);
+      }
+
+      case 'suspectPush': {
+        const list = (ctx.beliefs && ctx.beliefs.badDeedsRanking) || [];
+        const top = list.find(x => x && x.id && ctx.pov.otherPlayers.some(p => p.id === x.id));
+        if (!top) return null;
+        const p = ctx.pov.otherPlayers.find(x => x.id === top.id);
+        const myC = ctx.info.length > 0 ? (ctx.isEvil ? SpeechStrategist.evilClaim(ctx, pickOne) : pickOne(ctx.info)) : { beast: pickOne(an.beasts.filter(Boolean) || ['鼠']), real: Math.random() < 0.5 };
+        return `我這輪親手摸了【${myC.beast}】是${S(myC.real)}！不過我現在最在意的是${typeof h.desc === 'function' ? h.desc(p) : '【' + p.name + '】'}，原因是${top.primaryReason || '發言和票型對不上'}。大家把這件真假對清楚，票我也先留一點彈性。`;
+      }
+
+      case 'testPlayers': {
+        const target = an.spoken.filter(s => !mate(s.id)).slice(-1)[0];
+        const myC = ctx.info.length > 0 ? (ctx.isEvil ? SpeechStrategist.evilClaim(ctx, pickOne) : pickOne(ctx.info)) : { beast: pickOne(an.beasts.filter(Boolean) || ['鼠']), real: Math.random() < 0.5 };
+        if (!target) {
+          return pickOne([
+            `我是第一個開口，我親自上手把關：【${myC.beast}】確定是${S(myC.real)}！後面誰跟我一樣、誰跟我不一樣，我都會記下來對照。`,
+            `我第一個開盤：【${myC.beast}】手感沉實是${S(myC.real)}。我會拿大家的說法去對傳遞順序，哪裡對不上，後面再一個一個問！`
+          ]);
+        }
+        return pickOne([
+          `我先報我自己摸的：【${myC.beast}】是${S(myC.real)}！順便測人：${D(target.id)}，你剛才報的是自己摸的，還是聽前面講的？請說清楚你是${target.passPos >= 0 ? posNo(target.passPos) : '第幾位'}拿到這組獸首。`,
+          `【${myC.beast}】我這邊驗是${S(myC.real)}。我想問${D(target.id)}一句：你那個結論是在發言前就驗好，還是聽完才補上去的？這會決定大家怎麼看你的獸首。`
+        ]);
+      }
+
+      case 'deferVote': {
+        const hint = an.contradictions.length
+          ? `像【${an.contradictions[0].beast}】現在正反兩邊都有人說，` : '前面的說法還有地方對不上，';
+        const myC = ctx.info.length > 0 ? (ctx.isEvil ? SpeechStrategist.evilClaim(ctx, pickOne) : pickOne(ctx.info)) : { beast: pickOne(an.beasts.filter(Boolean) || ['鼠']), real: Math.random() < 0.5 };
+        return pickOne([
+          `我這輪過手【${myC.beast}】是${S(myC.real)}。不過${hint}等後面幾位把其他獸首和傳遞順序補齊，我再決定票要集中在哪。`,
+          `我這邊有明確情報：【${myC.beast}】判定為${S(myC.real)}。其他票我先留著，${hint}等剩下的人講完再下手。`
+        ]);
+      }
+    }
+    return null;
+  }
+
+  // 壞人的假情報：多半把知道是贗品的說成真品（引票），偶爾把真品說成假
+  static evilClaim(ctx, pickOne) {
+    const fakes = ctx.info.filter(i => !i.real), reals = ctx.info.filter(i => i.real);
+    if (fakes.length && (Math.random() < 0.6 || !reals.length)) return { beast: pickOne(fakes).beast, real: true };
+    if (reals.length) return { beast: pickOne(reals).beast, real: false };
+    const bs = (ctx.an.beasts || []).filter(Boolean);
+    return { beast: bs.length ? pickOne(bs) : '目標獸首', real: Math.random() < 0.5 };
+  }
+
+  // ---------- 給 Gemini 的盤面簡報 ----------
+  static briefing(pov, plan) {
+    const ctx = plan.ctx, an = ctx.an;
+    const S = real => real ? '真' : '假';
+    const lines = [];
+    lines.push('【本輪誰說了什麼】');
+    if (!an.spoken.length) lines.push('（你是第一位發言，尚無人開口）');
+    an.spoken.forEach(s => {
+      const cl = s.claims.length ? s.claims.map(c => `${c.beast}=${S(c.real)}${c.hedge ? '(語氣保留)' : ''}`).join('、') : '未明確報獸首';
+      lines.push(`第${s.speechPos + 1}位發言【${s.name}】(傳遞第${s.passPos >= 0 ? s.passPos + 1 : '?'}位)：${cl}｜原話：「${(s.text || '').slice(0, 60)}」`);
+    });
+    const prior = [];
+    for (let k = Math.max(0, an.r - 2); k < an.r; k++) {
+      const sp = (pov.speeches && pov.speeches[k]) || [];
+      if (sp.length) prior.push(`第${k + 1}輪：` + sp.slice(0, 8).map(s => `${s.speakerName || '?'}「${(s.text || '').slice(0, 24)}」`).join('；'));
+    }
+    lines.push('【前幾輪公開發言（節錄）】');
+    lines.push(prior.length ? prior.join('\n') : '（沒有前幾輪紀錄）');
+    lines.push('【你自己的情報】' + (ctx.info.length ? ctx.info.map(i => `${i.beast}=${S(i.real)}`).join('、') : '（本輪沒有可靠查驗結果，公開發言不得暴露此事）'));
+    lines.push(`【位置分析】你傳遞第${ctx.myPass >= 0 ? ctx.myPass + 1 : '?'}位 → seatAdvantage=${ctx.seatAdvantage}（越高資訊越乾淨）；你是第${ctx.mySpeechPos + 1}位發言 → contaminationRisk=${ctx.contaminationRisk}（越高越像聽完才報、容易被懷疑跟風）${ctx.earlySeatLateSpeak ? '；注意：你座位在前卻很晚才講，需要主動交代獨立性' : ''}`);
+    const cds = [];
+    an.contradictions.forEach(c => cds.push(`【${c.beast}】${c.real.map(s => s.name).join('、')}說真 vs ${c.fake.map(s => s.name).join('、')}說假`));
+    ctx.conflicts.forEach(c => cds.push(`你驗【${c.beast}】=${S(c.mineReal)}，但${c.others.map(s => s.name).join('、')}說${S(!c.mineReal)}（可能是前面有老朝奉擾亂）`));
+    an.echoes.forEach(e => cds.push(`${e.later.name}重複${e.earlier.name}對【${e.beast}】的說法${e.laterHasCleanerSeat ? '，且座位比對方更前' : ''}`));
+    lines.push('【目前矛盾與重複】' + (cds.length ? cds.join('；') : '暫無明顯矛盾'));
+    lines.push('【本輪策略任務】' + SpeechStrategist.label(plan.used || plan.tactic));
+    return lines.join('\n');
+  }
+}
+SpeechStrategist.lastPlan = null;
+window.SpeechStrategist = SpeechStrategist;
+
+
  const ZODIAC_ORDER = ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'];  
   
  let voiceActive = true;  
@@ -14319,6 +14792,7 @@ function renderOnlineVotingView(room, me) {
         transaction.update(docRef, {
           status: 'person_voting',
           personVotes: {},
+          botActionKeys: {},
           lastActivityTime: Date.now()
         });
       }
@@ -15234,12 +15708,12 @@ const curRIdx = (freshRoom.currentRoundIdx !== undefined) ? freshRoom.currentRou
             geminiChosenId = null;
           }
 
-                    const botActionKey = 'person_voting:' + String(freshData.startTimestamp || 0) + ':' + String(freshData.currentRoundIdx || 0) + ':' + String(mockPlayerId);
+                    const pVotes = freshData.personVotes || {};
+          if (pVotes[mockPlayerId]) return; // 已完成投票，防重複寫入
+
           const botActionKeys = freshData.botActionKeys || {};
-          if (botActionKeys[botActionKey]) return;
+          const botActionKey = 'person_voting:' + String(freshData.startTimestamp || 0) + ':' + String(mockPlayerId);
           botActionKeys[botActionKey] = Date.now();
-const pVotes = freshData.personVotes || {};
-          if (pVotes[mockPlayerId]) return;
 
           const botPOV = BotDeductionEngine.buildPOV(freshData, mockPlayerId);
           const teammatesForCandidates = botPOV.knownTeammateIds || [];
@@ -15288,6 +15762,12 @@ const pVotes = freshData.personVotes || {};
         console.error('虛擬玩家鑑人投票失敗:', e);
       } finally {
         _mockActionPending = false;
+        // 連續推進：投票完成後若仍有未投票電腦，在 250ms 後立即自動觸發下一位未投票電腦！
+        setTimeout(() => {
+          if (onlineRoomData && onlineRoomData.status === 'person_voting') {
+            triggerMockPlayerPersonVoting(onlineRoomData);
+          }
+        }, 250);
       }
     }
     window.executeMockPersonVoteStep = executeMockPersonVoteStep;
@@ -17530,13 +18010,35 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         renderAll();
 
         const starterLabel = getPlayerLabel(starter);
-        speak(`第一局開始！首家是：${starterLabel}。請首家準備操作。`);
+        const r1BeastsStr = getRoundBeastsSpeechString(G.rounds ? G.rounds[0] : null);
+        const beastsAnnouncement = r1BeastsStr ? `本輪獸首：${r1BeastsStr}。` : '';
+        speak(`第一局開始！首家是：${starterLabel}。${beastsAnnouncement}請首家準備操作。`);
       }
     }
 
     function getPlayerLabel(p) {
       const cName = getColorDisplayName(p.colorId);
       return `${cName} ${p.name}`;
+    }
+
+    function getRoundBeastsSpeechString(roundObj) {
+      if (!roundObj || !roundObj.beasts || !Array.isArray(roundObj.beasts) || roundObj.beasts.length === 0) return '';
+      const sorted = [...roundObj.beasts].sort((a, b) => ZODIAC_ORDER.indexOf(a.name) - ZODIAC_ORDER.indexOf(b.name));
+      const names = sorted.map(b => b.name);
+
+      // 三聲變調校正：鼠、虎、馬、狗為三聲，若連續相鄰出現，前字變調為二聲（鼠->淑, 虎->胡, 馬->麻）
+      const THIRD_TONE_BEASTS = ['鼠', '虎', '馬', '狗'];
+      const TONE_SANDHI_MAP = { '鼠': '淑', '虎': '胡', '馬': '麻' };
+
+      const spokenNames = [...names];
+      for (let i = 0; i < names.length - 1; i++) {
+        const curr = names[i];
+        const next = names[i + 1];
+        if (TONE_SANDHI_MAP[curr] && THIRD_TONE_BEASTS.includes(next)) {
+          spokenNames[i] = TONE_SANDHI_MAP[curr];
+        }
+      }
+      return spokenNames.join('、');
     }
 
     function renderHandoverView() {
@@ -18569,7 +19071,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         renderAll();
 
         const starterLabel = getPlayerLabel(nextStarter);
-        speak(`進入第 ${G.currentRoundIdx + 1} 回合！本輪由上一輪尾家：${starterLabel} 擔任首家。`);
+        const curRoundObj = G.rounds ? G.rounds[G.currentRoundIdx] : null;
+        const curBeastsStr = getRoundBeastsSpeechString(curRoundObj);
+        const beastsAnnouncement = curBeastsStr ? `本輪獸首：${curBeastsStr}。` : '';
+        speak(`進入第 ${G.currentRoundIdx + 1} 回合！本輪由上一輪尾家：${starterLabel} 擔任首家。${beastsAnnouncement}`);
       } else {
         const blackIdx = G.players.findIndex(p => p.colorId === 'black');
         const startIdx = blackIdx !== -1 ? blackIdx : 0;
@@ -21945,7 +22450,7 @@ window.BotSimulationEngine = BotSimulationEngine;
     return `\n- 內在個性（來自實戰養成，非設定台詞）：${phrases.join('，')}。`;
   }
 
-  function buildSpeechPrompt(pov, beliefs, draft) {
+  function buildSpeechPrompt(pov, beliefs, draft, plan) {
     const r = pov.currentRoundIdx;
     const curRoundSpeeches = (pov.speeches && pov.speeches[r]) ? pov.speeches[r] : [];
     const mySpeakerIdx = curRoundSpeeches.length + 1;
@@ -22037,28 +22542,51 @@ window.BotSimulationEngine = BotSimulationEngine;
 - 戰術風格：${spec}
 - 招牌口吻：${motto || '說話自然、有現場互動感'}${traitLine}${roleMasteryLine}${recentLesson}${fangZhenRule}${jiyunfuAmbushRule}${tacticalHint}
 【發言目標】：
-現在輪到你發言。請用生動鮮活的桌遊現場口語（純繁體中文，35～55字），俐落交代自己查驗的獸首真假，順道質疑或附和前面已發言玩家的說法，最後有力號召大家跟票！
+現在輪到你發言。請用桌遊現場口語（純繁體中文，45～85字）執行下方【本輪策略任務】。不要每個人都套「報一個獸首→號票」的固定格式；要根據下方的公開資訊（誰說了什麼、座位與發言位置、矛盾與重複）重新做一次資訊戰判斷，再開口。
 【核心要求】：
 1. 只能評論前面真正發言過的人；前面若無人發言則直接分析局勢與傳遞順序。
 2. 絕對只輸出角色開口說的「純口語對白」！嚴禁條列式、嚴禁英文、嚴禁思考過程、嚴禁加引號。
-3. 任何情況下皆不得在發言中說「我看不懂獸首」或「驗不到」！`;
+3. 任何情況下皆不得在發言中說「我看不懂獸首」或「驗不到」！
+4. 不要只是把【本機草稿】換句話說；草稿只是方向參考，你要依公開資訊重新判斷，可以採用不同的切入點。
+5. 只有口頭禪、沒有局勢內容（獸首／人名／傳遞順序／票型）的句子不合格。`;
 
     let cleanDraft = draft || '';
     if (isFangZhen) {
       cleanDraft = cleanDraft.replace(/看不懂\?*/g, '真品');
     }
 
-    const usr = `【當前局勢】：第 ${r + 1} 回合，你是第 ${mySpeakerIdx} 位發言。
-- 策略意圖/查驗結果：${cleanDraft}
-- 前面玩家的實際發言：
-${spokenList || '（你是第一位發言，前面尚無人開口）'}
+    let briefingText = '';
+    try {
+      if (plan && typeof SpeechStrategist !== 'undefined') briefingText = SpeechStrategist.briefing(pov, plan);
+    } catch (bErr) { console.warn('[GeminiBrain] 盤面簡報產生失敗:', bErr); }
 
-請直接以「${pov.myName}」的專屬語氣開口發言（35~55字口語，嚴禁說看不懂）：`;
+    const curBeastsStr = (pov.currentBeasts || []).join('、');
+    let speakerOrderNotice = '';
+    if (mySpeakerIdx === 1) {
+      speakerOrderNotice = `【重要發言席位提醒】：你是全場【第 1 位第一個開口發言】的玩家！在你之前【完全沒有任何人開過口】！因此你【絕對嚴禁】評論、引用或提及任何其他人的發言（因為根本還沒人講話）！你必須以開局先鋒的立場，率先報出自己查驗的獸首真假，並分析傳遞順序！`;
+    } else {
+      speakerOrderNotice = `【前面玩家的實際發言】（你只能評論名單中確實出現過的玩家發言，嚴禁無中生有）：\n${spokenList}`;
+    }
+
+    const usr = `【當前局勢】：第 ${r + 1} 回合，你是第 ${mySpeakerIdx} 位發言。
+【⚠️ 本回合 4 件獸首名單（你【只能】討論這 4 件，嚴禁提及其他 8 個生肖）】：【${curBeastsStr}】
+${speakerOrderNotice}
+
+${briefingText}
+
+【本機草稿（只供參考方向，不要照抄或只換句話說）】：${cleanDraft}
+
+【發言鐵則約束】：
+1. 你的發言中【必須明確包含當前 4 件獸首（${curBeastsStr}）中至少 1 件的名稱與真偽判定】（如【某獸首】是真品 / 贗品）！
+2. 絕對嚴禁提及非本回合的生肖獸首！
+3. 若你是第一位發言，絕對嚴禁提及「前面某人說了什麼」！
+
+請直接以「${pov.myName}」的專屬語氣開口發言（45~85字口語，嚴禁說看不懂）：`;
 
     return [sys, usr];
   }
   
-  function isValidBotSpeech(text) {
+  function isValidBotSpeech(text, pov) {
     if (!text || typeof text !== 'string') return false;
     let t = text.trim();
     if (t.length < 4) return false;
@@ -22075,6 +22603,43 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
       console.warn('[GeminiBrain] 攔截到洩漏方震身分的看不懂發言:', t);
       return false;
     }
+    if (pov && !hasSituationContent(t, pov)) {
+      console.warn('[GeminiBrain] 攔截到只有口頭禪、沒有局勢內容的發言:', t);
+      return false;
+    }
+    if (pov && !hasValidCurrentRoundBeast(t, pov)) {
+      console.warn('[GeminiBrain] 攔截到提及非當輪獸首或未提獸首的發言:', t);
+      return false;
+    }
+    return true;
+  }
+
+  // 發言必須包含局勢內容：本輪獸首、場上玩家名，或傳遞／票型／矛盾／查驗等關鍵詞（先扣掉招牌口頭禪再判斷）
+  function hasSituationContent(text, pov) {
+    let t = String(text || '');
+    const arch = (typeof BOT_ARCHETYPES !== 'undefined' && BOT_ARCHETYPES[pov.myName]) || {};
+    (arch.phrases || []).forEach(ph => { if (ph) t = t.split(ph).join(''); });
+    if ((t.match(/[一-龥]/g) || []).length < 8) return false;
+    const beasts = pov.currentBeasts || [];
+    if (beasts.some(b => t.includes(b))) return true;
+    if ((pov.otherPlayers || []).some(p => p.id !== pov.myId && p.name && t.includes(p.name))) return true;
+    return /(傳遞|座位|位置|發言|票|矛盾|對不上|前面|後面|擾亂|老朝奉|查驗|驗過|手感|獨立|跟風|照抄|真品|贗品|獸首|順序)/.test(t);
+  }
+
+  function hasValidCurrentRoundBeast(text, pov) {
+    if (!pov || !Array.isArray(pov.currentBeasts) || pov.currentBeasts.length === 0) return true;
+    const curBeasts = pov.currentBeasts;
+    // Check which zodiacs are mentioned
+    const mentionedZodiacs = ZODIAC_ORDER.filter(z => text.includes(z));
+    if (mentionedZodiacs.length === 0) {
+      // Must mention at least one beast from the current round!
+      return false;
+    }
+    // Any mentioned zodiac MUST belong to currentBeasts!
+    const hasAlienBeast = mentionedZodiacs.some(z => !curBeasts.includes(z));
+    if (hasAlienBeast) {
+      return false;
+    }
     return true;
   }
 
@@ -22089,13 +22654,23 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
     if (!c.on || !window.BotDeductionEngine) return;
     const pov = BotDeductionEngine.buildPOV(room, botId);
     const beliefs = BotDeductionEngine.evaluateBeliefs(pov);
+    // v3.6.0：先規劃本輪戰術（本機草稿與 Gemini 共用同一個任務），再把盤面簡報交給 Gemini 重新做資訊戰判斷
+    let _plan = null;
+    try {
+      if (typeof SpeechStrategist !== 'undefined') {
+        const _lp = pov.learningProfile || {};
+        _plan = SpeechStrategist.plan(pov, beliefs, { traits: ((_lp.personality && _lp.personality.traits) || _lp.weights || {}) });
+        pov._speechPlan = _plan;
+      }
+    } catch (planErr) { console.warn('[GeminiBrain] 發言規劃失敗，改用基本草稿:', planErr); _plan = null; delete pov._speechPlan; }
     const draft = BotDeductionEngine._origGenerateSpeech(pov, beliefs);
-    const [s, u] = buildSpeechPrompt(pov, beliefs, draft);
-    const out = await ask(s, u, 95, 14000);
+    delete pov._speechPlan;
+    const [s, u] = buildSpeechPrompt(pov, beliefs, draft, _plan);
+    const out = await ask(s, u, 170, 14000);
     if (out) {
       let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
-      if (isValidBotSpeech(cleaned) && isJiyunfuAmbushSpeechSafe(pov, cleaned)) {
-        const speech = cleaned.slice(0, 100);
+      if (isValidBotSpeech(cleaned, pov) && isJiyunfuAmbushSpeechSafe(pov, cleaned)) {
+        const speech = cleaned.slice(0, 140);
         cache['speech|' + botId + '|' + pov.currentRoundIdx] = speech;
         rememberDecisionContext('speech', room, botId);
         return speech;
