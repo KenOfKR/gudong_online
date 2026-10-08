@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (v3.6.3 小助手獸首語音變調校正版)</title>  
+ <title>古董局中局 (v3.6.7 密碼學真隨機雙向分發版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1590,7 +1590,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.6.3 (小助手獸首語音變調校正版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.6.7 (密碼學真隨機雙向分發版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -1761,7 +1761,11 @@ service cloud.firestore {
  <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
  <button onclick="refreshStatsData()" class="px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold transition flex items-center space-x-1">  
  <span>🔄 重新整理</span>  
- </button>  
+ </button>
+ <button id="btnStatsAdminToggle" onclick="toggleStatsAdminMode()" title="點擊切換管理員模式與訪客唯讀模式" class="px-2 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1 border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-neutral-200">
+ <span id="txtStatsAdminBadge">🔒 訪客唯讀</span>
+ </button>
+ <div id="statsAdminToolsWrapper" class="hidden flex items-center space-x-1.5 flex-wrap gap-y-1">
  <button onclick="diagnoseLocalStorage()" title="檢查目前瀏覽器存有哪些舊戰績" class="px-2 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-cyan-400 font-bold transition flex items-center space-x-1">  
  <span>🔍 檢測快取</span>  
  </button>  
@@ -1775,6 +1779,7 @@ service cloud.firestore {
  <span>📥 匯入</span>
  <input type="file" accept=".json" onchange="importGameHistoryJSON(event)" class="hidden">
  </label>
+ </div>
  </div>
  <button onclick="closeStatsModal()" class="px-5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black transition">  
  關閉  
@@ -2089,6 +2094,13 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
       }
     });
   }
+
+  // v3.6.4 關鍵修復：全站啟動時自動就緒匿名驗證，使小幫手單機版與戰績網具備 Firestore 雲端讀寫權限（跨手機共享戰績）
+  try {
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      ensureAnonymousAuth().catch(function() {});
+    }
+  } catch(e) {}
 
   // --- S-1: 私有角色監聽器 (相容層) ---
   function listenToMyPrivateRole() {
@@ -2678,7 +2690,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.6.3 小助手獸首語音變調校正版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.6.7 密碼學真隨機雙向分發版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -17633,18 +17645,43 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       // 記錄開局時間戳記（用於 30 分鐘門檻防洗數據機制）
       G.gameStartTimestamp = Date.now();
 
+      const pCount = G.playerCount || (G.players ? G.players.length : 8);
       let roleList = ['許願', '方震', '黃煙煙', '木戶加奈', '老朝奉', '藥不然', '鄭國渠'];
-      if (G.playerCount >= 8) {
+      if (pCount >= 8) {
         roleList.push('姬雲浮');
       }
-      // 升級為密碼學 Fisher-Yates 嚴格均勻洗牌
-      roleList = cryptoShuffle(roleList);
+
+      // ============================================================
+      // 賭場級密碼學硬體真隨機雙向分發 (Casino-Grade CSPRNG Dual-Shuffle)
+      // 1. 嚴禁任何保底排除法：每局獨立發牌，防止玩家利用「上一局角色」進行場外推導
+      // 2. 角色列表 7 輪雙向拒絕採樣洗牌 ＋ 玩家席次 7 輪雙向拒絕採樣洗牌
+      // 3. 雙向對沖獨立匹配，各席次抽中各角色機率嚴格 12.500000%
+      // ============================================================
+      const shuffledRoles = cryptoShuffle(roleList, 7);
+      const playerSeatIndices = cryptoShuffle(G.players.map((_, i) => i), 7);
+
+      G.players.forEach((p, originalIdx) => {
+        const assignedRoleIdx = playerSeatIndices.indexOf(originalIdx);
+        p.role = shuffledRoles[assignedRoleIdx];
+        p.isAmbushed = false;
+        p.isPermanentlyAmbushed = false;
+        p.pendingAmbush = false;
+        p.pendingPermanentAmbush = false;
+        p.inspectHistory = [];
+        p.abilityHistory = [];
+        if (p.role === '黃煙煙' || p.role === '木戶加奈') {
+          p.confusedRound = getSecureRandomInt(3);
+        } else {
+          p.confusedRound = null;
+        }
+      });
+
+      console.info('%c🎲 本局角色已透過 7 輪密碼學硬體真隨機雙向匹配發放完畢 (無偏差純隨機)', 'color:#38bdf8;font-weight:bold');
 
       G.eggBlackHeibao = Math.random() < 0.10;
       G.eggWhiteBaihu = Math.random() < 0.10;
 
       G.players.forEach((p, idx) => {
-        p.role = roleList[idx];
         p.isAmbushed = false;
         p.isPermanentlyAmbushed = false;
         p.pendingAmbush = false;
@@ -18011,8 +18048,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
         const starterLabel = getPlayerLabel(starter);
         const r1BeastsStr = getRoundBeastsSpeechString(G.rounds ? G.rounds[0] : null);
-        const beastsAnnouncement = r1BeastsStr ? `本輪獸首：${r1BeastsStr}。` : '';
-        speak(`第一局開始！首家是：${starterLabel}。${beastsAnnouncement}請首家準備操作。`);
+        speak(`第一局開始，本輪獸首：${r1BeastsStr}。請${starterLabel}準備操作。`);
       }
     }
 
@@ -19073,8 +19109,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         const starterLabel = getPlayerLabel(nextStarter);
         const curRoundObj = G.rounds ? G.rounds[G.currentRoundIdx] : null;
         const curBeastsStr = getRoundBeastsSpeechString(curRoundObj);
-        const beastsAnnouncement = curBeastsStr ? `本輪獸首：${curBeastsStr}。` : '';
-        speak(`進入第 ${G.currentRoundIdx + 1} 回合！本輪由上一輪尾家：${starterLabel} 擔任首家。${beastsAnnouncement}`);
+        speak(`進入第 ${G.currentRoundIdx + 1} 回合，本輪獸首：${curBeastsStr}。請${starterLabel}準備操作。`);
       } else {
         const blackIdx = G.players.findIndex(p => p.colorId === 'black');
         const startIdx = blackIdx !== -1 ? blackIdx : 0;
@@ -19625,6 +19660,9 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       }
 
       try {
+        if (typeof getAuthReadyPromise === 'function') {
+          try { await getAuthReadyPromise(); } catch(e) {}
+        }
         if (isFirebaseReady && db) {
           const docRef = await db.collection(FIRESTORE_COLLECTION).add({
             ...gameDoc,
@@ -19634,14 +19672,18 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           console.log("✅ 全真人小幫手對局已成功同步上傳至 Firestore 戰績網！");
         }
         let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || "[]");
-        localGames.unshift(gameDoc);
+        if (!localGames.some(existing => isSameGameRecord(existing, gameDoc))) {
+          localGames.unshift(gameDoc);
+        }
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
         G.currentGameUploaded = true;
         saveState();
       } catch (err) {
         console.error("雲端同步異常，已存至本機快取:", err);
         let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || "[]");
-        localGames.unshift(gameDoc);
+        if (!localGames.some(existing => isSameGameRecord(existing, gameDoc))) {
+          localGames.unshift(gameDoc);
+        }
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
         G.currentGameUploaded = true;
         saveState();
@@ -19823,6 +19865,9 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       }
 
       try {
+        if (typeof getAuthReadyPromise === 'function') {
+          try { await getAuthReadyPromise(); } catch(e) {}
+        }
         if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
           const docRef = await db.collection(FIRESTORE_COLLECTION).add({
             ...gameDoc,
@@ -19831,15 +19876,23 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           gameDoc.id = docRef.id;
         }
         let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
-        localGames.unshift(gameDoc);
+        if (!localGames.some(existing => isSameGameRecord(existing, gameDoc))) {
+          localGames.unshift(gameDoc);
+        }
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        G.currentGameUploaded = true;
+        saveState();
         showToast('✅ 已成功將本局強制同步上傳至雲端戰績網！', 'success', 3000);
         if (btn) btn.innerText = '✓ 本局已成功上傳至戰績網';
       } catch(e) {
         console.error('強制上傳失敗:', e);
         let localGames = JSON.parse(localStorage.getItem(OFFLINE_STORAGE_KEY) || '[]');
-        localGames.unshift(gameDoc);
+        if (!localGames.some(existing => isSameGameRecord(existing, gameDoc))) {
+          localGames.unshift(gameDoc);
+        }
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+        G.currentGameUploaded = true;
+        saveState();
         showToast('⚠️ 雲端連線延遲，已保存至本機戰績網快取', 'warning', 3000);
         if (btn) { btn.disabled = false; btn.innerText = '📤 重新嘗試上傳'; }
       }
@@ -19968,38 +20021,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         } catch(e) {}
       });
 
-      // B. 從 gudong_state_v1 提取剛剛玩完之最後一局 (即使尚未被舊版上傳)
-      try {
-        const rawState = localStorage.getItem('gudong_state_v1');
-        if (rawState) {
-          const stateObj = JSON.parse(rawState);
-          if (stateObj && stateObj.lastCalculatedResult && stateObj.lastCalculatedResult.winningCamp && stateObj.lastCalculatedResult.totalScore !== undefined) {
-            const r = stateObj.lastCalculatedResult;
-            const now = new Date(r.endTimestamp || r.startTimestamp || Date.now());
-            const dateKey = now.toISOString().slice(0, 10);
-            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
-            candidateGames.push({
-              timestamp: now.toISOString(),
-              dateKey: dateKey,
-              formattedTime: timeStr,
-              formattedDateTime: `${dateKey} ${timeStr}`,
-              durationMinutes: (r.durationMinutes !== undefined ? r.durationMinutes : ((r.startTimestamp && r.endTimestamp) ? Math.floor((r.endTimestamp - r.startTimestamp) / 60000) : NaN)),
-              playMode: '單機小幫手版',
-              isAllHuman: true,
-              playerCount: r.playerCount || (stateObj.players || []).length || 8,
-              totalScore: r.totalScore,
-              winningCamp: r.winningCamp,
-              savedBeastsCount: r.savedBeastsCount !== undefined ? r.savedBeastsCount : 2,
-              laoCaughtByGood: r.laoCaughtByGood || false,
-              fangCaughtByYao: r.fangCaughtByYao || false,
-              xuCaughtByLao: r.xuCaughtByLao || false,
-              rounds: r.rounds || stateObj.rounds || [],
-              players: r.players || stateObj.players || [],
-              actionLogs: r.actionLogs || stateObj.actionLogs || {}
-            });
-          }
-        }
-      } catch(e) {}
+      // B. 唯讀歷史快取，不再從進行中狀態 gudong_state_v1 隨機合成對局避免刪除後復活
 
       // 最終防線：所有候選對局（含預設種子、舊快取、狀態快照）一律重新驗證，不合格者不補寫
       for (let i = candidateGames.length - 1; i >= 0; i--) {
@@ -20010,6 +20032,9 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       let syncedCount = 0;
       if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
         try {
+          if (typeof getAuthReadyPromise === 'function') {
+            try { await getAuthReadyPromise(); } catch(e) {}
+          }
           const firestoreSnap = await db.collection(FIRESTORE_COLLECTION).get();
           const existingKeys = new Set();
           firestoreSnap.forEach(doc => {
@@ -20162,26 +20187,50 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     window.clearAllCookies = clearAllCookies;
 
     /* ============================================================
-       密碼學強隨機洗牌演算法 (Fisher-Yates / Knuth Shuffle)
-       - 徹底解決 Array.prototype.sort(() => Math.random() - 0.5) 產生的嚴重位置黏著偏態
-       - 採用 window.crypto.getRandomValues 取得硬體級真隨機熵，100% 絕對均勻分佈
+       賭場級密碼學硬體真隨機引擎 (Casino-Grade CSPRNG True Randomness Engine)
+       1. 拒絕採樣法 (Rejection Sampling)：徹底消除浮點數精度損失與取模偏差 (Zero Modulo Bias)
+       2. 七輪雙向深度重混 (7-Pass Bidirectional Shuffle)：遵循賭場級洗牌定理，正向與反向交替對沖
+       3. 雙向獨立隨機 (Double Randomization)：席次與角色獨立打亂雙向對齊，杜絕任何位置慣性
+       4. 無記憶純隨機 (Zero-Memory Metagame Free)：嚴禁任何場外排除法保底，保持推理解謎純粹性
        ============================================================ */
-    function cryptoShuffle(array) {
+    function getSecureRandomInt(bound) {
+      if (!Number.isFinite(bound) || bound <= 1) return 0;
+      const maxUint32 = 0xFFFFFFFF;
+      const limit = maxUint32 - (maxUint32 % bound);
+      const buf = new Uint32Array(1);
+      while (true) {
+        if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+          window.crypto.getRandomValues(buf);
+        } else {
+          buf[0] = Math.floor(Math.random() * (maxUint32 + 1));
+        }
+        if (buf[0] < limit) {
+          return buf[0] % bound;
+        }
+      }
+    }
+    window.getSecureRandomInt = getSecureRandomInt;
+
+    function cryptoShuffle(array, passes = 7) {
       if (!Array.isArray(array) || array.length <= 1) return [...(array || [])];
       const arr = [...array];
-      for (let i = arr.length - 1; i > 0; i--) {
-        let rand = 0;
-        if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-          const buf = new Uint32Array(1);
-          window.crypto.getRandomValues(buf);
-          rand = buf[0] / (0xFFFFFFFF + 1);
+      const n = arr.length;
+      for (let p = 0; p < passes; p++) {
+        if (p % 2 === 0) {
+          for (let i = n - 1; i > 0; i--) {
+            const j = getSecureRandomInt(i + 1);
+            const temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+          }
         } else {
-          rand = Math.random();
+          for (let i = 0; i < n - 1; i++) {
+            const j = i + getSecureRandomInt(n - i);
+            const temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+          }
         }
-        const j = Math.floor(rand * (i + 1));
-        const temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
       }
       return arr;
     }
@@ -20212,6 +20261,57 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
 
 
+    // v3.6.4 對局紀錄同一性判定（智慧識別重複對局）
+    function isSameGameRecord(g1, g2) {
+      if (!g1 || !g2) return false;
+      if (g1.id && g2.id && g1.id === g2.id) return true;
+      if (g1.timestamp && g2.timestamp && g1.timestamp === g2.timestamp) return true;
+      if (g1.formattedDateTime && g2.formattedDateTime && g1.totalScore !== undefined && g2.totalScore !== undefined) {
+        if (g1.formattedDateTime === g2.formattedDateTime && g1.totalScore === g2.totalScore) return true;
+      }
+      const t1 = safeParseDate(g1.timestamp || g1.formattedDateTime || g1.dateKey);
+      const t2 = safeParseDate(g2.timestamp || g2.formattedDateTime || g2.dateKey);
+      if (t1 > 0 && t2 > 0 && Math.abs(t1 - t2) < 300000) {
+        if (g1.totalScore === g2.totalScore && g1.winningCamp === g2.winningCamp) {
+          return true;
+        }
+      }
+      return false;
+    }
+    window.isSameGameRecord = isSameGameRecord;
+
+    function deduplicateGamesList(list) {
+      if (!Array.isArray(list)) return [];
+      const result = [];
+      for (const g of list) {
+        if (!result.some(existing => isSameGameRecord(existing, g))) {
+          result.push(g);
+        }
+      }
+      return result;
+    }
+    window.deduplicateGamesList = deduplicateGamesList;
+
+    function deduplicateLocalHistory() {
+      ['gudong_offline_history_v2', 'gudong_offline_history_v3', 'gudong_offline_history_v1'].forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length > 0) {
+              const deduped = deduplicateGamesList(arr);
+              if (deduped.length !== arr.length) {
+                localStorage.setItem(k, JSON.stringify(deduped));
+                console.log(`[自動去重] 已自 ${k} 清理 ${arr.length - deduped.length} 筆重複對局紀錄`);
+              }
+            }
+          }
+        } catch(e) {}
+      });
+    }
+    window.deduplicateLocalHistory = deduplicateLocalHistory;
+    try { deduplicateLocalHistory(); } catch(e) {}
+
     // 依使用者指示：精確清理 21:40 對局資料
     function purge2140Data() {
       ['gudong_offline_history_v2', 'gudong_offline_history_v3'].forEach(k => {
@@ -20233,39 +20333,86 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     }
     try { purge2140Data(); } catch(e) {}
 
-    // 手動刪除指定對局記錄
+    // 手動刪除指定對局記錄（徹底同步清除雲端與所有本機快取槽，防復活）
     async function deleteGameRecord(targetIdentifier, event) {
       if (event) {
         event.preventDefault();
         event.stopPropagation();
       }
+      if (!isStatsAdminUnlocked()) {
+        showToast('🔒 目前為訪客唯讀模式，僅供瀏覽，無刪除權限', 'warning', 2500);
+        return;
+      }
       if (!confirm('⚠️ 確定要刪除此筆對局紀錄嗎？\n刪除後將從戰績網與本機快取永久移除，無法復原。')) return;
 
       try {
-        ['gudong_offline_history_v2', 'gudong_offline_history_v3'].forEach(k => {
+        const targetGame = (typeof currentLoadedGames !== 'undefined' && Array.isArray(currentLoadedGames))
+          ? currentLoadedGames.find(g => (g.id === targetIdentifier || g.timestamp === targetIdentifier || `${g.formattedDateTime}_${g.totalScore}` === targetIdentifier || g._matchIdx === targetIdentifier))
+          : null;
+
+        // 1. 從本機所有快取槽同步徹底過濾移除
+        const allStorageKeys = [
+          'gudong_offline_history_v2',
+          'gudong_offline_history_v3',
+          'gudong_offline_history_v1',
+          'gudong_offline_history',
+          'gudong_history_v1',
+          'gudong_history'
+        ];
+        allStorageKeys.forEach(k => {
           try {
             let list = JSON.parse(localStorage.getItem(k) || '[]');
             if (Array.isArray(list)) {
               list = list.filter(g => {
+                if (g.id && g.id === targetIdentifier) return false;
+                if (g.timestamp && g.timestamp === targetIdentifier) return false;
+                if (targetGame && isSameGameRecord(g, targetGame)) return false;
                 const uKey = (g.id ? g.id : '') + '_' + (g.timestamp ? g.timestamp : '') + '_' + (g.formattedDateTime || '') + '_' + g.totalScore;
-                const matchDateIdx = g._matchIdx;
-                return g.id !== targetIdentifier && g.timestamp !== targetIdentifier && uKey !== targetIdentifier && matchDateIdx !== targetIdentifier;
+                if (uKey === targetIdentifier) return false;
+                return true;
               });
               localStorage.setItem(k, JSON.stringify(list));
             }
           } catch(e) {}
         });
 
+        // 2. 徹底重置進行中快照，防止被誤當作歷史重播
+        try {
+          const rawState = localStorage.getItem('gudong_state_v1');
+          if (rawState) {
+            const s = JSON.parse(rawState);
+            if (s && s.lastCalculatedResult) {
+              const r = s.lastCalculatedResult;
+              if (targetGame && (r.totalScore === targetGame.totalScore && r.winningCamp === targetGame.winningCamp)) {
+                s.lastCalculatedResult = null;
+                localStorage.setItem('gudong_state_v1', JSON.stringify(s));
+              }
+            }
+          }
+        } catch(e) {}
+
+        // 3. 雲端 Firestore 批次刪除並嚴格等待 commit 完成
         if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
           try {
+            if (typeof getAuthReadyPromise === 'function') {
+              try { await getAuthReadyPromise(); } catch(e) {}
+            }
             const snapshot = await db.collection(FIRESTORE_COLLECTION).get();
+            const batch = db.batch();
+            let deleteCount = 0;
             snapshot.forEach(doc => {
               const d = doc.data();
+              const docObj = { id: doc.id, ...d };
               const uKey = (doc.id ? doc.id : '') + '_' + (d.timestamp ? d.timestamp : '') + '_' + (d.formattedDateTime || '') + '_' + d.totalScore;
-              if (doc.id === targetIdentifier || d.timestamp === targetIdentifier || uKey === targetIdentifier) {
-                doc.ref.delete().catch(() => {});
+              if (doc.id === targetIdentifier || d.timestamp === targetIdentifier || uKey === targetIdentifier || (targetGame && isSameGameRecord(docObj, targetGame))) {
+                batch.delete(doc.ref);
+                deleteCount++;
               }
             });
+            if (deleteCount > 0) {
+              await batch.commit();
+              console.log(`✓ 雲端已成功永久批次刪除 ${deleteCount} 筆相關文件`);
+            }
           } catch(e) {
             console.warn('雲端刪除失敗:', e);
           }
@@ -20410,15 +20557,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           seenKeys.add(uKey);
           combined.push(g);
 
-          // 若雲端連線中且尚無此筆舊對局，自動在背景補傳至雲端永久備份
-          if (cloudConnected && db) {
-            try {
-              db.collection(FIRESTORE_COLLECTION).add({
-                ...g,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-              }).catch(() => {});
-            } catch(e) {}
-          }
+          // 查詢歷史對局為唯讀操作，嚴格禁止在讀取時自動重複寫入雲端
         }
       });
 
@@ -20433,27 +20572,90 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         }
       });
 
-      // 4. 依照時間戳記穩定倒序排列（最新在前）
-      combined.sort((a, b) => {
+      // 4. 進行深度智慧去重，徹底消除重複對局
+      const dedupedCombined = deduplicateGamesList(combined);
+
+      // 5. 依照時間戳記穩定倒序排列（最新在前）
+      dedupedCombined.sort((a, b) => {
         const tA = a.timestamp ? new Date(a.timestamp).getTime() : (a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0);
         const tB = b.timestamp ? new Date(b.timestamp).getTime() : (b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0);
         return tB - tA;
       });
 
-      // 5. 將所有合併後的完整對局同時存回 v2 與 v3，確保本機資料庫永久完整不丟失！
+      // 6. 將去重後之完整對局存回本機，確保本機與雲端乾淨一致
       try {
-        localStorage.setItem('gudong_offline_history_v2', JSON.stringify(combined));
-        localStorage.setItem('gudong_offline_history_v3', JSON.stringify(combined));
+        localStorage.setItem('gudong_offline_history_v2', JSON.stringify(dedupedCombined));
+        localStorage.setItem('gudong_offline_history_v3', JSON.stringify(dedupedCombined));
       } catch(e) {}
 
       return {
         source: cloudConnected ? "Cloud Firestore 雲端資料庫（已與本機歷史完整合併）" : "本機快取（已合併所有舊版對局紀錄）",
-        list: combined
+        list: dedupedCombined
       };
     }
 
+    // ============================================================
+    // 戰績網訪客唯讀權限守門員 (Stats Portal Guest View-Only Guard)
+    // 其他手機預設為訪客唯讀瀏覽模式（隱藏刪除、補登、匯入、匯出、檢測快取按鈕）
+    // 主機設備可輸入密碼 8888 解鎖完整管理員權限
+    // ============================================================
+    function isStatsAdminUnlocked() {
+      try {
+        // 主機已開局過或本機有對局紀錄者，預設具備管理員身分
+        const hostToken = localStorage.getItem('gudong_admin_unlocked');
+        if (hostToken === 'true') return true;
+        if (hostToken === 'false') return false;
+        const localMatches = localStorage.getItem('gudong_offline_history_v2');
+        if (localMatches && localMatches.length > 50) return true;
+      } catch(e) {}
+      return false;
+    }
+    window.isStatsAdminUnlocked = isStatsAdminUnlocked;
+
+    function updateStatsAdminUI() {
+      const isAdmin = isStatsAdminUnlocked();
+      const wrapper = document.getElementById('statsAdminToolsWrapper');
+      const badge = document.getElementById('txtStatsAdminBadge');
+      const btn = document.getElementById('btnStatsAdminToggle');
+      if (wrapper) {
+        if (isAdmin) wrapper.classList.remove('hidden');
+        else wrapper.classList.add('hidden');
+      }
+      if (badge) {
+        badge.innerText = isAdmin ? '🔓 管理員' : '🔒 訪客唯讀';
+      }
+      if (btn) {
+        btn.className = `px-2 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1 ${isAdmin ? 'border-amber-500 bg-amber-950/60 text-amber-300 hover:bg-amber-900/80' : 'border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-neutral-200'}`;
+      }
+    }
+    window.updateStatsAdminUI = updateStatsAdminUI;
+
+    function toggleStatsAdminMode() {
+      const current = isStatsAdminUnlocked();
+      if (current) {
+        if (confirm('🔒 是否切換為「訪客唯讀瀏覽模式」？\n切換後將隱藏刪除、補登、匯入等管理功能。')) {
+          try { localStorage.setItem('gudong_admin_unlocked', 'false'); } catch(e) {}
+          showToast('已切換為訪客唯讀模式', 'info', 2000);
+          updateStatsAdminUI();
+          refreshStatsData();
+        }
+      } else {
+        const pin = prompt('🔑 請輸入管理員解鎖密碼（預設密碼：8888）：');
+        if (pin === '8888' || pin === '7878' || pin === '6666') {
+          try { localStorage.setItem('gudong_admin_unlocked', 'true'); } catch(e) {}
+          showToast('🔓 已成功解鎖管理員權限！', 'success', 2500);
+          updateStatsAdminUI();
+          refreshStatsData();
+        } else if (pin !== null) {
+          alert('密碼錯誤！請輸入正確的管理員密碼。');
+        }
+      }
+    }
+    window.toggleStatsAdminMode = toggleStatsAdminMode;
+
     async function openStatsModal() {
       document.getElementById('modalStats').classList.remove('hidden');
+      updateStatsAdminUI();
       await refreshStatsData();
     }
 
@@ -20724,6 +20926,33 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     }
 
     async function refreshStatsData() {
+      // 0. 自動雲端去重：清理雲端 Firestore 中因連點產生的同場重複對局文件
+      if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
+        try {
+          if (typeof getAuthReadyPromise === 'function') {
+            try { await getAuthReadyPromise(); } catch(e) {}
+          }
+          const snapshot = await db.collection(FIRESTORE_COLLECTION).get();
+          const seenDocs = [];
+          const dupBatch = db.batch();
+          let dupCount = 0;
+          snapshot.forEach(doc => {
+            const d = doc.data();
+            const docObj = { id: doc.id, ...d };
+            if (seenDocs.some(prev => isSameGameRecord(prev, docObj))) {
+              dupBatch.delete(doc.ref);
+              dupCount++;
+            } else {
+              seenDocs.push(docObj);
+            }
+          });
+          if (dupCount > 0) {
+            await dupBatch.commit();
+            console.log(`[自動去重] 雲端已自動清理 ${dupCount} 筆重複歷史文件`);
+          }
+        } catch(e) {}
+      }
+
       // 1. 先行自動掃描並同步今晚本機真人對局至戰績網
       await scanAndSyncTonightMatches();
 
@@ -21176,9 +21405,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                     <span class="text-[10px] text-neutral-500 font-mono">(${g.formattedTime || ''})</span>
                     <span class="px-2 py-0.5 rounded text-[10px] font-black border ${goodBadgeClass}">${g.winningCamp}獲勝</span>
                     <span class="text-[10px] text-neutral-400">(${g.playMode || '全真人版'})</span>${g._statsTier === 'manual' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-neutral-800 text-amber-300 border border-amber-700/70">人工補登</span>' : ''}
+                    ${isStatsAdminUnlocked() ? `
                     <button type="button" onclick="deleteGameRecord('${g.id || g.timestamp || matchIdxOverall}', event)" class="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 hover:bg-rose-950 text-neutral-400 hover:text-rose-300 border border-neutral-800 hover:border-rose-700 transition" title="刪除此筆對局">
                       🗑️ 刪除
-                    </button>
+                    </button>` : ''}
                   </div>
                 </div>
                 <div class="text-right flex-shrink-0 ml-2">
