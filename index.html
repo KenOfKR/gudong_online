@@ -1633,7 +1633,11 @@ service cloud.firestore {
     // 3. 歷史戰績資料庫
     match /GudongDatabase/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.isAllHuman == true
+        && request.resource.data.durationMinutes >= 36
+        && request.resource.data.players.size() == 8;
+      allow update, delete: if request.auth != null;
     }
   }
 }  
@@ -1788,7 +1792,7 @@ service cloud.firestore {
          <span class="text-xl">✍️</span>
          <div>
            <h3 class="text-base font-black text-amber-400">手動補登對決資料</h3>
-           <div class="text-[10px] text-neutral-400">一鍵直接寫入雲端 Firestore 與戰績網</div>
+           <div class="text-[10px] text-neutral-400">人工補登：會標示為「人工補登」，不等同系統驗證的正式戰績</div>
          </div>
        </div>
        <button onclick="closeManualMatchEntryModal()" class="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold flex items-center justify-center transition">✕</button>
@@ -1824,6 +1828,10 @@ service cloud.firestore {
          <div class="text-xs font-black text-amber-400 mb-2">參賽玩家與身分配置（8人）：</div>
          <div id="manPlayersListContainer" class="space-y-2"></div>
        </div>
+       <label class="flex items-start space-x-2 p-2.5 bg-amber-950/40 border border-amber-800/60 rounded-xl cursor-pointer">
+         <input type="checkbox" id="manDeclareHuman" class="mt-0.5 accent-amber-500" />
+         <span class="text-[11px] text-amber-200 leading-relaxed">我確認這是 8 位真人、實際遊玩 36 分鐘以上的對局。補登資料會標示為「人工補登」，不等同系統自動驗證的正式戰績。</span>
+       </label>
      </div>
 
      <div class="p-3 border-t border-neutral-800 bg-neutral-900/90 flex justify-between items-center text-xs">
@@ -2679,6 +2687,30 @@ window.ActionEngine = ActionEngine;
  const STORAGE_KEY = 'gudong_boardgame_rules_v26';  
  const MASTER_PROFILES_KEY = 'gudong_master_profiles_v2';  
  const MIN_GAME_DURATION_MINUTES = 36; // 滿 36 分鐘防洗數據門檻  
+
+ /* ===== v3.5.2 戰績網「唯一資格驗證」：所有入口（自動結算 / 強制上傳 / 手動補登 / 舊快取掃描 / 載入清洗）共用 =====
+    正式戰績 (official)：8 人、全真人(無 mock_p_ 電腦玩家)、有終局結果、實際時間 >= MIN_GAME_DURATION_MINUTES
+    人工補登 (manual) ：使用者自行宣告的補登，標示「人工補登」，不算系統驗證；STATS_INCLUDE_MANUAL=false 即完全不計入
+    舊版強制上傳(時間被硬塞 35/40 分鐘)：一律排除 */
+ const REQUIRED_OFFICIAL_PLAYERS = 8;
+ const STATS_INCLUDE_MANUAL = true;
+ function validateStatsEligibility(g) {
+   const fail = (reason) => ({ ok: false, tier: null, reason });
+   if (!g) return fail('沒有對局資料');
+   const players = Array.isArray(g.players) ? g.players : (g.players ? Object.values(g.players) : []);
+   if (g.hasMockPlayers || players.some(p => p && typeof p.id === 'string' && p.id.startsWith('mock_p_'))) return fail('含電腦玩家');
+   if (players.length !== REQUIRED_OFFICIAL_PLAYERS) return fail(`玩家數為 ${players.length} 人（須為 ${REQUIRED_OFFICIAL_PLAYERS} 人）`);
+   if (players.some(p => !p || !p.name || !p.role)) return fail('玩家暱稱或角色資料不完整');
+   if (!g.winningCamp || g.totalScore === undefined || g.totalScore === null) return fail('尚無終局結算結果');
+   if (g.isAllHuman !== true) return fail('未標示為全真人對局');
+   const dur = Number(g.durationMinutes);
+   if (!isFinite(dur) || dur < MIN_GAME_DURATION_MINUTES) return fail(`遊玩時間 ${isFinite(dur) ? dur : '未知'} 分鐘（須達 ${MIN_GAME_DURATION_MINUTES} 分鐘）`);
+   if (g.isManual) {
+     if (g.playMode !== '手動補登') return fail('舊版強制上傳資料（時間為補值，不可信）');
+     return STATS_INCLUDE_MANUAL ? { ok: true, tier: 'manual', reason: '' } : fail('人工補登不計入戰績網');
+   }
+   return { ok: true, tier: 'official', reason: '' };
+ }
   
  // 電腦玩家綽號辭庫（若後續有新的電腦玩家綽號，直接加入此辭庫，依需求 7）
  const BOT_NICKNAME_POOL = [
@@ -15391,7 +15423,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
 
       // 戰績網規則：只有「全真人對局」（無任何電腦玩家）且遊玩時間達 36 分鐘以上、且有出現最終結果才會保留在戰績網中
       const hasFinalResult = !!(winningCampName && totalScore !== undefined);
-      const isAllHuman = (!hasMockPlayers && (resolvedPlayers || []).length >= 7 && elapsed >= MIN_GAME_DURATION_MINUTES && hasFinalResult);
+      const isAllHuman = (!hasMockPlayers && (resolvedPlayers || []).length === REQUIRED_OFFICIAL_PLAYERS && elapsed >= MIN_GAME_DURATION_MINUTES && hasFinalResult);
 
       if (isAllHuman) {
         try {
@@ -18940,8 +18972,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       if (G.currentGameUploaded || !G.lastCalculatedResult || G.step !== 'gameover') return;
 
       const pCount = (G.players || []).length;
-      if (pCount < 7) {
-        console.log(`未達有效對局人數標準（${pCount}人），不列入戰績網。`);
+      if (pCount !== REQUIRED_OFFICIAL_PLAYERS) {
+        console.log(`未達有效對局人數標準（${pCount}人，須為 ${REQUIRED_OFFICIAL_PLAYERS} 人），不列入戰績網。`);
         G.currentGameUploaded = true;
         saveState();
         return;
@@ -18986,6 +19018,14 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         players: G.lastCalculatedResult.players,
         actionLogs: G.lastCalculatedResult.actionLogs || G.actionLogs || {}
       };
+
+      const _autoChk = validateStatsEligibility(gameDoc);
+      if (!_autoChk.ok) {
+        console.log('不符戰績網資格，不自動上傳：' + _autoChk.reason);
+        G.currentGameUploaded = true;
+        saveState();
+        return;
+      }
 
       try {
         if (isFirebaseReady && db) {
@@ -19074,6 +19114,16 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         showToast(`⚠️ 遊玩時間須達 ${MIN_GAME_DURATION_MINUTES} 分鐘以上方可列入戰績網！`, 'warning', 2500);
         return;
       }
+      const _declared = document.getElementById('manDeclareHuman');
+      if (!_declared || !_declared.checked) {
+        showToast('⚠️ 請先勾選「我確認這是 8 位真人、36 分鐘以上的對局」', 'warning', 2800);
+        return;
+      }
+      const _names = players.map(p => p.name.trim().toLowerCase());
+      if (new Set(_names).size !== REQUIRED_OFFICIAL_PLAYERS || players.some(p => /^玩家\s*\d+$/.test(p.name.trim()))) {
+        showToast('⚠️ 請填入 8 位玩家各自不重複的真實暱稱（不可保留「玩家 N」）', 'warning', 3000);
+        return;
+      }
       const gameDoc = {
         timestamp: `${dateVal}T${timeStr}.000Z`,
         dateKey: dateVal,
@@ -19083,6 +19133,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         playMode: '手動補登',
         isAllHuman: true,
         isManual: true,
+        manualDeclared: true,
+        isVerified: false,
         playerCount: 8,
         totalScore: score,
         winningCamp: winCamp,
@@ -19114,7 +19166,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         localGames.unshift(gameDoc);
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
 
-        showToast('✓ 今日對決資料已成功補登上傳至全真人戰績網！', 'success', 3000);
+        showToast('✓ 已補登（標示為「人工補登」）', 'success', 3000);
         closeManualMatchEntryModal();
         await refreshStatsData();
       } catch(err) {
@@ -19137,9 +19189,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         return;
       }
       const btn = document.getElementById('btnForceUploadLocalGame');
+      const _origBtnText = btn ? btn.innerText : '';
       if (btn) { btn.disabled = true; btn.innerText = '正在強制上傳中...'; }
 
-      const elapsed = Math.max(40, getElapsedGameMinutes());
+      const _r = G.lastCalculatedResult;
+      const elapsed = (_r.startTimestamp && _r.endTimestamp) ? Math.floor((_r.endTimestamp - _r.startTimestamp) / 60000) : getElapsedGameMinutes();
       const now = new Date();
       const dateKey = now.toISOString().slice(0, 10);
       const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
@@ -19152,7 +19206,6 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         durationMinutes: elapsed,
         playMode: '單機小幫手版',
         isAllHuman: true,
-        isManual: true,
         playerCount: G.lastCalculatedResult.playerCount,
         totalScore: G.lastCalculatedResult.totalScore,
         winningCamp: G.lastCalculatedResult.winningCamp,
@@ -19164,6 +19217,13 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         players: G.lastCalculatedResult.players,
         actionLogs: G.lastCalculatedResult.actionLogs || G.actionLogs || {}
       };
+
+      const _chkL = validateStatsEligibility(gameDoc);
+      if (!_chkL.ok || _chkL.tier !== 'official') {
+        showToast(`⚠️ 本局不符戰績網資格：${_chkL.reason}`, 'warning', 3500);
+        if (btn) { btn.disabled = false; btn.innerText = _origBtnText; }
+        return;
+      }
 
       try {
         if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
@@ -19195,6 +19255,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         return;
       }
       const btn = document.getElementById('btnForceUploadOnlineGame');
+      const _origBtnText = btn ? btn.innerText : '';
       if (btn) { btn.disabled = true; btn.innerText = '正在強制上傳中...'; }
       const room = onlineRoomData;
       const g = room.gameOverData;
@@ -19211,11 +19272,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         dateKey: dateKey,
         formattedTime: timeStr,
         formattedDateTime: dateKey + ' ' + timeStr,
-        durationMinutes: Math.max(35, g.durationMinutes || 45),
+        durationMinutes: g.durationMinutes,
         playMode: '線上連線版',
         isAllHuman: true,
-        isManual: true,
-        playerCount: p.length || 8,
+        hasMockPlayers: !!g.hasMockPlayers,
+        playerCount: p.length,
         totalScore: g.totalScore,
         winningCamp: g.winningCamp,
         savedBeastsCount: g.savedBeastsCount || 0,
@@ -19232,6 +19293,13 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         })),
         actionLogs: {}
       };
+
+      const _chkO = validateStatsEligibility(gameDoc);
+      if (!_chkO.ok || _chkO.tier !== 'official') {
+        showToast(`⚠️ 本局不符戰績網資格：${_chkO.reason}`, 'warning', 3500);
+        if (btn) { btn.disabled = false; btn.innerText = _origBtnText; }
+        return;
+      }
 
       try {
         if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
@@ -19294,7 +19362,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             const arr = JSON.parse(raw);
             if (Array.isArray(arr)) {
               arr.forEach(g => {
-                if (g && g.winningCamp && g.totalScore !== undefined && Array.isArray(g.players) && g.players.length >= 7) {
+                if (g && Array.isArray(g.players) && validateStatsEligibility(g).ok) {
                   candidateGames.push(g);
                 }
               });
@@ -19318,7 +19386,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
               dateKey: dateKey,
               formattedTime: timeStr,
               formattedDateTime: `${dateKey} ${timeStr}`,
-              durationMinutes: Math.max(35, r.durationMinutes || 45),
+              durationMinutes: (r.durationMinutes !== undefined ? r.durationMinutes : ((r.startTimestamp && r.endTimestamp) ? Math.floor((r.endTimestamp - r.startTimestamp) / 60000) : NaN)),
               playMode: '單機小幫手版',
               isAllHuman: true,
               playerCount: r.playerCount || (stateObj.players || []).length || 8,
@@ -19335,6 +19403,11 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           }
         }
       } catch(e) {}
+
+      // 最終防線：所有候選對局（含預設種子、舊快取、狀態快照）一律重新驗證，不合格者不補寫
+      for (let i = candidateGames.length - 1; i >= 0; i--) {
+        if (!validateStatsEligibility(candidateGames[i]).ok) candidateGames.splice(i, 1);
+      }
 
       // C. 自動同步寫入雲端 Firestore
       let syncedCount = 0;
@@ -19449,7 +19522,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                   dateKey: dateKey,
                   formattedTime: timeStr,
                   formattedDateTime: `${dateKey} ${timeStr}`,
-                  durationMinutes: Math.max(30, r.durationMinutes || 45),
+                  durationMinutes: (r.durationMinutes !== undefined ? r.durationMinutes : ((r.startTimestamp && r.endTimestamp) ? Math.floor((r.endTimestamp - r.startTimestamp) / 60000) : NaN)),
                   playMode: '單機小幫手版',
                   isAllHuman: true,
                   playerCount: r.playerCount || (parsed.players || []).length || 8,
@@ -20064,10 +20137,16 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       // 資料清洗與去重：只要有完整結算勝負（winningCamp 存在且 totalScore !== undefined）即完整保留計入戰績網
       const seenKeys = new Set();
       const games = [];
+      let _excludedCount = 0;
       (rawGames || []).forEach(g => {
         if (!Array.isArray(g.players) || g.players.length === 0) return;
         const hasResult = !!(g.winningCamp && g.totalScore !== undefined);
         if (!hasResult) return;
+
+        // v3.5.2 最後防線：不符「8 人、全真人、>=36 分鐘」的資料不計入戰績網（不刪除原始資料）
+        const _elig = validateStatsEligibility(g);
+        if (!_elig.ok) { _excludedCount++; return; }
+        g._statsTier = _elig.tier;
 
         // 依使用者指示：徹底排除並刪除 21:40 之對局
         const tStr = g.formattedTime || (g.formattedDateTime ? g.formattedDateTime.slice(11) : '');
@@ -20083,7 +20162,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       });
 
       currentLoadedGames = games;
-      statusEl.innerText = `資料來源：${source}`;
+      statusEl.innerText = `資料來源：${source}` + (_excludedCount > 0 ? `（已排除 ${_excludedCount} 筆不符合資格的資料）` : '');
 
       const total = games.length;
       document.getElementById('statTotalGames').innerText = total;
@@ -20499,7 +20578,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                     <span class="text-xs font-bold text-neutral-200">當日第 ${matchesOnDate.length - mIdx} 局</span>
                     <span class="text-[10px] text-neutral-500 font-mono">(${g.formattedTime || ''})</span>
                     <span class="px-2 py-0.5 rounded text-[10px] font-black border ${goodBadgeClass}">${g.winningCamp}獲勝</span>
-                    <span class="text-[10px] text-neutral-400">(${g.playMode || '全真人版'})</span>
+                    <span class="text-[10px] text-neutral-400">(${g.playMode || '全真人版'})</span>${g._statsTier === 'manual' ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-neutral-800 text-amber-300 border border-amber-700/70">人工補登</span>' : ''}
                     <button type="button" onclick="deleteGameRecord('${g.id || g.timestamp || matchIdxOverall}', event)" class="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-900 hover:bg-rose-950 text-neutral-400 hover:text-rose-300 border border-neutral-800 hover:border-rose-700 transition" title="刪除此筆對局">
                       🗑️ 刪除
                     </button>
