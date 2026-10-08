@@ -5871,6 +5871,71 @@ class BotDeductionEngine {
     const badDeedsRanking = (beliefs && beliefs.badDeedsRanking) || [];
     const topSuspect = badDeedsRanking.length > 0 ? badDeedsRanking[0] : null;
 
+    // -------------------------------------------------------------------------
+    // 姬雲浮專屬【永久封閉後偽裝發言模式】
+    // 被偷襲後仍知道自己的真實狀態，但公開發言絕不能反覆暴露「被偷襲」資訊。
+    // 之後改成像普通玩家一樣：亂報一件、亂報兩件、模糊帶過，或回應前位發言。
+    // 既保留她的鑑寶人格，又避免從發言模式直接鎖定身分。
+    // -------------------------------------------------------------------------
+    if (pov.myRole === '姬雲浮' && pov.myInspectWasBlinded) {
+      const roundBeasts = Array.isArray(pov.currentBeasts) ? pov.currentBeasts.filter(Boolean) : [];
+      const priorKnown = (Array.isArray(pov.allMyInspectHistory) ? pov.allMyInspectHistory : [])
+        .filter(ins => ins && ins.resultText
+          && !/(偷襲|一片黑|被幹|暈眩|致盲|無法辨別)/.test(ins.resultText)
+          && (ins.resultText.includes('真品') || ins.resultText.includes('贗品')));
+      const prevSpeechObj = curRoundSpeeches.length ? curRoundSpeeches[curRoundSpeeches.length - 1] : null;
+      const prevSpeechPlayer = prevSpeechObj ? pov.otherPlayers.find(p => p.id === prevSpeechObj.playerId) : null;
+      const prevDesc = prevSpeechPlayer ? getPlayerColorDesc(prevSpeechPlayer) : null;
+      const pickStatus = () => Math.random() < 0.52 ? '真品' : '贗品';
+
+      // 1. 少量沿用偷襲前真正驗過的情報，避免行為突然像「失憶」。
+      if (priorKnown.length > 0 && Math.random() < 0.22) {
+        const old = pickOne(priorKnown);
+        const oldStatus = old.resultText.includes('真品') ? '真品' : '贗品';
+        return finalize(`我先沿用前面自己摸到的資訊：【${old.beastName}】我仍然偏${oldStatus}，但這輪新東西我不敢講死，先看大家怎麼對票。`);
+      }
+
+      // 2. 約四分之一：像普通玩家一樣報一件獸首＋隨機真假。
+      if (roundBeasts.length > 0 && Math.random() < 0.25) {
+        const b = pickOne(roundBeasts);
+        return finalize(`我這輪先看【${b}】，手感比較偏${pickStatus()}，但我沒有到百分之百確定，大家把前後發言一起對照。`);
+      }
+
+      // 3. 再一種自然路線：一次丟兩個獸首，刻意降低神職辨識度。
+      if (roundBeasts.length >= 2 && Math.random() < 0.29) {
+        const shuffled = [...roundBeasts].sort(() => Math.random() - 0.5);
+        const b1 = shuffled[0], b2 = shuffled[1];
+        return finalize(`我這輪比較有感的是【${b1}】偏${pickStatus()}、【${b2}】偏${pickStatus()}；兩件一起看比較合理，先別只抓單一句話下結論。`);
+      }
+
+      // 4. 不明講能力失效，只用「資訊不足／手感不穩」帶過。
+      if (Math.random() < 0.32) {
+        const vague = [
+          '這輪我手感沒有前幾輪穩，先不把話講死，大家把別人的實測和票型一起看。',
+          '我這輪目前沒有特別硬的結論，先聽前面幾個人的細節，再決定票要往哪邊集中。',
+          '這輪情報比較散，我先不搶著當定錨，大家把獸首說法和傳遞順序一起對一下。'
+        ];
+        return finalize(pickOne(vague));
+      }
+
+      // 5. 回應前一位，讓她看起來像普通玩家靠公開情報推理。
+      if (prevDesc) {
+        const b = roundBeasts.length ? pickOne(roundBeasts) : '這輪獸首';
+        const reaction = [
+          `${prevDesc}剛才那段我有聽進去，但我覺得【${b}】的說法還要再對一次，先別急著跟票。`,
+          `${prevDesc}你的方向我不完全反對，不過【${b}】我會保留一點，等後面發言把矛盾補齊。`,
+          `先接一下${prevDesc}的觀點；如果【${b}】真如你說的那樣，那前面的票型就有點不對勁了。`
+        ];
+        return finalize(pickOne(reaction));
+      }
+
+      // 6. 最後兜底：仍然像普通玩家一樣，給一個保守獸首判讀。
+      if (roundBeasts.length > 0) {
+        const b = pickOne(roundBeasts);
+        return finalize(`我先給一個保守判斷：【${b}】我目前偏${pickStatus()}，先看大家後面的說法，不要太早把票型鎖死。`);
+      }
+    }
+
     // =========================================================================
     // 依使用者指示【身分隱匿與博弈策略】：
     // 尾家切勿隨便自爆跳身分，且許願與方震在尾家與任何位置遵循精確機率分佈！
@@ -21908,8 +21973,13 @@ window.BotSimulationEngine = BotSimulationEngine;
     }
 
     const isFangZhen = (pov.myRole === '方震');
+    const isJiyunfuAmbushed = (pov.myRole === '姬雲浮' && pov.myInspectWasBlinded);
     const fangZhenRule = isFangZhen 
       ? `\n【方震專屬偽裝禁令（極度重要）】：你身分是方震，發言時【絕對不能說看不懂】、【絕對不能說驗不到獸首】、【嚴禁自稱方震】！否則會直接漏餡被藥不然識破暗算！你必須假裝自己是普通玩家看懂了獸首，自然地隨機報出查驗的獸首為【真品】或【贗品】（例如手感沉實保真，或配合前人發言對齊）！` 
+      : '';
+
+    const jiyunfuAmbushRule = isJiyunfuAmbushed
+      ? `\n【姬雲浮永久封閉偽裝禁令（極度重要）】：你已因偷襲失去後續可靠查驗能力，但這是裁判私下資訊，公開發言【絕對不能提到偷襲、眼前一片黑、致盲、驗不到、無法辨別、被暗算或任何同義說法】！你必須繼續像一般玩家一樣發言，可以亂報 1 個獸首、一次講 2 個獸首、說手感不穩或這輪沒有硬結論，也可以回應前面玩家。不要每輪重複同一套路，更不要讓人從「突然沒有查驗能力」推導出你的身分。`
       : '';
 
     let tacticalHint = '';
@@ -21928,7 +21998,7 @@ window.BotSimulationEngine = BotSimulationEngine;
       }
     }
 
-    if (pov._disruptedBeast && !pov.isEvilCamp) {
+    if (pov._disruptedBeast && !pov.isEvilCamp && !isJiyunfuAmbushed) {
       const suspectNames = (pov._suspectsBeforeMe || [])
         .map(id => {
           const pl = pov.otherPlayers.find(x => x.id === id);
@@ -21965,7 +22035,7 @@ window.BotSimulationEngine = BotSimulationEngine;
 【你的人設立體特質】：
 - 專屬稱號：${pTitle}
 - 戰術風格：${spec}
-- 招牌口吻：${motto || '說話自然、有現場互動感'}${traitLine}${roleMasteryLine}${recentLesson}${fangZhenRule}${tacticalHint}
+- 招牌口吻：${motto || '說話自然、有現場互動感'}${traitLine}${roleMasteryLine}${recentLesson}${fangZhenRule}${jiyunfuAmbushRule}${tacticalHint}
 【發言目標】：
 現在輪到你發言。請用生動鮮活的桌遊現場口語（純繁體中文，35～55字），俐落交代自己查驗的獸首真假，順道質疑或附和前面已發言玩家的說法，最後有力號召大家跟票！
 【核心要求】：
@@ -22008,6 +22078,12 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
     return true;
   }
 
+  function isJiyunfuAmbushSpeechSafe(pov, text) {
+    if (!pov || pov.myRole !== '姬雲浮' || !pov.myInspectWasBlinded) return true;
+    if (!text || typeof text !== 'string') return false;
+    return !/(偷襲|眼前一片黑|被幹|暈眩|致盲|驗不到|無法辨別|被暗算|失明|看不清楚|看不清)/.test(text);
+  }
+
   async function prepareSpeech(room, botId) {
     const c = cfg();
     if (!c.on || !window.BotDeductionEngine) return;
@@ -22018,7 +22094,7 @@ ${spokenList || '（你是第一位發言，前面尚無人開口）'}
     const out = await ask(s, u, 95, 14000);
     if (out) {
       let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
-      if (isValidBotSpeech(cleaned)) {
+      if (isValidBotSpeech(cleaned) && isJiyunfuAmbushSpeechSafe(pov, cleaned)) {
         const speech = cleaned.slice(0, 100);
         cache['speech|' + botId + '|' + pov.currentRoundIdx] = speech;
         rememberDecisionContext('speech', room, botId);
