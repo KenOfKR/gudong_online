@@ -160,7 +160,54 @@
  z-index: 0;  
  filter: contrast(1.05) brightness(0.95);  
  }  
- </style>  
+ 
+/* ===== v3.5.1 角色立繪浮水印：臉部特寫＋漸層淡出 ===== */
+#roleCardWatermarkBg, #onlRoleWatermarkBg {
+  background-size: auto 140% !important;
+  background-position: 96% 6% !important;
+  -webkit-mask-image: radial-gradient(ellipse 72% 85% at 80% 30%, #000 28%, transparent 78%);
+  mask-image: radial-gradient(ellipse 72% 85% at 80% 30%, #000 28%, transparent 78%);
+}
+#roleCardWatermarkBg.opacity-25 { opacity: calc(var(--taste-wm-opacity) * 2.2) !important; }
+.role-medallion {
+  position: relative; width: 88px; height: 88px; border-radius: 50%; padding: 3px; margin: 0 auto 8px;
+  background: conic-gradient(from 210deg, #fbbf24, #78350f, #f59e0b, #451a03, #fbbf24);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.7), 0 8px 20px rgba(0,0,0,.6), 0 0 24px rgba(245,158,11,.20);
+}
+.role-medallion::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%;
+  border: 1px solid rgba(245,158,11,.35); pointer-events: none;
+}
+.role-medallion .rm-inner {
+  position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #2a2112, #0c0a06);
+  border: 2px solid #0a0a0a; display: flex; align-items: center; justify-content: center;
+  font: 900 32px/1 serif; color: rgba(245,158,11,.28);
+}
+.role-medallion .rm-img {
+  position: absolute; inset: 0; background-repeat: no-repeat;
+  filter: contrast(1.06) saturate(.95);
+}
+.role-medallion.sm { width: 62px; height: 62px; margin: 0; flex: none; }
+.role-medallion.sm .rm-inner { font-size: 22px; }
+.role-banner {
+  position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px;
+  min-height: 84px; padding: 10px 16px; border-radius: 14px;
+  border: 1px solid rgba(245,158,11,.38);
+  background: linear-gradient(100deg, #17120a 0%, #0d0a06 62%);
+  box-shadow: inset 0 0 28px rgba(0,0,0,.55);
+}
+.role-banner .rb-art {
+  position: absolute; top: 0; bottom: 0; right: 0; width: 68%; background-repeat: no-repeat;
+  opacity: calc(var(--taste-wm-opacity) * 2.6); pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 72%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 72%);
+}
+.role-banner .rb-text { position: relative; z-index: 1; }
+.role-banner .rb-sub { font-size: 10px; letter-spacing: .3em; color: rgba(245,158,11,.75); }
+.role-banner .rb-name { font: 900 26px/1.15 serif; letter-spacing: .18em; color: #f5f5f4; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+.role-banner .role-medallion { position: relative; z-index: 1; }
+</style>  
 </head>  
 <body class="bg-neutral-950 text-neutral-100 min-h-screen flex flex-col selection:bg-amber-900">  
  <!-- 全域優雅非阻塞 Toast 提示系統 (不阻斷執行緒) -->  
@@ -1303,6 +1350,7 @@
  <div id="roleCardWatermarkBg" class="absolute inset-0 bg-center bg-no-repeat bg-contain pointer-events-none transition-all duration-500 z-0 opacity-0"></div>  
   
  <div id="roleCardText" class="mask-blur relative z-10 flex flex-col items-center justify-center pointer-events-none">  
+ <div id="roleCardMedallion" class="role-medallion hidden"></div>
  <div class="text-xs text-neutral-500 mb-1">你的角色名字</div>  
  <div id="roleCharName" class="text-4xl font-black tracking-widest text-neutral-300 my-3 font-serif">???</div>  
  <div id="roleTeammateNotice" class="hidden text-xs text-rose-300 font-bold mb-2 px-2.5 py-1 bg-rose-950/70 border border-rose-800/80 rounded-lg shadow-sm"></div>  
@@ -1570,11 +1618,15 @@ service cloud.firestore {
 
       // 2. 私有角色子集合 (防作弊核心防線：嚴格限制讀取，僅本人與託管機器人可見)
       match /private/{playerId} {
+        // 真人使用 tab-level playerId，私有文件以 resource.data.authUid 驗證本人；BOT 維持 mock_p_ 白名單。
         allow read: if request.auth != null && (
-          request.auth.uid == playerId || 
+          resource.data.authUid == request.auth.uid ||
           playerId.matches('mock_p_.*')
         );
-        allow write: if request.auth != null;
+        allow write: if request.auth != null && (
+          playerId.matches('mock_p_.*') ||
+          request.resource.data.authUid == request.auth.uid
+        );
       }
     }
 
@@ -1950,28 +2002,41 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
   var currentAuthUid = null;
   var myPrivateRoleData = null;
   var myPrivateRoleUnsubscribe = null;
+  var authReadyPromise = null;
+
+  function isFreshRoleDataForRoom(roleData, room) {
+    if (!roleData || !roleData.role || !room) return false;
+    const start = Number(room.startTimestamp);
+    const assigned = Number(roleData.assignedAt);
+    if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(assigned) || assigned <= 0) return false;
+    return assigned >= start - 3000 && assigned <= Date.now() + 30000;
+  }
+
+  function getFreshSessionRoleForRoom(room, playerId) {
+    if (!room || !playerId || !room.startTimestamp) return null;
+    try {
+      const role = sessionStorage.getItem('gudong_active_role_' + playerId);
+      const roleStart = Number(sessionStorage.getItem('gudong_active_role_start_' + playerId));
+      const roomStart = Number(room.startTimestamp);
+      if (!role || !Number.isFinite(roleStart) || !Number.isFinite(roomStart) || roomStart <= 0) return null;
+      return Math.abs(roleStart - roomStart) <= 3000 ? role : null;
+    } catch (e) { return null; }
+  }
+
+  function getAuthReadyPromise() {
+    if (currentAuthUid) return Promise.resolve(currentAuthUid);
+    if (!authReadyPromise) authReadyPromise = ensureAnonymousAuth();
+    return authReadyPromise;
+  }
 
   function getOnlineMePlayer(room) {
     if (!room || !Array.isArray(room.players)) return null;
     let me = room.players.find(p => p.id === myOnlinePlayerId);
     if (!me) return null;
     if (!me.role || me.role === '') {
-      if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
-        try {
-          const map = unsealRoleMap(room.sealedRolesToken);
-          if (map && map[myOnlinePlayerId]) me.role = map[myOnlinePlayerId];
-        } catch(e) {}
-      }
-      if (!me.role) {
-        try {
-          const sRole = sessionStorage.getItem('gudong_active_role_' + myOnlinePlayerId);
-          if (sRole) me.role = sRole;
-        } catch(e) {}
-      }
-      if (!me.role && myPrivateRoleData && myPrivateRoleData.role) {
-        const isFresh = (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
-        if (isFresh) me.role = myPrivateRoleData.role;
-      }
+      const sRole = getFreshSessionRoleForRoom(room, myOnlinePlayerId);
+      if (sRole) me.role = sRole;
+      if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) me.role = myPrivateRoleData.role;
     }
     return me;
   }
@@ -2029,8 +2094,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
     myPrivateRoleUnsubscribe = db.doc(privatePath).onSnapshot(function(docSnap) {
       if (docSnap.exists && docSnap.data()) {
         var pData = docSnap.data();
-        var isStale = (onlineRoomData && onlineRoomData.startTimestamp && pData.assignedAt && pData.assignedAt < onlineRoomData.startTimestamp - 3000);
-        if (!isStale) {
+        var isFresh = isFreshRoleDataForRoom(pData, onlineRoomData);
+        if (isFresh) {
           myPrivateRoleData = pData;
           console.log('🔒 [v2.4.0 私有角色] 已安全同步本人身分:', myPrivateRoleData ? myPrivateRoleData.role : 'none');
           if (onlineRoomData && Array.isArray(onlineRoomData.players)) {
@@ -2052,7 +2117,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
             }
           }
         } else {
-          console.warn('⚠️ [私有角色] 忽略舊對局殘留私有資料:', pData.role, 'assignedAt:', pData.assignedAt);
+          if (onlineRoomData && onlineRoomData.startTimestamp) myPrivateRoleData = null;
+          console.warn('⚠️ [私有角色] 忽略未具備本局 assignedAt 的私有資料:', pData.role, 'assignedAt:', pData.assignedAt);
         }
       }
     }, function(err) {
@@ -4442,13 +4508,7 @@ class NormalPlayerReasoningEngine {
         ensurePair(toId, fromId);
 
         if (rNum === 1) {
-          const fromP = (pov.otherPlayers || []).find(p => p.id === fromId) || (fromId === pov.myId ? pov : null);
-          const toP = (pov.otherPlayers || []).find(p => p.id === toId) || (toId === pov.myId ? pov : null);
-          if (fromP && toP && fromP.seatIndex === 5 && toP.seatIndex === 7) {
-            const delta = NORMAL_PLAYER_MODEL.round1.sixToEightSignal * actionDNA.tailPreference;
-            relationshipScore[fromId][toId] += delta;
-            relationshipScore[toId][fromId] += delta;
-          }
+          // 第一輪「第 6 家 → 第 8 家」由完整 passOrder 的位置判定，不綁死物理 seatIndex。
         } else if (rNum === 2) {
           const delta = 0.14 * NORMAL_PLAYER_MODEL.round2.passRelationWeight;
           relationshipScore[fromId][toId] += delta;
@@ -4457,6 +4517,18 @@ class NormalPlayerReasoningEngine {
           const delta = 0.22 * NORMAL_PLAYER_MODEL.round3.relationshipWeight;
           relationshipScore[fromId][toId] += delta;
           relationshipScore[toId][fromId] += delta;
+        }
+      }
+
+      if (rNum === 1 && pOrder.length >= 8) {
+        const sixthId = pOrder[5];
+        const eighthId = pOrder[7];
+        if (sixthId && eighthId && sixthId !== eighthId) {
+          ensurePair(sixthId, eighthId);
+          ensurePair(eighthId, sixthId);
+          const delta = NORMAL_PLAYER_MODEL.round1.sixToEightSignal * actionDNA.tailPreference;
+          relationshipScore[sixthId][eighthId] += delta;
+          relationshipScore[eighthId][sixthId] += delta;
         }
       }
 
@@ -5262,7 +5334,9 @@ class BotDeductionEngine {
         if (pov.myRole === '藥不然' && passOrder.length <= 1 && cand.id === pov.myCurrentAmbushedTargetId) {
           return -999.0; // 藥不然首傳嚴格避開被偷襲者
         }
-        if (pov.seatIndex === 5 && cand.seatIndex === 7) {
+        const myPassPos=passOrder.indexOf(pov.myId), candPassPos=passOrder.indexOf(cand.id);
+        const isSixthToEighth=(myPassPos===5 && candPassPos===7);
+        if (isSixthToEighth) {
           u += 15.0 * tailPref; // 6 -> 8 弱訊號
         }
       } else if (curRoundIdx === 1) {
@@ -6374,12 +6448,14 @@ class BotDeductionEngine {
  { id: 8, role: '老朝奉', defaultFiles: ['老朝奉.png', '8.png', 'images/老朝奉.png', 'images/8.png', 'image_c4816d.png'] }  
  ];  
   
- const ROLE_WATERMARK_STORAGE_KEY = 'gudong_role_watermarks_v2';  
+ const ROLE_WATERMARK_STORAGE_KEY = 'gudong_role_watermarks_v2';
+ const _wmMemoryCache = {};  
   
  function getRoleWatermarkUrl(roleName) {  
  if (!roleName) return '';  
  try {  
  const stored = JSON.parse(localStorage.getItem(ROLE_WATERMARK_STORAGE_KEY) || '{}');  
+ if (_wmMemoryCache[roleName]) return _wmMemoryCache[roleName];
  if (stored[roleName]) return stored[roleName];  
  } catch(e) {}  
   
@@ -6428,58 +6504,187 @@ class BotDeductionEngine {
  }  
  }  
   
- function handleBatchRoleImagesUpload(event) {  
- const files = Array.from(event.target.files);  
- if (!files || files.length === 0) return;  
-  
- let stored = {};  
- try {  
- stored = JSON.parse(localStorage.getItem(ROLE_WATERMARK_STORAGE_KEY) || '{}');  
- } catch(e) {}  
-  
- let processedCount = 0;  
- files.slice(0, 8).forEach((file, idx) => {  
- const roleObj = ROLE_WATERMARK_ORDER[idx];  
- if (!roleObj) return;  
-  
- const reader = new FileReader();  
- reader.onload = (e) => {  
- stored[roleObj.role] = e.target.result;  
- processedCount++;  
- if (processedCount === Math.min(files.length, 8)) {  
- try {  
- localStorage.setItem(ROLE_WATERMARK_STORAGE_KEY, JSON.stringify(stored));  
- alert(`🎉 已成功依序匯入並儲存 ${processedCount} 位角色的立繪浮水印！`);  
- checkWatermarkUploadedState();  
- renderWatermarkSetupUI();  
- } catch (err) {  
- alert("儲存圖片至本機快取時容量超出限制，建議使用適中尺寸的圖片。");  
- }  
- }  
- };  
- reader.readAsDataURL(file);  
- });  
- }  
-  
- function handleSingleRoleImageUpload(event, roleName) {  
- const file = event.target.files[0];  
- if (!file) return;  
-  
- const reader = new FileReader();  
- reader.onload = (e) => {  
- try {  
- const stored = JSON.parse(localStorage.getItem(ROLE_WATERMARK_STORAGE_KEY) || '{}');  
- stored[roleName] = e.target.result;  
- localStorage.setItem(ROLE_WATERMARK_STORAGE_KEY, JSON.stringify(stored));  
- renderWatermarkSetupUI();  
- } catch(err) {  
- alert("儲存失敗，請嘗試較小尺寸的圖片。");  
- }  
- };  
- reader.readAsDataURL(file);  
- }  
-  
-  
+ 
+/* ---- v3.5.1：上傳前先壓縮，避免撐爆 localStorage (約 5MB 上限) ---- */
+function _wmLoadImage(src) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error('image load failed'));
+    im.src = src;
+  });
+}
+function _wmReadFileAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(r.error || new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+async function _wmCompress(im, maxSide, maxChars) {
+  const w0 = im.naturalWidth || im.width, h0 = im.naturalHeight || im.height;
+  let side = maxSide, q = 0.82, out = '';
+  for (let i = 0; i < 8; i++) {
+    const sc = Math.min(1, side / Math.max(w0, h0));
+    const cw = Math.max(1, Math.round(w0 * sc)), ch = Math.max(1, Math.round(h0 * sc));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(im, 0, 0, cw, ch);
+    out = c.toDataURL('image/webp', q);          // WebP 保留透明背景、體積小
+    if (!out.startsWith('data:image/webp')) {      // 不支援 WebP 的瀏覽器：改 JPEG 並墊深色底
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, cw, ch);
+      out = c.toDataURL('image/jpeg', q);
+    }
+    if (out.length <= maxChars) return out;
+    q = Math.max(0.5, q - 0.08);
+    side = Math.round(side * 0.85);
+  }
+  return out;
+}
+async function compressRoleImageFile(file) {
+  const raw = await _wmReadFileAsDataURL(file);
+  const im = await _wmLoadImage(raw);
+  return _wmCompress(im, 900, 260000);
+}
+function _wmReadStored() {
+  try { return JSON.parse(localStorage.getItem(ROLE_WATERMARK_STORAGE_KEY) || '{}'); } catch (e) { return {}; }
+}
+function _wmTryWrite(obj) {
+  try { localStorage.setItem(ROLE_WATERMARK_STORAGE_KEY, JSON.stringify(obj)); return true; } catch (e) { return false; }
+}
+// 回傳 'ok' | 'memory'（空間真的不夠時，退而求其次只存在本次頁面記憶體）
+async function saveRoleWatermark(roleName, dataUrl) {
+  const stored = _wmReadStored();
+  stored[roleName] = dataUrl;
+  if (!_wmTryWrite(stored)) {
+    // 空間不足：把其他已存的大圖再壓小一點後重試
+    for (const k of Object.keys(stored)) {
+      if (stored[k] && stored[k].length > 120000) {
+        try { stored[k] = await _wmCompress(await _wmLoadImage(stored[k]), 640, 110000); } catch (e) {}
+      }
+    }
+    if (!_wmTryWrite(stored)) { _wmMemoryCache[roleName] = dataUrl; return 'memory'; }
+  }
+  delete _wmMemoryCache[roleName];
+  return 'ok';
+}
+function _wmNotifyFull() {
+  alert('瀏覽器本機儲存空間已滿（可能被歷史戰績等資料占用），這張圖片只在本次開啟期間有效。\n可先清理舊戰績後再重新上傳。');
+}
+async function handleSingleRoleImageUpload(event, roleName) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    const data = await compressRoleImageFile(file);
+    const status = await saveRoleWatermark(roleName, data);
+    if (status === 'memory') _wmNotifyFull();
+    else if (typeof showToast === 'function') showToast(`✓ 已儲存「${roleName}」立繪`, 'info', 1500);
+  } catch (err) {
+    alert('這張圖片無法讀取，請確認是正常的圖片檔（PNG / JPG / WebP）。');
+  }
+  input.value = '';
+  renderWatermarkSetupUI();
+  checkWatermarkUploadedState();
+}
+async function handleBatchRoleImagesUpload(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []).slice(0, 8);
+  if (files.length === 0) return;
+  let ok = 0, mem = 0;
+  for (let idx = 0; idx < files.length; idx++) {
+    const roleObj = ROLE_WATERMARK_ORDER[idx];
+    if (!roleObj) continue;
+    try {
+      const data = await compressRoleImageFile(files[idx]);
+      const st = await saveRoleWatermark(roleObj.role, data);
+      if (st === 'ok') ok++; else mem++;
+    } catch (e) {}
+  }
+  input.value = '';
+  if (mem > 0) _wmNotifyFull();
+  else alert(`🎉 已成功依序匯入並儲存 ${ok} 位角色的立繪浮水印！`);
+  checkWatermarkUploadedState();
+  renderWatermarkSetupUI();
+}
+// 舊版已存進去的原圖（過大）自動壓縮瘦身，釋放空間
+async function migrateStoredWatermarks() {
+  const stored = _wmReadStored();
+  let changed = false;
+  for (const k of Object.keys(stored)) {
+    if (stored[k] && stored[k].length > 300000) {
+      try { stored[k] = await _wmCompress(await _wmLoadImage(stored[k]), 900, 260000); changed = true; } catch (e) {}
+    }
+  }
+  if (changed) _wmTryWrite(stored);
+}
+window.addEventListener('load', () => setTimeout(() => { migrateStoredWatermarks().catch(() => {}); }, 800));
+
+/* ---- v3.5.1：臉部特寫設計 ----
+   x / y = 臉部在圖中的位置(%)，z = 頭像放大倍率(%)。
+   某位角色臉部沒對準時，在下面加一行覆寫即可，例如：'許願': { x: 50, y: 8, z: 240 } */
+const ROLE_FACE_FOCUS = {
+  _default: { x: 50, y: 12, z: 210 }
+};
+function getRoleFaceFocus(role) {
+  return Object.assign({}, ROLE_FACE_FOCUS._default, ROLE_FACE_FOCUS[role] || {});
+}
+function paintRoleMedallion(el, role, url) {
+  if (!el) return;
+  if (!role || !url || url === 'none') { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  const f = getRoleFaceFocus(role);
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="rm-inner"><span>${String(role).charAt(0)}</span>` +
+    `<div class="rm-img" style="background-image:url('${url}');background-size:${f.z}% auto;background-position:${f.x}% ${f.y}%"></div></div>`;
+}
+// 小幫手「角色確認」：浮水印圖一出現/消失，頭像徽章就同步顯示/清除（不用改動原本的翻牌流程）
+function initRoleCardArt() {
+  const bg = document.getElementById('roleCardWatermarkBg');
+  const med = document.getElementById('roleCardMedallion');
+  if (!bg || !med || bg._artObserved) return;
+  bg._artObserved = true;
+  const sync = () => {
+    const m = /url\((['"]?)(.*)\1\)/.exec(bg.style.backgroundImage || '');
+    const nameEl = document.getElementById('roleCharName');
+    const role = nameEl ? nameEl.innerText.trim() : '';
+    paintRoleMedallion(med, role === '???' ? '' : role, m ? m[2] : '');
+  };
+  new MutationObserver(sync).observe(bg, { attributes: true, attributeFilter: ['style'] });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initRoleCardArt);
+else initRoleCardArt();
+window.addEventListener('load', initRoleCardArt);
+
+// 「角色專屬能力階段」頂部的角色橫幅
+function renderStepBRoleBanner(curP) {
+  const box = document.getElementById('stepB');
+  if (!box || !curP || !curP.role) return;
+  const old = box.querySelector('.role-stepb-watermark');
+  if (old) old.remove();
+  let banner = document.getElementById('stepBRoleBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'stepBRoleBanner';
+    banner.className = 'role-banner';
+    banner.innerHTML = '<div class="rb-art"></div><div class="role-medallion sm"></div>' +
+      '<div class="rb-text"><div class="rb-sub">角色專屬能力</div><div class="rb-name"></div></div>';
+    const header = box.firstElementChild;
+    if (header) header.insertAdjacentElement('afterend', banner); else box.prepend(banner);
+  }
+  const url = getRoleWatermarkUrl(curP.role);
+  const f = getRoleFaceFocus(curP.role);
+  const art = banner.querySelector('.rb-art');
+  art.style.backgroundImage = url ? `url('${url}')` : 'none';
+  art.style.backgroundSize = `${Math.round(f.z * 0.72)}% auto`;
+  art.style.backgroundPosition = `${f.x}% ${f.y}%`;
+  banner.querySelector('.rb-name').innerText = curP.role;
+  paintRoleMedallion(banner.querySelector('.role-medallion'), curP.role, url);
+}
+
 function checkWatermarkUploadedState() {  
  let stored = {};  
  try {  
@@ -7217,33 +7422,30 @@ service cloud.firestore {
  function getSavedTasteSettings() {  
  try {  
  const saved = JSON.parse(localStorage.getItem('gudong_taste_settings') || '{}');  
- return {  
- ornament: saved.ornament !== undefined ? saved.ornament : 1,  
- wmOpacity: saved.wmOpacity !== undefined ? saved.wmOpacity : 0.18,  
- goldAccent: saved.goldAccent || 'amber',  
- bgDepth: saved.bgDepth || 'deep'  
- };  
+ return {
+     ornament: saved.ornament !== undefined ? saved.ornament : 1,
+     wmOpacity: saved.wmOpacity !== undefined ? saved.wmOpacity : 0.18,
+     goldAccent: saved.goldAccent || 'amber',
+     goldColor: saved.goldColor || (saved.goldAccent === 'bronze' ? '#d97706' : saved.goldAccent === 'bright' ? '#fbbf24' : '#f59e0b'),
+     goldLabel: saved.goldLabel || (saved.goldAccent === 'bronze' ? '啞光古銅金' : saved.goldAccent === 'bright' ? '明澈亮金' : '溫潤琥珀金'),
+     bgDepth: saved.bgDepth || 'deep',
+     bgColor: saved.bgColor || (saved.bgDepth === 'charcoal' ? '#121212' : '#0a0a0a'),
+     bgLabel: saved.bgLabel || (saved.bgDepth === 'charcoal' ? '雅致炭黑' : '純粹夜黑')
+    };  
  } catch(e) {  
  return { ornament: 1, wmOpacity: 0.18, goldAccent: 'amber', bgDepth: 'deep' };  
  }  
  }  
   
- function applyTasteSettings(settings) {  
- const root = document.documentElement;  
- if (settings.bgDepth === 'charcoal') {  
- root.style.setProperty('--taste-bg', '#121212');  
- } else {  
- root.style.setProperty('--taste-bg', '#0a0a0a');  
- }  
-  
- if (settings.goldAccent === 'bronze') {  
- root.style.setProperty('--taste-gold', '#d97706');  
- root.style.setProperty('--taste-gold-border', 'rgba(217, 119, 6, 0.4)');  
- } else {  
- root.style.setProperty('--taste-gold', '#f59e0b');  
- root.style.setProperty('--taste-gold-border', 'rgba(245, 158, 11, 0.4)');  
- }  
-  
+ function applyTasteSettings(settings) {
+ const root = document.documentElement;
+ const bgColor = settings.bgColor || (settings.bgDepth === 'charcoal' ? '#121212' : '#0a0a0a');
+ const goldColor = settings.goldColor || (settings.goldAccent === 'bronze' ? '#d97706' : settings.goldAccent === 'bright' ? '#fbbf24' : '#f59e0b');
+ root.style.setProperty('--taste-bg', bgColor);
+ root.style.setProperty('--taste-gold', goldColor);
+ const rr = parseInt(goldColor.slice(1,3), 16), gg = parseInt(goldColor.slice(3,5), 16), bb = parseInt(goldColor.slice(5,7), 16);
+ root.style.setProperty('--taste-gold-border', `rgba(${rr}, ${gg}, ${bb}, 0.4)`);
+ root.style.setProperty('--taste-ornament', String(settings.ornament !== undefined ? settings.ornament : 1));
  const wmOpacity = (settings.wmOpacity !== undefined) ? settings.wmOpacity : 0.18;  
  root.style.setProperty('--taste-wm-opacity', String(wmOpacity));  
   
@@ -7251,7 +7453,31 @@ service cloud.firestore {
  wms.forEach(el => el.style.opacity = String(wmOpacity));  
   
  localStorage.setItem('gudong_taste_settings', JSON.stringify(settings));  
- }  
+ }
+  function openTasteTunerModal() { const m=document.getElementById('modalTasteTuner'); if(m){m.classList.remove('hidden'); syncTasteTunerModalUI();} }
+  window.openTasteTunerModal = openTasteTunerModal;
+  function closeTasteTunerModal() { const m=document.getElementById('modalTasteTuner'); if(m) m.classList.add('hidden'); }
+  window.closeTasteTunerModal = closeTasteTunerModal;
+  function syncTasteTunerModalUI() {
+    const s=getSavedTasteSettings();
+    const b=document.getElementById('tasteBorderLabel'); if(b) b.innerText=s.ornament===0?'極簡現代':s.ornament===2?'雙線雅致':'克制古韻 (推薦)';
+    const w=Math.round((s.wmOpacity??0.18)*100), wr=document.getElementById('tasteWmRange'), wl=document.getElementById('tasteWmOpacityVal'); if(wr) wr.value=String(w); if(wl) wl.innerText=`${w}%`;
+    const bg=document.getElementById('tasteBgLabel'); if(bg) bg.innerText=s.bgLabel;
+    const gd=document.getElementById('tasteGoldLabel'); if(gd) gd.innerText=s.goldLabel;
+  }
+  function setTasteBorderLevel(level) { const m={none:0,classic:1,double:2}, v=m[level]!==undefined?m[level]:1, s=getSavedTasteSettings(); s.ornament=v; applyTasteSettings(s); syncTasteTunerModalUI(); }
+  window.setTasteBorderLevel=setTasteBorderLevel;
+  function setTasteWatermarkOpacity(value) { const n=Math.max(0,Math.min(35,Number(value)||0)), s=getSavedTasteSettings(); s.wmOpacity=n/100; applyTasteSettings(s); syncTasteTunerModalUI(); }
+  window.setTasteWatermarkOpacity=setTasteWatermarkOpacity;
+  function setTasteBgTone(color,labelText) { const allowed=['#0a0a0a','#121212','#0f172a'], c=String(color).toLowerCase(), s=getSavedTasteSettings(); s.bgColor=allowed.includes(c)?c:'#0a0a0a'; s.bgDepth=s.bgColor==='#121212'?'charcoal':'deep'; s.bgLabel=labelText||'純粹夜黑'; applyTasteSettings(s); syncTasteTunerModalUI(); }
+  window.setTasteBgTone=setTasteBgTone;
+  function setTasteGoldTone(color,labelText) { const allowed=['#f59e0b','#d97706','#fbbf24'], c=String(color).toLowerCase(), s=getSavedTasteSettings(); s.goldColor=allowed.includes(c)?c:'#f59e0b'; s.goldAccent=s.goldColor==='#d97706'?'bronze':s.goldColor==='#fbbf24'?'bright':'amber'; s.goldLabel=labelText||'溫潤琥珀金'; applyTasteSettings(s); syncTasteTunerModalUI(); }
+  window.setTasteGoldTone=setTasteGoldTone;
+  function resetTasteSettings(){ applyTasteSettings({ornament:1,wmOpacity:0.18,goldAccent:'amber',goldColor:'#f59e0b',goldLabel:'溫潤琥珀金',bgDepth:'deep',bgColor:'#0a0a0a',bgLabel:'純粹夜黑'}); syncTasteTunerModalUI(); if(typeof showToast==='function') showToast('已恢復推薦預設風格','info',1500); }
+  window.resetTasteSettings=resetTasteSettings;
+  function saveAndCloseTasteTuner(){ applyTasteSettings(getSavedTasteSettings()); closeTasteTunerModal(); if(typeof showToast==='function') showToast('風格設定已儲存並套用','success',1600); }
+  window.saveAndCloseTasteTuner=saveAndCloseTasteTuner;
+  
   
  function setOrnamentLevel(lvl) {  
  const s = getSavedTasteSettings();  
@@ -7776,7 +8002,7 @@ service cloud.firestore {
   
   
  function initOnlineEngine() {
- ensureAnonymousAuth();  
+ getAuthReadyPromise();  
  // 關鍵修復：使用 sessionStorage 隔離當前分頁的 Player ID，保證同一台電腦開多個分頁互不影響！  
  try {  
  myOnlinePlayerId = getTabPlayerId();  
@@ -7832,7 +8058,7 @@ service cloud.firestore {
   });  
 }  
   
- function joinOnlineRoom() {  
+ async function joinOnlineRoom() {  
  const input = document.getElementById('onlInputNickname');  
  const val = input ? input.value.trim() : '';  
  if (!val) {  
@@ -7844,7 +8070,9 @@ service cloud.firestore {
  localStorage.setItem('gudong_online_my_name', val);  
  } catch(e) {}  
   
- // 讀取四位數房號 (預設 8888)  
+ 
+ try { await getAuthReadyPromise(); } catch(e) {}
+// 讀取四位數房號 (預設 8888)  
  const codeInput = document.getElementById('onlInputRoomCode');  
  let rCode = codeInput ? codeInput.value.trim() : '8888';  
  if (!rCode) rCode = '8888';  
@@ -7875,6 +8103,7 @@ service cloud.firestore {
  const repChar = getRepresentativeChar(myOnlinePlayerName);  
  const optimisticMe = {  
  id: myOnlinePlayerId,  
+ authUid: currentAuthUid || null,
  name: myOnlinePlayerName,  
  repChar: repChar,  
  colorId: COLOR_PALETTE[0].id,  
@@ -7898,12 +8127,12 @@ service cloud.firestore {
  window.joinOnlineRoom = joinOnlineRoom;  
   
  // 啟動 Firestore 房間實時同步監聽  
- function startOnlineRoomListener() {  
- if (!isFirebaseReady || !db) {  
- alert('Firebase 雲端資料庫未就緒，請檢查網路連線。');  
- return;  
- }  
-  
+ async function startOnlineRoomListener() {
+ if (!isFirebaseReady || !db) {
+ alert('Firebase 雲端資料庫未就緒，請檢查網路連線。');
+ return;
+ }
+ try { await getAuthReadyPromise(); } catch (authErr) { console.warn('[Auth] 監聽啟動驗證失敗，使用目前 Session:', authErr); }
  ONLINE_ROOM_DOC = resolveOnlineRoomDoc();  
  const docRef = db.doc(ONLINE_ROOM_DOC);  
   
@@ -8834,46 +9063,20 @@ onlineRoomData = room;
   updateSpectatorBarUI();  
   
  // 依要求：若房間已進入遊戲階段 (roles, playing, discussion, voting, person_voting, gameover)，檢測並確保 8 位玩家皆有角色且不重複  
- if (room.status && room.status !== 'waiting' && Array.isArray(room.players)) {  
+ if (room.status && room.status !== 'waiting' && Array.isArray(room.players)) {
  // P0 安全架構：線上模式嚴格實施「公私角色分離 (Role Privacy Separation)」
- // 角色三重防護鎖：sealedRolesToken (防篡改密令) > 本局新鮮私有資料 > 本局 sessionStorage > 房間公開 players.role
+ // 活躍對局期間只信任本局新鮮私有資料 > 本局 sessionStorage；公開密令不參與即時角色判定。
  if (me) {
-   let sealedRole = null;
-   if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
-     try {
-       const tMap = unsealRoleMap(room.sealedRolesToken);
-       if (tMap && tMap[myOnlinePlayerId]) sealedRole = tMap[myOnlinePlayerId];
-     } catch(e) {}
-   }
-   const isPrivateFresh = myPrivateRoleData && myPrivateRoleData.role &&
-     (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
-   let sessionRole = null;
-   try {
-     sessionRole = sessionStorage.getItem('gudong_active_role_' + myOnlinePlayerId);
-   } catch(e) {}
-
-   if (sealedRole) {
-     me.role = sealedRole;
-   } else if (isPrivateFresh) {
+   const isPrivateFresh = isFreshRoleDataForRoom(myPrivateRoleData, room);
+   const sessionRole = getFreshSessionRoleForRoom(room, myOnlinePlayerId);
+   if (isPrivateFresh) {
      me.role = myPrivateRoleData.role;
-     if (myPrivateRoleData.confusedRound !== undefined) {
-       me.confusedRound = myPrivateRoleData.confusedRound;
-     }
+     if (myPrivateRoleData.confusedRound !== undefined) me.confusedRound = myPrivateRoleData.confusedRound;
    } else if (sessionRole) {
      me.role = sessionRole;
    }
-
-   if (me.role) {
-     try {
-       sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
-       if (room.startTimestamp) {
-         sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(room.startTimestamp));
-       }
-     } catch(e) {}
-   }
- }  
- }  
-  
+ }
+ 
  // 依要求1：安全的狀態機 (State Machine) 重置過渡邏輯：監聽到 resetting 時鎖定 UI 並暫停舊資料處理  
  if (room.status === 'resetting' || room.gameState === 'resetting') {  
  showOnlineSubView(null);  
@@ -9071,7 +9274,12 @@ async function kickOnlinePlayer(targetId, event) {
      if (data.status !== 'waiting') return;
 
      let players = data.players ? [...data.players] : [];
-     if (players.some(p => p.id === myOnlinePlayerId)) return;
+     const existingMe = players.find(p => p.id === myOnlinePlayerId);
+     if (existingMe) {
+       if (currentAuthUid) existingMe.authUid = currentAuthUid;
+       transaction.update(docRef, { players: players, lastActivityTime: Date.now() });
+       return;
+     }
 
      // 關鍵修復：若房間已有 8 人但名單內包含電腦虛擬玩家 (mock_p_)，真實玩家自動替換掉最後一位電腦玩家！
      if (players.length >= 8) {
@@ -9104,6 +9312,7 @@ async function kickOnlinePlayer(targetId, event) {
      const repChar = getRepresentativeChar(myOnlinePlayerName);  
      const newPlayer = {  
        id: myOnlinePlayerId,  
+       authUid: currentAuthUid || null,
        name: myOnlinePlayerName,  
        repChar: repChar,  
        colorId: availColor.id,  
@@ -9561,6 +9770,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  window.toggleMyReadyStart = toggleMyReadyStart;  
   
+ }
  // 8 人全員確認後，開局發牌事務 (原子交易，100% 成功，嚴格保證 8 人皆有角色且不重複)  
  // =========================================================================  
  // 1. 【確定性動態協調者選舉】(Deterministic Leader Election)  
@@ -9741,6 +9951,7 @@ async function kickOnlinePlayer(targetId, event) {
      const privDocRef = db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`);
      transaction.set(privDocRef, {
        playerId: p.id,
+       authUid: p.authUid || (p.id === myOnlinePlayerId ? currentAuthUid : null),
        role: p.role,
        confusedRound: p.confusedRound,
        assignedAt: now
@@ -9770,7 +9981,7 @@ async function kickOnlinePlayer(targetId, event) {
  players.forEach(p => {
    sealedRoleMap[p.id] = p.role;
  });
- const sealedRolesToken = sealRoleMap(sealedRoleMap);
+ const sealedRolesToken = await sealRoleMap(sealedRoleMap);
 
  // S1 脫敏防作弊：在寫入公開房間文檔前，抹除所有真人玩家的 role 欄位！
  // 真人角色僅留存在 private/{playerId} 中，DevTools / Console 徹底無法竊窺！
@@ -9787,6 +9998,7 @@ async function kickOnlinePlayer(targetId, event) {
  sessionIndex: data.sessionIndex || 1,  
  players: sanitizedPublicPlayers,  
  sealedRolesToken: sealedRolesToken,  
+ botActionKeys: {},
  rounds: rounds,  
  currentRoundIdx: 0,  
  currentTurnPlayerId: starter.id,  
@@ -9991,25 +10203,10 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  }  
  // 需求2：線上多人版完全移除長按防窺鎖定機制，卡片直接展示！  
- if (!me.role) {  
-   if (room.sealedRolesToken && typeof unsealRoleMap === 'function') {
-     try {
-       const tMap = unsealRoleMap(room.sealedRolesToken);
-       if (tMap && tMap[myOnlinePlayerId]) me.role = tMap[myOnlinePlayerId];
-     } catch(e) {}
-   }
-   if (!me.role && myPrivateRoleData && myPrivateRoleData.role) {
-     const isFresh = (!myPrivateRoleData.assignedAt || !room.startTimestamp || (myPrivateRoleData.assignedAt >= room.startTimestamp - 3000));
-     if (isFresh) me.role = myPrivateRoleData.role;
-   }
-   if (!me.role) {
-     const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];  
-     const used = new Set((room.players || []).map(p => p.role).filter(Boolean));  
-     const unused = ALL_8_ROLES.filter(r => !used.has(r));  
-     const shuffledUnused = cryptoShuffle(unused);
-     me.role = shuffledUnused.length > 0 ? shuffledUnused[0] : cryptoShuffle(ALL_8_ROLES)[0];  
-   }
+ if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) {
+   me.role = myPrivateRoleData.role;
  }
+ // 真人私有角色尚未同步完成時不猜測身分，避免暫態資料造成錯誤角色.
  if (me && me.role) {
    try {
      sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
@@ -12858,24 +13055,47 @@ container.appendChild(row);
 // =========================================================================
 // 角色密令封裝與解密器 (用於遊戲終局結算與防窺隔離)
 // =========================================================================
-function sealRoleMap(roleMap) {
-  try {
-    return btoa(encodeURIComponent(JSON.stringify(roleMap)));
-  } catch(e) {
-    return null;
-  }
+var onlineRoleSealKey = null;
+var onlineRoleSealKeyPromise = null;
+function bytesToBase64(bytes) { let binary=''; for(let i=0;i<bytes.length;i++) binary+=String.fromCharCode(bytes[i]); return btoa(binary); }
+function base64ToBytes(str) { const binary=atob(str); const out=new Uint8Array(binary.length); for(let i=0;i<binary.length;i++) out[i]=binary.charCodeAt(i); return out; }
+async function getOnlineRoleSealKey() {
+  if (onlineRoleSealKey) return onlineRoleSealKey;
+  if (onlineRoleSealKeyPromise) return onlineRoleSealKeyPromise;
+  onlineRoleSealKeyPromise=(async function(){
+    if (!window.crypto || !window.crypto.subtle) throw new Error('Web Crypto 不可用');
+    let raw=null; try { raw=sessionStorage.getItem('gudong_role_seal_key_'+getTabInstanceId()); } catch(e) {}
+    if (raw) {
+      onlineRoleSealKey=await crypto.subtle.importKey('raw',base64ToBytes(raw),{name:'AES-GCM'},true,['encrypt','decrypt']);
+      return onlineRoleSealKey;
+    }
+    onlineRoleSealKey=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
+    try { const exported=await crypto.subtle.exportKey('raw',onlineRoleSealKey); sessionStorage.setItem('gudong_role_seal_key_'+getTabInstanceId(),bytesToBase64(new Uint8Array(exported))); } catch(e) {}
+    return onlineRoleSealKey;
+  })();
+  try { return await onlineRoleSealKeyPromise; } finally { onlineRoleSealKeyPromise=null; }
 }
-window.sealRoleMap = sealRoleMap;
-
-function unsealRoleMap(sealedStr) {
+async function sealRoleMap(roleMap) {
+  try {
+    const key=await getOnlineRoleSealKey();
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const plain=new TextEncoder().encode(JSON.stringify(roleMap||{}));
+    const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain);
+    return JSON.stringify({v:1,alg:'AES-GCM',iv:bytesToBase64(iv),data:bytesToBase64(new Uint8Array(cipher))});
+  } catch(e) { console.warn('[角色密令] 加密失敗:',e); return null; }
+}
+window.sealRoleMap=sealRoleMap;
+async function unsealRoleMap(sealedStr) {
   try {
     if (!sealedStr) return null;
-    return JSON.parse(decodeURIComponent(atob(sealedStr)));
-  } catch(e) {
-    return null;
-  }
+    const env=JSON.parse(sealedStr);
+    if (!env || env.v!==1 || env.alg!=='AES-GCM') return null;
+    const key=await getOnlineRoleSealKey();
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:base64ToBytes(env.iv)},key,base64ToBytes(env.data));
+    return JSON.parse(new TextDecoder().decode(plain));
+  } catch(e) { return null; }
 }
-window.unsealRoleMap = unsealRoleMap;
+window.unsealRoleMap=unsealRoleMap;
 
 // 發言快捷詞彙與直過操作輔助器
 // =========================================================================
@@ -14474,6 +14694,10 @@ function renderOnlinePersonVotingReference(room) {
           if (!freshRoom || freshRoom.status !== 'playing' || freshRoom.currentTurnPlayerId !== mockPlayerId) {
             return;
           }
+          const botActionKey = 'playing:' + String(freshRoom.startTimestamp || 0) + ':' + String(freshRoom.currentRoundIdx || 0) + ':' + String(mockPlayerId);
+          const botActionKeys = freshRoom.botActionKeys || {};
+          if (botActionKeys[botActionKey]) return;
+          botActionKeys[botActionKey] = Date.now();
           const roundObj = freshRoom.rounds && freshRoom.rounds[freshRoom.currentRoundIdx];
           if (!roundObj) return;
           if (geminiNextId && geminiContextFresh && !GeminiBrain.isFreshDecisionContext('turn', freshRoom, mockPlayerId)) {
@@ -14603,6 +14827,7 @@ function renderOnlinePersonVotingReference(room) {
             transaction.update(docRef, {
               currentTurnPlayerId: nextP.id,
               rounds: freshRoom.rounds,
+              botActionKeys: botActionKeys,
               players: freshRoom.players,
               lastActivityTime: Date.now()
             });
@@ -14704,6 +14929,10 @@ function renderOnlinePersonVotingReference(room) {
           if (!freshRoom || freshRoom.status !== 'discussion' || freshRoom.currentSpeakerId !== mockSpeakerId) {
             return;
           }
+          const botActionKey = 'discussion:' + String(freshRoom.startTimestamp || 0) + ':' + String(freshRoom.currentRoundIdx || 0) + ':' + String(mockSpeakerId);
+          const botActionKeys = freshRoom.botActionKeys || {};
+          if (botActionKeys[botActionKey]) return;
+          botActionKeys[botActionKey] = Date.now();
 
           const curRIdx = (freshRoom.currentRoundIdx !== undefined) ? freshRoom.currentRoundIdx : 0;
           const roundObj = freshRoom.rounds && freshRoom.rounds[curRIdx];
@@ -14740,6 +14969,7 @@ function renderOnlinePersonVotingReference(room) {
             transaction.update(docRef, {
               currentSpeakerId: nextSpeakerId,
               rounds: freshRoom.rounds,
+              botActionKeys: botActionKeys,
               lastActivityTime: Date.now()
             });
             nextSpeakerIdToTrigger = nextSpeakerId;
@@ -14748,6 +14978,7 @@ function renderOnlinePersonVotingReference(room) {
               status: 'voting',
               currentSpeakerId: null,
               rounds: freshRoom.rounds,
+              botActionKeys: botActionKeys,
               lastActivityTime: Date.now()
             });
           }
@@ -14795,9 +15026,17 @@ function renderOnlinePersonVotingReference(room) {
           const freshRoom = snap.data();
           if (!freshRoom || freshRoom.status !== 'voting') return;
 
-          const curRIdx = (freshRoom.currentRoundIdx !== undefined) ? freshRoom.currentRoundIdx : 0;
+                    const botActionKey = 'voting:' + String(freshRoom.startTimestamp || 0) + ':' + String(freshRoom.currentRoundIdx || 0) + ':' + String(mockPlayerId);
+          const botActionKeys = freshRoom.botActionKeys || {};
+          if (botActionKeys[botActionKey]) return;
+          botActionKeys[botActionKey] = Date.now();
+const curRIdx = (freshRoom.currentRoundIdx !== undefined) ? freshRoom.currentRoundIdx : 0;
           const roundObj = freshRoom.rounds && freshRoom.rounds[curRIdx];
           if (!roundObj) return;
+          if (geminiVoteMap && window.GeminiBrain && typeof GeminiBrain.isFreshDecisionContext === 'function' && !GeminiBrain.isFreshDecisionContext('vote', freshRoom, mockPlayerId)) {
+            console.warn(`🧠 [Gemini] 【${mockPlayerId}】投票思考期間局面已變更，捨棄過期鑑寶投票答案`);
+            geminiVoteMap = null;
+          }
 
           const mockP = (freshRoom.players || []).find(p => p.id === mockPlayerId);
           if (!roundObj.votes) roundObj.votes = {};
@@ -14818,6 +15057,7 @@ function renderOnlinePersonVotingReference(room) {
 
           transaction.update(docRef, {
             rounds: freshRoom.rounds,
+            botActionKeys: botActionKeys,
             lastActivityTime: Date.now()
           });
 
@@ -14865,8 +15105,16 @@ function renderOnlinePersonVotingReference(room) {
           if (!snap.exists) return;
           const freshData = snap.data();
           if (!freshData || freshData.status !== 'person_voting') return;
+          if (geminiChosenId && window.GeminiBrain && typeof GeminiBrain.isFreshDecisionContext === 'function' && !GeminiBrain.isFreshDecisionContext('person_vote', freshData, mockPlayerId)) {
+            console.warn(`🧠 [Gemini] 【${mockPlayerId}】鑑人思考期間局面已變更，捨棄過期指認答案`);
+            geminiChosenId = null;
+          }
 
-          const pVotes = freshData.personVotes || {};
+                    const botActionKey = 'person_voting:' + String(freshData.startTimestamp || 0) + ':' + String(freshData.currentRoundIdx || 0) + ':' + String(mockPlayerId);
+          const botActionKeys = freshData.botActionKeys || {};
+          if (botActionKeys[botActionKey]) return;
+          botActionKeys[botActionKey] = Date.now();
+const pVotes = freshData.personVotes || {};
           if (pVotes[mockPlayerId]) return;
 
           const botPOV = BotDeductionEngine.buildPOV(freshData, mockPlayerId);
@@ -14896,6 +15144,7 @@ function renderOnlinePersonVotingReference(room) {
 
           transaction.update(docRef, {
             personVotes: pVotes,
+            botActionKeys: botActionKeys,
             lastActivityTime: Date.now()
           });
 
@@ -15061,7 +15310,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
       // 1. 解密與還原全員身分角色 (解決脫敏防作弊機制下，結算無法取得真人角色的問題)
       let trueRoleMap = {};
       if (room.sealedRolesToken) {
-        trueRoleMap = unsealRoleMap(room.sealedRolesToken) || {};
+        trueRoleMap = await unsealRoleMap(room.sealedRolesToken) || {};
       }
 
       // 備援讀取：若有缺漏，嘗試從各玩家的私有節點補齊
@@ -15371,11 +15620,6 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
 
       // 1. 還原全員身分角色 (確保終局全覽所有區域皆可顯示正確身分)
       const roleMap = (room.gameOverData && room.gameOverData.revealedRoles) || {};
-      if (room.sealedRolesToken) {
-        try {
-          Object.assign(roleMap, unsealRoleMap(room.sealedRolesToken) || {});
-        } catch(e) {}
-      }
       room.players = (room.players || []).map(p => ({
         ...p,
         role: p.role || roleMap[p.id] || ''
@@ -16311,6 +16555,9 @@ async function addMockPlayersAndStart() {
         me.isReady = true;
         me.roleConfirmed = true;
       }
+      if (me) me.authUid = currentAuthUid || me.authUid || null;
+
+      
 
       // 2. 席次正規化
       const seatSet = new Set();
@@ -16418,7 +16665,8 @@ async function addMockPlayersAndStart() {
           const privDocRef = db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`);
           transaction.set(privDocRef, {
             playerId: p.id,
-            role: p.role,
+            authUid: p.authUid || (p.id === myOnlinePlayerId ? currentAuthUid : null),
+       role: p.role,
             confusedRound: p.confusedRound,
             assignedAt: now
           });
@@ -16443,7 +16691,7 @@ async function addMockPlayersAndStart() {
 
       const sealedRoleMap = {};
       players.forEach(p => { sealedRoleMap[p.id] = p.role; });
-      const sealedRolesToken = sealRoleMap(sealedRoleMap);
+      const sealedRolesToken = await sealRoleMap(sealedRoleMap);
 
       transaction.update(docRef, {
         status: 'roles',
@@ -16453,6 +16701,7 @@ async function addMockPlayersAndStart() {
         currentRoundIdx: 0,
         currentTurnPlayerId: starter.id,
         sealedRolesToken: sealedRolesToken,
+        botActionKeys: {},
         startTimestamp: now,
         lastActivityTime: now
       });
@@ -17455,24 +17704,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
     function renderStepBRoleAbility(curP) {
       document.getElementById('bRoleNameLabel').innerText = `角色：${curP.role}`;
-      // 為角色能力操作格子添加淡淡的人物語音浮水印背景
-      const abilityBox = document.getElementById('stepB');
-      if (abilityBox && curP && curP.role) {
-        let wmOverlay = abilityBox.querySelector('.role-stepb-watermark');
-        if (!wmOverlay) {
-          wmOverlay = document.createElement('div');
-          wmOverlay.className = 'role-stepb-watermark role-watermark-overlay';
-          abilityBox.style.position = 'relative';
-          abilityBox.insertBefore(wmOverlay, abilityBox.firstChild);
-        }
-        const wmUrl = getRoleWatermarkUrl(curP.role);
-        if (wmUrl) {
-          wmOverlay.style.backgroundImage = `url('${wmUrl}')`;
-          wmOverlay.style.opacity = '0.15';
-        } else {
-          wmOverlay.style.backgroundImage = 'none';
-        }
-      }
+      renderStepBRoleBanner(curP);
       const ambushBanner = document.getElementById('ambushedLockBanner');
       const container = document.getElementById('roleAbilityContainer');
 
@@ -20578,7 +20810,7 @@ class BotSimulationEngine {
         let speechText = '';
         if (spId === tailPlayerId && window.GeminiBrain && typeof window.GeminiBrain.prepareSpeech === 'function') {
           try {
-            speechText = await window.GeminiBrain.prepareSpeech(pov, beliefs, room, spId) || '';
+            speechText = await window.GeminiBrain.prepareSpeech(room, spId) || '';
           } catch(e) {}
         }
         if (!speechText) {
@@ -21262,7 +21494,7 @@ window.BotSimulationEngine = BotSimulationEngine;
 <script id="gemini-brain">
 /* =========================================================================
    GeminiBrain v3.1：Google Gemini 真決策 + 正常玩家推理協同核心 (發言 / 傳位 / 鑑寶投票 / 鑑人指認)
-   - 專注串聯 Google Gemini 系列模型（優先輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 1.5 8B ➔ 2.5 Flash ➔ 1.5 Flash ➔ 1.5 Pro）
+   - 專注串聯 Google Gemini 系列模型（優先輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 2.5 Flash）
    - 預設開箱即用之安全代理伺服器 (Cloudflare Worker Proxy)，亦支援填入 API Key 直連官方 API
    - 跨裝置同步：Firestore 雲端持久化 41 位 AI 戰術教訓與成長記憶
    - 即時決策等待 + 局面指紋防過期 + 本地規則引擎安全兜底 (Zero-Deadlock)
@@ -21275,16 +21507,14 @@ window.BotSimulationEngine = BotSimulationEngine;
   const MEM = 'gudong_bot_llm_memory_v1';
   const FS_MEM_COLLECTION = 'GudongBotProfiles';
 
-  // 優先候選模型陣列與自動輪詢降級序列（先 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-1.5-flash-8b' 再輪到 2.5 Flash、1.5 Flash、1.5 Pro）
+  // 目前可用 Gemini 候選模型：3.8 Flash → 3.5 Lite → 3.6 Flash → 2.5 Flash
   const CANDIDATE_MODELS = [
     'gemini-3.8-flash',
     'gemini-3.5-flash-lite',
     'gemini-3.6-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-2.5-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
+    'gemini-2.5-flash'
   ];
+  const RETIRED_GEMINI_MODELS = new Set(['gemini-1.5-flash-8b', 'gemini-1.5-flash', 'gemini-1.5-pro']);
 
   const cfg = () => {
     try {
@@ -21300,7 +21530,7 @@ window.BotSimulationEngine = BotSimulationEngine;
         conf.proxy = stored.proxy;
       }
       // 確保模型名稱為有效模型，清理舊版残留或空白
-      if (!conf.model || conf.model.includes('space-bunny') || conf.model.includes('stealth/') || conf.model.includes('free')) {
+      if (!conf.model || RETIRED_GEMINI_MODELS.has(conf.model) || conf.model.includes('space-bunny') || conf.model.includes('stealth/') || conf.model.includes('free')) {
         conf.model = 'gemini-3.8-flash';
       }
       return conf;
@@ -21339,14 +21569,15 @@ window.BotSimulationEngine = BotSimulationEngine;
     return !decisionContexts[k] || decisionContexts[k] === decisionContextSignature(room, kind, botId);
   }
 
-  // 純粹 Google Gemini API 呼叫器（支援智慧多模型輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 1.5 8B ➔ 2.5 Flash ➔ 1.5 Flash ➔ 1.5 Pro）
+  // 純粹 Google Gemini API 呼叫器（支援智慧多模型輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 2.5 Flash）
   async function ask(system, user, max, timeout) {
     const c = cfg();
     if (!c.on) return null;
 
     const proxyUrl = (c.proxy && c.proxy.trim()) || '';
     const effectiveKey = (c.key && c.key.trim()) || '';
-    const userModel = (c.model && c.model.trim()) || 'gemini-3.8-flash';
+    const requestedModel = (c.model && c.model.trim()) || 'gemini-3.8-flash';
+    const userModel = RETIRED_GEMINI_MODELS.has(requestedModel) ? 'gemini-3.8-flash' : requestedModel;
 
     if (!proxyUrl && !effectiveKey) {
       window.GeminiBrain = window.GeminiBrain || {};
@@ -21398,7 +21629,7 @@ window.BotSimulationEngine = BotSimulationEngine;
             reqHeaders['x-goog-api-key'] = effectiveKey;
           }
         } else {
-          reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(effectiveKey)}`;
+          reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
           reqHeaders['x-goog-api-key'] = effectiveKey;
           reqBody = {
             systemInstruction: { parts: [{ text: system }] },
@@ -21497,7 +21728,7 @@ window.BotSimulationEngine = BotSimulationEngine;
       w.deception = mix(w.deception ?? 0.35, dnaVal(s, 5));
       w.speechConfidence = mix(w.speechConfidence ?? 0.7, dnaVal(s, 6));
       w.balancedReasoning = mix(w.balancedReasoning ?? 0.5, dnaVal(s, 7));
-      BotLearningEngine.saveAllProfiles(BotLearningEngine.getAllProfiles());
+      // DNA 僅套用到本局執行期；永久人格更新統一交給 processPostGameEvolution。
     } catch(e) {}
   }
 
@@ -22165,23 +22396,14 @@ ${roundSpeeches}
           <button type="button" id="btnPresetGemini36" style="padding:6px 2px;background:#1e1b4b;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer" title="gemini-3.6-flash (高速平衡)">
             3.6 Flash
           </button>
-          <button type="button" id="btnPresetGemini158b" style="padding:6px 2px;background:#1e1b4b;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer" title="gemini-1.5-flash-8b (輕巧低延遲)">
-            1.5 8B
-          </button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:4px">
           <button type="button" id="btnPresetGemini25" style="padding:6px 2px;background:#1e1b4b;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer" title="gemini-2.5-flash (穩定推薦)">
             2.5 Flash
           </button>
-          <button type="button" id="btnPresetGemini15" style="padding:6px 2px;background:#1e1b4b;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer" title="gemini-1.5-flash (經典穩定)">
-            1.5 Flash
-          </button>
-          <button type="button" id="btnPresetGeminiPro" style="padding:6px 2px;background:#1e1b4b;color:#818cf8;border:1px solid #4f46e5;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer" title="gemini-1.5-pro (深度旗艦)">
-            1.5 Pro
-          </button>
         </div>
         <div style="font-size:9.5px;color:#a8a29e;margin-top:6px;line-height:1.3">
-          ⚡ 自動輪詢降級鏈：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 1.5 8B ➔ 2.5 Flash ➔ 1.5 Flash ➔ 1.5 Pro
+          ⚡ 自動輪詢降級鏈：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 2.5 Flash
         </div>
       </div>
       
@@ -22231,28 +22453,10 @@ ${roundSpeeches}
       m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-3.6-flash（高速平衡）。</span>';
     };
 
-    d.querySelector('#btnPresetGemini158b').onclick = () => {
-      d.querySelector('#gbModelInput').value = 'gemini-1.5-flash-8b';
-      const m = d.querySelector('#gbMsg');
-      m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-1.5-flash-8b（輕量低延遲）。</span>';
-    };
-
     d.querySelector('#btnPresetGemini25').onclick = () => {
       d.querySelector('#gbModelInput').value = 'gemini-2.5-flash';
       const m = d.querySelector('#gbMsg');
       m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-2.5-flash（穩定推薦）。</span>';
-    };
-
-    d.querySelector('#btnPresetGemini15').onclick = () => {
-      d.querySelector('#gbModelInput').value = 'gemini-1.5-flash';
-      const m = d.querySelector('#gbMsg');
-      m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-1.5-flash（經典成熟）。</span>';
-    };
-
-    d.querySelector('#btnPresetGeminiPro').onclick = () => {
-      d.querySelector('#gbModelInput').value = 'gemini-1.5-pro';
-      const m = d.querySelector('#gbMsg');
-      m.innerHTML = '<span style="color:#fbbf24">💎 已選取 gemini-1.5-pro（深度推理）。</span>';
     };
 
     d.querySelector('#gbSave').onclick = async () => {
