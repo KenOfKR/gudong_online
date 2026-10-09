@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 3.7.5)</title>  
+ <title>古董局中局 (版本 3.7.8)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -2690,7 +2690,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.7.5 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.7.8 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -5195,12 +5195,13 @@ class BotDeductionEngine {
 
       // 依最新指示：藥不然主動積極「往前偷襲」！在尾家與任何順位皆極為關鍵，絕不隨意放棄動作！
       // 判定候選玩家在傳遞鏈中是否在藥不然之前（前置位 / 已操作過玩家）
+      candidates = BotDeductionEngine._shuffle(candidates);
       const sorted = candidates.sort((a, b) => {
         const bA = (beliefs && beliefs.roleScores && beliefs.roleScores[a.id]) || { fangZhen: 10, jiYunFu: 10, xuYuan: 10 };
         const bB = (beliefs && beliefs.roleScores && beliefs.roleScores[b.id]) || { fangZhen: 10, jiYunFu: 10, xuYuan: 10 };
         const jiWeight = (curRoundIdx >= 1) ? 1.35 : 1.15;
-        let threatA = Math.max(bA.fangZhen || 10, (bA.jiYunFu || 10) * jiWeight, (bA.xuYuan || 10) * 1.05);
-        let threatB = Math.max(bB.fangZhen || 10, (bB.jiYunFu || 10) * jiWeight, (bB.xuYuan || 10) * 1.05);
+        let threatA = Math.max(bA.fangZhen ?? 10, (bA.jiYunFu ?? 10) * jiWeight, (bA.xuYuan ?? 10) * 1.05);
+        let threatB = Math.max(bB.fangZhen ?? 10, (bB.jiYunFu ?? 10) * jiWeight, (bB.xuYuan ?? 10) * 1.05);
 
         const aIdx = passOrder.indexOf(a.id);
         const bIdx = passOrder.indexOf(b.id);
@@ -5763,8 +5764,27 @@ class BotDeductionEngine {
   }
 
   // 鑑人投票核心升級：精準次級指標比較 + 真正 0 分保留 + 中立隨機破除同分（徹底杜絕真人首位偏誤）
+  // 公平選人工具：先洗牌（脫鉤名單順序），同分（容許 4% 誤差）者隨機挑一位
+  static _shuffle(arr) {
+    const a = Array.isArray(arr) ? arr.slice() : [];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  static _pickTopScored(scored) {
+    if (!scored || !scored.length) return null;
+    const max = Math.max(...scored.map(s => s.score));
+    const band = Math.max(0.0001, Math.abs(max) * 0.04);
+    const top = scored.filter(s => max - s.score <= band);
+    return top[Math.floor(Math.random() * top.length)].id;
+  }
+
   static decidePersonVote(pov, beliefs, candidates) {
     if (!candidates || candidates.length === 0) return null;
+    // 候選名單順序（真人先、電腦補在後）不得影響結果
+    candidates = BotDeductionEngine._shuffle(candidates);
 
     try {
       const pickRandom = (arr) => (arr && arr.length > 0) ? arr[Math.floor(Math.random() * arr.length)].id : null;
@@ -5990,36 +6010,64 @@ class BotDeductionEngine {
     const claimsByBeast = {};
     currentBeasts.forEach(b => { claimsByBeast[b] = []; });
 
+    // 逐句、逐獸首解析：避免把 A 獸首的真假誤算到 B 獸首；處理「不是真品」等否定與語氣保留
+    const REAL_RE = /(真品|保真|是真的|是真|偏真|應該真)/;
+    const FAKE_RE = /(贗品|假貨|假的|是假|偏假|偏贗|應該假)/;
+    const HEDGE_RE = /(偏|傾向|可能|大概|感覺|手感|八成|不確定|不敢說|不一定|猜|應該)/;
+    const parseClauseStatus = (seg) => {
+      let neg = /(不是|並非|不像|沒有|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(真品|真的|真)/.test(seg);
+      let negF = /(不是|並非|不像|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(贗品|假貨|假的|假)/.test(seg);
+      const hasR = REAL_RE.test(seg), hasF = FAKE_RE.test(seg);
+      if (negF && !hasR) return '真品';
+      if (neg && !hasF) return '贗品';
+      if (hasF && !hasR) return '贗品';
+      if (hasR && !hasF) return '真品';
+      if (hasR && hasF) return seg.search(REAL_RE) < seg.search(FAKE_RE) ? '真品' : '贗品';
+      return null;
+    };
     curRoundSpeeches.forEach((speech, idx) => {
       const speakerId = speech.playerId || speech.speakerId;
       const speaker = getPlayer(speakerId);
       const raw = String(speech.speech || speech.text || '').trim();
       if (!raw) return;
-
-      currentBeasts.forEach(beast => {
-        if (!raw.includes(beast)) return;
-        const before = raw.slice(Math.max(0, raw.indexOf(beast) - 12), Math.min(raw.length, raw.indexOf(beast) + beast.length + 18));
-        const saysReal = /(真品|保真|是真的|是真)/.test(before) || (/(真品|保真|是真的|是真)/.test(raw) && !/(贗品|假貨|假的|是假)/.test(before));
-        const saysFake = /(贗品|假貨|假的|是假)/.test(before);
-        const status = saysFake ? '贗品' : (saysReal ? '真品' : '未定');
-        if (status === '未定') return;
-
-        const speakerPassPos = curPassOrder.indexOf(speakerId);
-        const seatEarlierThanMe = speakerPassPos !== -1 && myPosIdx !== -1 && speakerPassPos < myPosIdx;
-        const speakerSpeechPos = idx;
-        const wasEarlierInSpeech = speakerSpeechPos < mySpeechPos;
-        const independentAdvantage = speakerPassPos !== -1
-          ? Math.max(0, 1 - speakerPassPos / Math.max(1, totalPlayers - 1))
-          : 0.5;
-
-        const item = {
-          speakerId, speaker, speakerName: speaker ? speaker.name : '未知玩家',
-          speechPos: idx, passPos: speakerPassPos,
-          beast, status, raw,
-          seatEarlierThanMe, wasEarlierInSpeech, independentAdvantage
-        };
-        claims.push(item);
-        claimsByBeast[beast].push(item);
+      const seen = new Set();
+      raw.split(/[。！!？?；;\n]/).forEach(clause => {
+        if (!clause) return;
+        // 先找【獸首】括號標記，沒有才退而求其次找「獸首＋真/假」緊鄰
+        const marks = [];
+        currentBeasts.forEach(beast => {
+          const re = new RegExp('[【\\[]' + beast + '[】\\]]', 'g');
+          let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
+        });
+        if (!marks.length) {
+          currentBeasts.forEach(beast => {
+            const re = new RegExp(beast + '.{0,3}(真|假|贗)', 'g');
+            let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
+          });
+        }
+        marks.sort((x, y) => x.pos - y.pos);
+        marks.forEach((mk, i) => {
+          const end = i + 1 < marks.length ? marks[i + 1].pos : clause.length;
+          const seg = clause.slice(mk.pos, end);
+          const status = parseClauseStatus(seg) || (marks.length === 1 ? parseClauseStatus(clause) : null);
+          if (!status) return;
+          const key = mk.beast + status;
+          if (seen.has(key)) return;
+          seen.add(key);
+          const hedged = HEDGE_RE.test(clause);
+          const speakerPassPos = curPassOrder.indexOf(speakerId);
+          const seatEarlierThanMe = speakerPassPos !== -1 && myPosIdx !== -1 && speakerPassPos < myPosIdx;
+          const independentAdvantage = speakerPassPos !== -1
+            ? Math.max(0, 1 - speakerPassPos / Math.max(1, totalPlayers - 1)) : 0.5;
+          const item = {
+            speakerId, speaker, speakerName: speaker ? speaker.name : '未知玩家',
+            speechPos: idx, passPos: speakerPassPos,
+            beast: mk.beast, status, raw, hedged,
+            seatEarlierThanMe, wasEarlierInSpeech: idx < mySpeechPos, independentAdvantage
+          };
+          claims.push(item);
+          claimsByBeast[mk.beast].push(item);
+        });
       });
     });
 
@@ -6071,6 +6119,7 @@ class BotDeductionEngine {
     const directContradictions = [];
     reliableMyFacts.forEach(f => {
       (claimsByBeast[f.beast] || []).forEach(c => {
+        if (pov.isEvilCamp && (pov.knownTeammateIds || []).includes(c.speakerId)) return; // 不當眾拆隊友台
         if (c.status !== f.status) {
           directContradictions.push({ fact: f, claim: c });
         }
@@ -6233,148 +6282,223 @@ class BotDeductionEngine {
 
     let speech = '';
 
+    // 變體池：同一戰術不要連續出現同一句；輪流挑最近沒用過的句型
+    const _usage = (window.__botSpeechVariantUsage = window.__botSpeechVariantUsage || {});
+    const V = (key, arr) => {
+      arr = arr.filter(Boolean);
+      if (!arr.length) return '';
+      const used = _usage[key] || (_usage[key] = []);
+      let idxs = arr.map((_, i) => i).filter(i => !used.includes(i));
+      if (!idxs.length) { used.length = 0; idxs = arr.map((_, i) => i); }
+      const i = idxs[Math.floor(Math.random() * idxs.length)];
+      used.push(i);
+      if (used.length > Math.max(1, arr.length - 1)) used.shift();
+      return arr[i];
+    };
+    const midNames = (otherPos) => {
+      if (otherPos === -1 || myPosIdx === -1) return [];
+      const lo = Math.min(otherPos, myPosIdx), hi = Math.max(otherPos, myPosIdx);
+      if (hi - lo <= 1) return [];
+      return curPassOrder.slice(lo + 1, hi).map(id => { const q = getPlayer(id); return q ? q.name : ''; }).filter(Boolean);
+    };
+    const pubTaken = (beast) => (claimsByBeast[beast] || []).length > 0;
+    const freshBeast = () => {
+      const open = currentBeasts.filter(b => !pubTaken(b));
+      return pickOne(open.length ? open : currentBeasts) || '這輪獸首';
+    };
+
     if (strategy === 'ANCHOR_PRIVATE_FACT') {
-      const lead = earlySeatLateSpeech
-        ? `我座位其實在前面，雖然現在才講，但這是我親手驗的獨立情資：`
-        : (isFirstSpeaker ? '我先把自己真正摸到的東西講清楚：' : '我先把自己的情報放上來對齊：');
-      speech = `${lead}【${factBeast}】我自己確認是【${factStatus}】。這個點我願意先站住，後面誰報反的我們再拿傳遞順序來對。`;
+      const early = earlySeatLateSpeech;
+      speech = V('ANCHOR_PRIVATE_FACT', [
+        early ? `我座位其實排前面，只是現在才輪到講。【${factBeast}】是我自己驗的，${factStatus}，不是聽誰說的。` : '',
+        isFirstSpeaker ? `我先報，【${factBeast}】我驗到是${factStatus}。其他的我沒摸到，不亂講，後面誰跟我不一樣再來對傳遞順序。` : '',
+        `【${factBeast}】${factStatus}，這個我自己確定。有人報反的話，我們拿座位出來算。`,
+        `先放我的：【${factBeast}】是${factStatus}。我沒驗到的就不補故事了。`,
+        `我這邊【${factBeast}】看到的是${factStatus}，大家聽聽看，跟你們手上的對不對得起來。`
+      ]);
     }
     else if (strategy === 'ANCHOR_SOFTLY') {
-      const hedge = seatAdvantage > 0.65 ? '我這邊傳遞順序相對靠前，手感偏' : '我目前初步判斷偏';
-      speech = `【${factBeast}】${hedge}【${factStatus}】，但我不把它當百分之百鐵證。先看誰的說法能跟其他幾件獸首互相對得起來。`;
+      speech = V('ANCHOR_SOFTLY', [
+        `【${factBeast}】我偏${factStatus}，但不敢講死，${seatAdvantage > 0.65 ? '我位置算前面，中間被動手腳的機會少一點，' : '我前面經手的人不少，'}大家當參考就好。`,
+        `我自己的感覺是【${factBeast}】${factStatus}。不是百分百啦，先看其他獸首怎麼講，才知道這個能不能信。`,
+        `【${factBeast}】我這邊是${factStatus}，語氣我保留一點，等後面幾個人的說法出來再補。`,
+        `我先小聲講一下：【${factBeast}】應該是${factStatus}。不要全信我，看誰能跟我互相對上。`
+      ]);
     }
     else if (strategy === 'GOOD_DECOY_TEST') {
-      const decoy = chooseOtherBeast();
-      const decoyStatus = chance(0.62) ? '贗品' : '真品';
-      speech = `我先丟一個測試性判斷：【${decoy}】我暫時報【${decoyStatus}】。第一回合資訊太少，我更想看誰會急著接這個答案、誰會立刻反駁，先拿反應測身分。`;
+      const decoy = freshBeast();
+      const st = chance(0.62) ? '贗品' : '真品';
+      speech = V('GOOD_DECOY_TEST', [
+        `老實講我這輪沒什麼把握，純猜【${decoy}】是${st}。主要想看看有沒有人跳出來反對，這樣比較好判斷誰手上有東西。`,
+        `我只能憑感覺講，【${decoy}】我猜${st}，沒有證據。誰有硬資訊的直接打我臉沒關係。`,
+        `【${decoy}】我暫時猜${st}，這個猜測不值錢，我比較想聽後面的人怎麼回應。`
+      ]);
     }
     else if (strategy === 'EVIL_FLIP_FACT') {
-      const flippedStatus = myFact ? (myFact.status === '真品' ? '贗品' : '真品') : (chance(0.5) ? '贗品' : '真品');
-      const flippedBeast = myFact ? myFact.beast : chooseOtherBeast();
-      speech = `我這輪驗到的是【${flippedBeast}】，手感做工很粗，我先報【${flippedStatus}】。我先看後面誰會順著這句話接下去，方便我找出真正掌握情報的人。`;
+      const cf = reliableMyFacts.length ? pickOne(reliableMyFacts) : null;
+      const fb = cf ? cf.beast : freshBeast();
+      const fs = cf ? (cf.status === '真品' ? '贗品' : '真品') : (chance(0.5) ? '贗品' : '真品');
+      speech = V('EVIL_FLIP_FACT', [
+        `【${fb}】我驗到是${fs}，這個我蠻有把握的。後面誰跟我講不一樣，要說清楚自己是怎麼拿到的。`,
+        `我這輪的結論是【${fb}】${fs}。先講在前面，之後有衝突再一起算傳遞順序。`,
+        `【${fb}】${fs}，我手上看到的就是這樣，不拐彎。`,
+        `我先報【${fb}】${fs}，看看大家怎麼接。`
+      ]);
     }
     else if (strategy === 'EVIL_HIDE_FACT') {
-      const bait = chooseOtherBeast();
-      speech = `我手上有些查驗情報，但現在全盤攤開沒有戰術價值。我反而先看【${bait}】這條線誰最先站死，因為真正有能力的人往往會忍不住在自己熟悉的話題上出手。`;
+      const bait = freshBeast();
+      speech = V('EVIL_HIDE_FACT', [
+        `我手上有東西，但現在攤開沒有幫助。我比較在意【${bait}】這條，誰先站死、誰在旁邊看，我都會記。`,
+        `情報我先收著，【${bait}】讓大家先吵，吵完再看誰的說法最前後一致。`
+      ]);
     }
     else if (strategy === 'EVIL_ANCHOR') {
-      speech = `我先給一個可以拿來驗證的參考點：【${factBeast}】我判斷偏【${factStatus}】。但我真正想看的是後面誰跟、誰反，等整輪講完再看哪個說法是在刻意帶風向。`;
+      speech = V('EVIL_ANCHOR', [
+        `我給一個可以驗證的點：【${factBeast}】${factStatus}。之後誰跟、誰反我都會看，帶風向的人通常藏不住。`,
+        `【${factBeast}】我這邊${factStatus}，先放著當基準，我更想知道後面誰會急著改口。`,
+        `我先講【${factBeast}】${factStatus}。後面的人如果剛好都同一個方向，反而要小心是不是互相抄。`
+      ]);
     }
     else if (strategy === 'EVIL_PUBLIC_BLUFF') {
-      const bait = chooseOtherBeast();
-      speech = `我先把【${bait}】報成【${chance(0.5) ? '真品' : '贗品'}】，故意留一點爭議。第一輪資訊量低，與其搶著證明自己對，不如先看誰對哪個答案反應過度。`;
+      const bait = freshBeast();
+      const st = chance(0.5) ? '真品' : '贗品';
+      speech = V('EVIL_PUBLIC_BLUFF', [
+        `【${bait}】我覺得是${st}，不過第一輪資訊少，我也只是先丟個方向，看誰反應特別大。`,
+        `先講【${bait}】${st}。我沒要大家信，只是想看誰會馬上附和、誰會追問。`,
+        `我猜【${bait}】${st}，後面如果有人手上的跟我不同，直接說，沒關係。`
+      ]);
     }
     else if (strategy === 'CONFRONT_WITH_EVIDENCE' && contradiction) {
       const c = contradiction.claim;
       const cDesc = getPlayerColorDesc(c.speaker);
-      const certaintyWord = seatAdvantage > 0.65 ? '我會直接站' : '我先偏向';
-      let midText = '';
-      if (c.passPos !== -1 && myPosIdx !== -1) {
-        const lo = Math.min(c.passPos, myPosIdx), hi = Math.max(c.passPos, myPosIdx);
-        if (hi - lo > 1) {
-          const mids = curPassOrder.slice(lo + 1, hi).map(id => {
-            const p = getPlayer(id);
-            return p ? p.name : '';
-          }).filter(Boolean);
-          if (mids.length) midText = `中間經手的是【${mids.join('、')}】，`;
-        }
-      }
-      const upstreamHint = c.seatEarlierThanMe
-        ? `你的位置還比我更早，${midText ? midText + '老朝奉完全可能在中間介入動手腳，' : '我反而要把你前面的傳遞者一起盤進來，因為中間可能有人動過手腳，'}不能只認定你一個人。`
-        : `你是比較後面的傳遞資訊，${midText ? midText + '老朝奉很可能在中間動過手腳，' : ''}跟我的座位／發言位置都不同，不能只看你最後那句。`;
-      speech = `${cDesc}剛才把【${contradiction.fact.beast}】說成【${c.status}】，但我自己拿到的是【${contradiction.fact.status}】；${certaintyWord}我的版本。${upstreamHint}`;
+      const mids = midNames(c.passPos);
+      const midText = mids.length ? `中間經手的是【${mids.join('、')}】，` : '';
+      const adjacent = c.passPos !== -1 && myPosIdx !== -1 && Math.abs(c.passPos - myPosIdx) === 1;
+      const upstreamHint = adjacent
+        ? V('UP_ADJ', ['我跟你是相鄰傳遞，中間沒有別人碰過，不是你看錯就是你有問題。', '我們兩個之間沒有第三人經手，這個矛盾沒辦法推給別人。'])
+        : (c.seatEarlierThanMe
+          ? V('UP_EARLY', [`你比我更早拿到，${midText}老朝奉可能在那段動過手腳，我不會只盯你一個人。`, `你拿得比我早，${midText}問題不一定出在你，中間有人被擾亂也說得通。`, `${midText}你在前我在後，要嘛你被動過，要嘛中間有人，先別急著抓你。`])
+          : V('UP_LATE', [`你比我晚拿到，${midText}老朝奉要動手也是在中間，不能只看你最後那句。`, `你在我後面，${midText}我們中間那段才是重點，不是單純誰說謊。`, `${midText}你晚我一手，我的結果沒被碰過的機率比較高，所以我先信我自己的。`]));
+      const f = contradiction.fact;
+      speech = V('CONFRONT', [
+        `${cDesc}，【${f.beast}】你說${c.status}，但我手上是${f.status}，我站我的版本。${upstreamHint}`,
+        `我要回${cDesc}一下：【${f.beast}】我驗到${f.status}，跟你講的${c.status}對不上。${upstreamHint}`,
+        `${cDesc}那句【${f.beast}】${c.status}我沒辦法接受，我這邊明明是${f.status}。${upstreamHint}`
+      ]);
     }
     else if (strategy === 'CONFLICT_WITH_CAUTION' && contradiction) {
       const c = contradiction.claim;
       const cDesc = getPlayerColorDesc(c.speaker);
-      let midText = '';
-      if (c.passPos !== -1 && myPosIdx !== -1) {
-        const lo = Math.min(c.passPos, myPosIdx), hi = Math.max(c.passPos, myPosIdx);
-        if (hi - lo > 1) {
-          const mids = curPassOrder.slice(lo + 1, hi).map(id => {
-            const p = getPlayer(id);
-            return p ? p.name : '';
-          }).filter(Boolean);
-          if (mids.length) midText = `中間經手的是【${mids.join('、')}】，`;
-        }
-      }
-      speech = `【${contradiction.fact.beast}】我自己看到的是【${contradiction.fact.status}】，但${cDesc}剛才講相反。先不要急著判誰是假貨，${midText ? midText + '老朝奉完全可能在中間造成反轉，' : '他前一家有沒有可能造成反轉，'}我們要往前追這條資訊鏈。`;
+      const mids = midNames(c.passPos);
+      speech = `【${contradiction.fact.beast}】我看到的是${contradiction.fact.status}，但${cDesc}講相反。先別急著判誰說謊，${mids.length ? '中間經手的' + mids.join('、') + '也要看，' : ''}往前追資訊鏈比較實在。`;
     }
     else if (strategy === 'MAP_PUBLIC_CONFLICT' && conflict) {
       const r = conflict.real[0], f = conflict.fake[0];
       const rDesc = getPlayerColorDesc(r.speaker), fDesc = getPlayerColorDesc(f.speaker);
-      const ordering = (r.passPos !== -1 && f.passPos !== -1 && r.passPos < f.passPos) ? `${rDesc}的座位更前` : `${fDesc}的座位更前`;
-      const lo = Math.min(r.passPos, f.passPos), hi = Math.max(r.passPos, f.passPos);
-      let midChain = '';
-      if (r.passPos !== -1 && f.passPos !== -1 && hi - lo > 1) {
-        const mids = curPassOrder.slice(lo + 1, hi).map(id => {
-          const p = getPlayer(id);
-          return p ? p.name : '';
-        }).filter(Boolean);
-        if (mids.length) midChain = `，中間經手的【${mids.join('、')}】也要一起看`;
-      }
-      const baseline = isRound1 ? '第一回合我先用一真一假當暫時模型' : '現在不能只用單一個人的口供定真偽';
-      speech = `現在【${conflict.beast}】已經出現正反兩種答案：${rDesc}報真、${fDesc}報假。${ordering}，理論上資訊比較乾淨${midChain}；${baseline}，先看下一個人站哪邊，再往前追這條資訊鏈。`;
+      const earlier = (r.passPos !== -1 && f.passPos !== -1 && r.passPos < f.passPos) ? rDesc : fDesc;
+      const mids = midNames(r.passPos !== -1 && f.passPos !== -1 ? (r.passPos < f.passPos ? f.passPos : r.passPos) : -1);
+      const midChain = (r.passPos !== -1 && f.passPos !== -1)
+        ? (() => { const lo = Math.min(r.passPos, f.passPos), hi = Math.max(r.passPos, f.passPos);
+            const ns = hi - lo > 1 ? curPassOrder.slice(lo + 1, hi).map(id => { const q = getPlayer(id); return q ? q.name : ''; }).filter(Boolean) : [];
+            return ns.length ? `中間經手的【${ns.join('、')}】也要算進來，` : ''; })() : '';
+      speech = V('MAP_CONFLICT', [
+        `【${conflict.beast}】現在${rDesc}說真、${fDesc}說假，兩邊不可能都對。${earlier}拿到得比較早，資訊理論上比較乾淨；${midChain}我想先看下一個人站哪邊。`,
+        `${rDesc}跟${fDesc}在【${conflict.beast}】上講反了。我不會直接挑一個信，${midChain}先看誰的座位跟說法比較合理。`,
+        `【${conflict.beast}】出現正反兩種說法了：${rDesc}真、${fDesc}假。${midChain}${isRound1 ? '第一輪我先用一真一假當暫時模型，' : ''}後面的人要表態，不要都躲著。`
+      ]);
     }
     else if (strategy === 'LET_CONFLICT_BREW' && conflict) {
       const b = conflict.beast;
       const left = getPlayerColorDesc((conflict.real[0] || conflict.fake[0]).speaker);
       const right = getPlayerColorDesc((conflict.fake[0] || conflict.real[0]).speaker);
-      speech = `我先不急著在【${b}】這裡定生死，現在${left}跟${right}已經互相對沖。我要看的不是誰講得大聲，而是他們各自在自己座位和前後傳遞中的合理性，等更多資訊補進來再翻盤。`;
+      speech = V('LET_BREW', [
+        `【${b}】${left}跟${right}已經互相對沖了，我先不插手。誰在座位上比較合理，等更多人講完就看得出來。`,
+        `我不急著在【${b}】站邊，${left}和${right}各講各的，讓他們再說清楚一點我再決定。`,
+        `【${b}】這條先放著，吵起來的${left}、${right}我兩個都先記著。`
+      ]);
     }
     else if (strategy === 'QUESTION_COPYING' && repeated) {
       const claim = repeated.list[0];
       const who = getPlayerColorDesc(claim.speaker);
-      const copiedCount = repeated.list.filter(x => x.status === repeated.status).length;
-      speech = `【${repeated.beast}】已經有至少${copiedCount}個人報【${repeated.status}】，${who}是目前最早喊這條線的人。後面越多人跟，資訊未必越真，還可能只是互相抄答案；大家注意後面發言有沒有自己的獨立依據。`;
+      const n = repeated.list.filter(x => x.status === repeated.status).length;
+      speech = V('Q_COPY', [
+        `【${repeated.beast}】已經${n}個人報${repeated.status}了，最早講的是${who}。越多人同一個方向，我反而越怕是在互相抄，後面的人有獨立依據嗎？`,
+        `${who}先講【${repeated.beast}】${repeated.status}，後面幾個全部跟。跟的人麻煩說一下是自己驗的還是聽完才附和。`,
+        `我注意到【${repeated.beast}】這條一路都是${repeated.status}，來源看起來只有${who}一個，後面像是在複誦。`
+      ]);
     }
     else if (strategy === 'ALIGN_BUT_MARK_OWN_SOURCE' && repeated) {
       const who = getPlayerColorDesc(repeated.list[0].speaker);
-      speech = `我跟${who}在【${repeated.beast}】的方向暫時一致，先都是【${repeated.status}】；但我要講清楚，我不是因為他先講我才跟，我自己有獨立的判定依據。後面有人反駁再看誰的座位更合理。`;
+      speech = V('ALIGN', [
+        `我跟${who}在【${repeated.beast}】一樣是${repeated.status}，但我不是跟他講的，我拿到的時候他還沒開口。`,
+        `【${repeated.beast}】${repeated.status}，跟${who}同方向。我有我自己的判斷依據，不是順著他走。`,
+        `${who}說的【${repeated.beast}】我也看${repeated.status}，兩個人各自看到的，可信度應該會高一點。`
+      ]);
     }
     else if (strategy === 'HUNT_ABILITY_ROLE' && topAbilityThreat) {
-      const p = topAbilityThreat.player;
-      const desc = getPlayerColorDesc(p);
-      const randPattern = Math.random();
-      if (randPattern < 0.33) {
-        speech = `我現在比較在意${desc}，他剛才講話的語氣和資訊深度不太像盲猜的普通人，更像手握特殊情報的神職角色，大家注意看他後面的票型跟發言有沒有對上。`;
-      } else if (randPattern < 0.66) {
-        speech = `前面幾家發言看下來，${desc}的傳遞位置和說話時機點抓得很精準，這不是運氣好，而是很像場上有特殊視角的人。我先留心他的動向，看他會不會繼續帶節奏。`;
-      } else {
-        speech = `大家別光盯著獸首表面，${desc}剛才對局面的引導很明顯是有備而來，很有關鍵能力位的特徵。我們等等看他是真心在幫好人排查，還是在暗中操作。`;
-      }
+      const desc = getPlayerColorDesc(topAbilityThreat.player);
+      speech = V('HUNT', [
+        `我有點在意${desc}，他講的資訊量不太像亂猜，比較像手上握著什麼。後面看他的票有沒有跟發言對上。`,
+        `${desc}剛才抓時機抓得很準，不像運氣。我先把他記成可能有能力的人，不一定是壞人，但值得盯。`,
+        `大家別只看獸首，${desc}的節奏有點不一樣，感覺是有備而來。先觀察，不急著表態。`,
+        `${desc}你講話很穩，是你資訊比較多，還是只是膽子大？這個我想聽你自己解釋。`
+      ]);
     }
     else if (strategy === 'TEST_PLAYERS') {
       const focus = targetedSpeaker ? getPlayerColorDesc(targetedSpeaker.speaker) : (publicTopSuspect ? getPlayerColorDesc(publicTopSuspect) : '前面幾位');
-      speech = `第一輪我暫時不急著把誰直接坐死，我更在意${focus}的反應。四件獸首固定兩真兩假，前兩個答案先拿來當測試盤，等正反資訊互撞後，再把像壞人的人和可能有能力的人分開。`;
+      speech = V('TEST_PLAYERS', [
+        `第一輪我不想把誰直接坐死，比較在意${focus}的反應。獸首兩真兩假，前面的答案先當測試盤，等互撞再分人。`,
+        `${focus}我想問一句：你剛剛那個答案是自己驗的，還是聽前面的才定的？這會影響我怎麼看你。`,
+        `先不下結論，我想看${focus}接下來遇到反駁會怎麼處理。`
+      ]);
     }
     else if (strategy === 'PRESS_SUSPECT' && publicTopSuspect) {
       let reason = publicTopSuspect.primaryReason || '發言和行動沒有對上';
-      // 關鍵包裝：過濾「技能查驗」、「親身查驗」等內部系統宣告，轉化為自然桌遊說辭
       if (reason.includes('方震') || reason.includes('技能') || reason.includes('查驗：確認')) {
-        reason = '全程幾輪下來的行為軌跡和陣營特徵完全不符合好人';
+        reason = '這幾輪的行為軌跡不太像好人';
       } else if (reason.includes('親驗') && reason.includes('老朝奉必在')) {
-        reason = '傳遞序列排在前端卻給出反轉答案，有明顯擾亂痕跡';
+        reason = '傳遞位置在前面卻給出反轉的答案，有擾亂痕跡';
       }
-      speech = `我先點${getPlayerColorDesc(publicTopSuspect)}不是因為他講錯一句，而是他【${reason}】。你可以跟我在獸首上對撞，但我要的是你把自己的資訊來源和座位邏輯講清楚，不然你的嫌疑很難洗乾淨。`;
+      const sd = getPlayerColorDesc(publicTopSuspect);
+      speech = V('PRESS', [
+        `我目前最在意的是${sd}，不是因為他某一句講錯，而是${reason}。你要洗清的話，把你的資訊來源跟座位講清楚。`,
+        `${sd}我先點一下：${reason}。我不一定要投他，但他得給個說法。`,
+        `如果要我現在挑一個可疑的，我會挑${sd}，理由是${reason}。大家有不同意見可以反駁我。`
+      ]);
     }
     else if (strategy === 'COMPARE_AND_WAIT') {
-      const beast = chooseOtherBeast();
+      const beast = freshBeast();
       const prev = targetedSpeaker ? getPlayerColorDesc(targetedSpeaker.speaker) : '前面的人';
-      speech = `${prev}剛才的方向我有聽，但我不會直接照抄。現在【${beast}】的說法還沒形成完整證據，我先保留票型，等前後兩邊都講完，再看誰是在提供資訊、誰是在借資訊。`;
+      speech = V('COMPARE', [
+        `${prev}的方向我有聽，不過我不會直接照抄。【${beast}】現在還沒形成完整證據，我票先留著，看後面誰在提供資訊、誰在借資訊。`,
+        `【${beast}】目前的說法還不夠硬，我先聽完${prev}之後的人怎麼講再決定。`,
+        `我沒有要跟${prev}，也沒有要反他，【${beast}】我再觀察一下。`
+      ]);
     }
     else if (strategy === 'AMBIGUOUS_SETUP') {
-      const b = chooseOtherBeast();
-      speech = `我先留一點彈性，【${b}】我有自己的猜法但現在不想把話講死。第一輪最有價值的是觀察誰對衝突反應過大、誰急著把別人帶成壞人，這些比單獨一個真假答案更有用。`;
+      const b = freshBeast();
+      speech = V('AMBIGUOUS', [
+        `【${b}】我心裡有個猜法，但現在不想講死。我比較想看誰對衝突反應過大、誰急著把別人帶成壞人。`,
+        `我先留一點彈性，【${b}】我不想當第一個定調的人，先聽大家的。`,
+        `這輪我先觀察，【${b}】後面有人報我再比對。`
+      ]);
     }
     else if (strategy === 'OBSERVE_AND_TEST') {
-      const b = chooseOtherBeast();
+      const b = freshBeast();
       const focus = targetedSpeaker ? getPlayerColorDesc(targetedSpeaker.speaker) : '前面發言的人';
-      speech = `我目前沒有要盲跟【${b}】這條線，反而先看${focus}接下來怎麼處理反駁。這局固定三壞五好，獸首每輪兩真兩假，所以一個答案要放進整條資訊鏈才有意義。`;
+      speech = V('OBSERVE', [
+        `我沒有要盲跟【${b}】這條線，先看${focus}怎麼處理反駁。一個答案要放進整條資訊鏈才有意義。`,
+        `${focus}的說法我先放著，【${b}】我還不想表態，等有人拿出能對上的東西。`,
+        `【${b}】我不打算跟風。座位、誰先講誰後講都要一起看，這輪我先保留。`
+      ]);
     }
     else {
-      const b = chooseOtherBeast();
-      speech = `先把目前資訊攤開：我不會因為【${b}】有人報過就直接認定是真。座位、傳遞、誰先說誰後說都要一起看，這輪我先保留，等下一個矛盾點出來再決定攻誰。`;
+      const b = freshBeast();
+      speech = V('DEFAULT', [
+        `【${b}】有人報過我也不會直接當真。座位跟發言順序要一起看，這輪我先保留，等下一個矛盾點出來再決定攻誰。`,
+        `我先把目前資訊記下來，【${b}】我還沒有要定。`,
+        `這輪我先聽，【${b}】的說法還不夠讓我下判斷。`
+      ]);
     }
 
     // 姬雲浮被偷襲後：絕不洩漏失明，正常參與對其他玩家的資訊戰
@@ -6404,9 +6528,9 @@ class BotDeductionEngine {
     // 尾家結尾自然變化
     if (!/[。！!？?]$/.test(speech)) speech += '。';
     if (isTailSpeaker && chance(0.42)) {
-      speech += chance(0.5) ? '我身為尾家先給結論，票型等最後一位補完再定。' : '尾家我先把矛盾收斂，大家不要只盯一個答案。';
+      speech += V('TAIL', ['我排比較後面，先把矛盾收一收，票型等最後一位補完再定。', '尾巴我先講到這，大家不要只盯一個答案。', '']);
     } else if (chance(0.18)) {
-      speech += '先這樣，後面有人能打臉我再翻。';
+      speech += V('SUFFIX', ['後面有人能打臉我再翻。', '先這樣，有新資訊我再改。', '']);
     }
 
     const addPersona = (base) => {
