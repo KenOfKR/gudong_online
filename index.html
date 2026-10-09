@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (v3.7.4 無效資料自動扣減分母精算版)</title>  
+ <title>古董局中局 (版本 3.7.5)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1590,7 +1590,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.7.4 (無效資料自動扣減分母精算版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.7.5</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -2690,7 +2690,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.7.4 無效資料自動扣減分母精算版已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.7.5 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -21907,7 +21907,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
                     <span>壞人勝率: <b class="text-rose-400 font-mono">${evilRate}</b></span>
                   </div>
                   <div class="text-[10px] text-amber-400/90 mt-0.5 whitespace-nowrap overflow-hidden">
-                    查驗率: <b class="text-amber-300 font-mono">${inspectRate}</b> | 順序: <b>${favPosStr}</b> ${favBeastsStr ? `| 獸首: <b>${favBeastsStr}</b>` : ''}
+                    順序: <b>${favPosStr}</b> ${favBeastsStr ? `| 獸首: <b>${favBeastsStr}</b>` : ''}
                   </div>
                 </div>
               </div>
@@ -22005,7 +22005,6 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
               <div class="flex items-center text-xs leading-tight">
                 <span class="text-neutral-300 font-medium whitespace-nowrap">是真品機率：</span>
                 <span class="font-black text-emerald-400 font-mono ml-1">${realRate}</span>
-                <span class="text-[9px] text-neutral-500 font-mono ml-1">(${item.realCount}/${item.appearedCount})</span>
               </div>
               <div class="flex items-center text-xs leading-tight">
                 <span class="text-neutral-300 font-medium whitespace-nowrap">被查驗機率：</span>
@@ -22193,15 +22192,38 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         }).join('');
 
         return `
-          <div class="space-y-2 mb-4">
-            <div class="px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs font-black text-amber-400 flex items-center justify-between">
-              <span>📅 日期：${dKey}</span>
-              <span class="text-[10px] text-neutral-400 font-mono font-normal">共 ${matchesOnDate.length} 場全真人對局</span>
+          <div class="border border-neutral-800 rounded-xl overflow-hidden mb-3 bg-neutral-950">
+            <div class="px-3.5 py-2.5 bg-neutral-900/90 hover:bg-neutral-800 cursor-pointer flex items-center justify-between transition select-none" onclick="toggleHistoryDateGroup('${dIdx}')">
+              <div class="flex items-center space-x-2">
+                <span id="dateArrow_${dIdx}" class="text-amber-400 text-xs font-mono transition-transform duration-200">▶</span>
+                <span class="text-xs font-black text-amber-400">📅 日期：${dKey}</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-[11px] text-neutral-400 font-mono">共 ${matchesOnDate.length} 場對局</span>
+                <span class="text-[10px] text-neutral-500 font-mono">點擊展開/收合</span>
+              </div>
             </div>
-            <div class="space-y-2">${dayMatchCards}</div>
+            <div id="dateGroup_${dIdx}" class="hidden p-2.5 space-y-2 border-t border-neutral-800/60 bg-neutral-950/60">
+              ${dayMatchCards}
+            </div>
           </div>
         `;
       }).join('');
+    }
+
+    function toggleHistoryDateGroup(dIdx) {
+      const el = document.getElementById(`dateGroup_${dIdx}`);
+      const arrow = document.getElementById(`dateArrow_${dIdx}`);
+      if (el) {
+        const isHidden = el.classList.contains('hidden');
+        if (isHidden) {
+          el.classList.remove('hidden');
+          if (arrow) arrow.innerText = '▼';
+        } else {
+          el.classList.add('hidden');
+          if (arrow) arrow.innerText = '▶';
+        }
+      }
     }
 
     function toggleHistoryMatchDetail(idxStr) {
