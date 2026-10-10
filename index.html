@@ -6011,6 +6011,72 @@ class BotDeductionEngine {
     }
   }
 
+  // 解析一段發言中「發言者自己的」獸首真假主張。
+  // 排除：轉述別人（「昱全說【龍】是贗品」）、回應別人（「你說贗品，但我手上是真品」取後半）。
+  static parseOwnClaims(raw, beasts) {
+    const REAL_RE = /(真品|保真|是真的|是真|偏真|應該真)/;
+    const FAKE_RE = /(贗品|假貨|假的|是假|偏假|偏贗|應該假)/;
+    const HEDGE_RE = /(偏|傾向|可能|大概|感覺|手感|八成|不確定|不敢說|不一定|猜|應該)/;
+    const statusOf = (seg) => {
+      const negF = /(不是|並非|不像|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(贗品|假貨|假的|假)/.test(seg);
+      const negR = /(不是|並非|不像|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(真品|真的|真)/.test(seg);
+      const hasR = REAL_RE.test(seg), hasF = FAKE_RE.test(seg);
+      if (negF && !hasR) return '真品';
+      if (negR && !hasF) return '贗品';
+      if (hasF && !hasR) return '贗品';
+      if (hasR && !hasF) return '真品';
+      if (hasR && hasF) return seg.search(REAL_RE) < seg.search(FAKE_RE) ? '真品' : '贗品';
+      return null;
+    };
+    const ATTRIB = /(說|講|報|提到|指出|喊|認為|覺得|聽到|聽見|回|答|表示)\s*(的|成)?\s*$/;      // 「昱全說」「某某講的」
+    const ATTRIB2 = /(那句|說的|講的|報的|的說法|你說|他說|她說|你講|他講)\s*$/;
+    const AGREE = /((我也|我這邊也)[^，。；]{0,4}(真品|贗品|真|假|贗)|同意|跟.{1,8}一樣|一致|同方向|一樣是)/;
+    const OWN = /我(自己|這邊|手上|這輪)?(也)?(驗到|驗|查驗|拿到|摸到|看到|的結果|這邊|手上|看)/;
+    const out = [], seen = new Set();
+    String(raw || '').split(/[。！!？?；;\n]/).forEach(clause => {
+      if (!clause) return;
+      const marks = [];
+      (beasts || []).forEach(beast => {
+        const re = new RegExp('[【\\[]' + beast + '[】\\]]', 'g');
+        let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
+      });
+      if (!marks.length) {
+        (beasts || []).forEach(beast => {
+          const re = new RegExp(beast + '.{0,3}(真|假|贗)', 'g');
+          let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
+        });
+      }
+      marks.sort((x, y) => x.pos - y.pos);
+      marks.forEach((mk, i) => {
+        const end = i + 1 < marks.length ? marks[i + 1].pos : clause.length;
+        const prefix = clause.slice(Math.max(0, mk.pos - 12), mk.pos);
+        const subjPrefix = prefix.replace(/[【\[][^】\]]{1,8}[】\]]$/, '');
+        const attributed = (ATTRIB.test(prefix) && !/我\s*(也)?\s*(說|講|報|覺得|認為)\s*$/.test(prefix))
+                        || ATTRIB2.test(prefix);
+        let seg = clause.slice(mk.pos, end);
+        // 同一段裡「你說…，但我…」取自己的那一半
+        const own = seg.match(/(?:但|可是|不過)?我(?:自己|這邊|手上|這輪)?(?:也)?[^，。；]{0,8}?(真品|贗品|偏真|偏假|偏贗)/);
+        let status = null;
+        if (own) status = statusOf(own[0]);
+        if (!status && attributed) {
+          // 轉述別人：除非這句同時表示「我也同意」才算自己的主張
+          if (AGREE.test(clause) && !/(但我|可是我|不過我)/.test(clause)) status = statusOf(seg);
+          else return;
+        }
+        if (!status) {
+          if (/^[【\[][^】\]]{1,3}[】\]]\s*(你說|他說|她說|你講|他講)/.test(seg) && !OWN.test(seg)) return;
+          status = statusOf(seg) || (marks.length === 1 ? statusOf(clause) : null);
+        }
+        if (!status) return;
+        const key = mk.beast + status;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push({ beast: mk.beast, status, hedged: HEDGE_RE.test(clause) });
+      });
+    });
+    return out;
+  }
+
   static generateSpeech(pov, beliefs) {
     const curRoundIdx = Number(pov.currentRoundIdx || 0);
     const curPassOrder = (pov.passOrders && pov.passOrders[curRoundIdx]) || [];
@@ -6056,64 +6122,26 @@ class BotDeductionEngine {
     const claimsByBeast = {};
     currentBeasts.forEach(b => { claimsByBeast[b] = []; });
 
-    // 逐句、逐獸首解析：避免把 A 獸首的真假誤算到 B 獸首；處理「不是真品」等否定與語氣保留
-    const REAL_RE = /(真品|保真|是真的|是真|偏真|應該真)/;
-    const FAKE_RE = /(贗品|假貨|假的|是假|偏假|偏贗|應該假)/;
-    const HEDGE_RE = /(偏|傾向|可能|大概|感覺|手感|八成|不確定|不敢說|不一定|猜|應該)/;
-    const parseClauseStatus = (seg) => {
-      let neg = /(不是|並非|不像|沒有|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(真品|真的|真)/.test(seg);
-      let negF = /(不是|並非|不像|不算)\s*[【\[]?[^，。；]{0,4}[】\]]?\s*(贗品|假貨|假的|假)/.test(seg);
-      const hasR = REAL_RE.test(seg), hasF = FAKE_RE.test(seg);
-      if (negF && !hasR) return '真品';
-      if (neg && !hasF) return '贗品';
-      if (hasF && !hasR) return '贗品';
-      if (hasR && !hasF) return '真品';
-      if (hasR && hasF) return seg.search(REAL_RE) < seg.search(FAKE_RE) ? '真品' : '贗品';
-      return null;
-    };
+    // 逐句、逐獸首解析（共用靜態解析器）：只把「發言者自己的結論」算成他的主張，轉述別人的話不算
     curRoundSpeeches.forEach((speech, idx) => {
       const speakerId = speech.playerId || speech.speakerId;
       const speaker = getPlayer(speakerId);
       const raw = String(speech.speech || speech.text || '').trim();
       if (!raw) return;
-      const seen = new Set();
-      raw.split(/[。！!？?；;\n]/).forEach(clause => {
-        if (!clause) return;
-        // 先找【獸首】括號標記，沒有才退而求其次找「獸首＋真/假」緊鄰
-        const marks = [];
-        currentBeasts.forEach(beast => {
-          const re = new RegExp('[【\\[]' + beast + '[】\\]]', 'g');
-          let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
-        });
-        if (!marks.length) {
-          currentBeasts.forEach(beast => {
-            const re = new RegExp(beast + '.{0,3}(真|假|贗)', 'g');
-            let m; while ((m = re.exec(clause))) marks.push({ beast, pos: m.index });
-          });
-        }
-        marks.sort((x, y) => x.pos - y.pos);
-        marks.forEach((mk, i) => {
-          const end = i + 1 < marks.length ? marks[i + 1].pos : clause.length;
-          const seg = clause.slice(mk.pos, end);
-          const status = parseClauseStatus(seg) || (marks.length === 1 ? parseClauseStatus(clause) : null);
-          if (!status) return;
-          const key = mk.beast + status;
-          if (seen.has(key)) return;
-          seen.add(key);
-          const hedged = HEDGE_RE.test(clause);
-          const speakerPassPos = curPassOrder.indexOf(speakerId);
-          const seatEarlierThanMe = speakerPassPos !== -1 && myPosIdx !== -1 && speakerPassPos < myPosIdx;
-          const independentAdvantage = speakerPassPos !== -1
-            ? Math.max(0, 1 - speakerPassPos / Math.max(1, totalPlayers - 1)) : 0.5;
-          const item = {
-            speakerId, speaker, speakerName: speaker ? speaker.name : '未知玩家',
-            speechPos: idx, passPos: speakerPassPos,
-            beast: mk.beast, status, raw, hedged,
-            seatEarlierThanMe, wasEarlierInSpeech: idx < mySpeechPos, independentAdvantage
-          };
-          claims.push(item);
-          claimsByBeast[mk.beast].push(item);
-        });
+      BotDeductionEngine.parseOwnClaims(raw, currentBeasts).forEach(cl => {
+        const speakerPassPos = curPassOrder.indexOf(speakerId);
+        const seatEarlierThanMe = speakerPassPos !== -1 && myPosIdx !== -1 && speakerPassPos < myPosIdx;
+        const independentAdvantage = speakerPassPos !== -1
+          ? Math.max(0, 1 - speakerPassPos / Math.max(1, totalPlayers - 1)) : 0.5;
+        const item = {
+          speakerId, speaker, speakerName: speaker ? speaker.name : '未知玩家',
+          speechPos: idx, passPos: speakerPassPos,
+          beast: cl.beast, status: cl.status, raw, hedged: cl.hedged,
+          seatEarlierThanMe, wasEarlierInSpeech: idx < mySpeechPos, independentAdvantage
+        };
+        claims.push(item);
+        if (!claimsByBeast[cl.beast]) claimsByBeast[cl.beast] = [];
+        claimsByBeast[cl.beast].push(item);
       });
     });
 
@@ -6790,17 +6818,8 @@ class BotDeductionEngine {
       speech += V('SUFFIX', ['後面有人能打臉我再翻。', '先這樣，有新資訊我再改。', '']);
     }
 
-    const addPersona = (base) => {
-      if (!base) return '';
-      // 降低口頭禪插入口徑至極低頻率 (4%)，且只允許 12 字以內極短感嘆，絕不讓幹話宣賓奪主
-      if (arch && Array.isArray(arch.phrases) && arch.phrases.length && chance(0.04)) {
-        const motto = String(pickOne(arch.phrases) || '').trim();
-        if (motto && motto.length <= 12 && !motto.includes('奶茶') && !motto.includes('騷擾') && !motto.includes('性感')) {
-          return `${base} ${motto}`;
-        }
-      }
-      return base;
-    };
+    // 口頭禪不再硬加在發言後面（語意對不上會很生硬）
+    const addPersona = (base) => base || '';
     const finalize = (str) => {
       if (typeof str !== 'string') return str;
       let res = (window.stripSelfDoubt ? window.stripSelfDoubt(str) : str).trim();
@@ -23434,7 +23453,7 @@ window.BotSimulationEngine = BotSimulationEngine;
       : '第一回合已有人提出非標準配置，允許保持開放假設，不可硬套一真一假。';
 
     const sys = `你正在玩陣營桌遊《古董局中局》，扮演「${pov.myName}」（身分【${pov.myRole}】、${pov.isGoodCamp ? '好人陣營' : '壞人陣營'}）。
-你的人設稱號：${pTitle}；戰術風格：${spec}；口頭禪只是點綴，不是發言內容本身：${motto || '無'}。
+你的人設稱號：${pTitle}；戰術風格：${spec}；發言只談當下局勢與獸首，不要加任何口頭禪、玩笑話、髒話或英文單字，除非內容真的和古董、鑑寶有關。
 
 【這次發言真正要解決的問題】
 ${tactic}
@@ -23459,7 +23478,7 @@ ${ownFactLine}
 3. 同一獸首出現正反答案時，不只懷疑講相反的那個人；要把他的前一家、傳遞時序與可能的老朝奉擾亂一起考慮。
 4. 第一回合資訊最少，應把很多發言當作「測身分」的工具；不要因一句話就直接坐死玩家。
 5. 三壞五好、每輪四獸首固定兩真兩假。好人要盤三壞人；壞人也要反過來盤出許願、方震、姬雲浮等能力位，不能只聊獸首。
-6. 口頭禪放在分析後面當點綴，不能取代推理；避免每個角色都用同樣的句型。
+6. 不要加口頭禪、玩笑或與當下局勢無關的句子；每一句都要和前面的獸首與發言有語意關聯；避免每個角色都用同樣的句型。
 7. 純繁體中文、約45～90字，1～3句自然桌遊口語；可以不號票。
 8. 姬雲浮被永久封閉時不得說「驗不到／無法辨別／被偷襲」；照常分析公開資訊。
 9. 方震不得用「看不懂／驗不到」暴露身分，可選擇不報查驗或用合理的公開資訊做偽裝。
@@ -23508,6 +23527,11 @@ ${(ctx.publicClaims && ctx.publicClaims.length) ? ctx.publicClaims.map(c => `${c
     }
     // 阻止「只有口頭禪、沒有局勢內容」的 LLM 輸出。
     const infoSignals = /(真品|贗品|假貨|獸首|發言|資訊|時序|傳遞|座位|票型|嫌疑|懷疑|反駁|跟票|不跟|矛盾|前面|後面|能力|許願|方震|姬雲浮|老朝奉|藥不然|鄭國渠)/;
+    // 不得夾雜英文單字（常見的髒話、口頭禪亂入）
+    if (/[A-Za-z]{3,}/.test(t)) {
+      console.warn('[GeminiBrain] 攔截到含英文單字的發言:', t);
+      return false;
+    }
     // 發言必須談到具體獸首與真假傾向，不能只剩懷疑來懷疑去
     const beastContent = /[鼠牛虎兔龍蛇馬羊猴雞狗豬]/.test(t) && /(真|假|贗)/.test(t);
     if (!beastContent) {
@@ -23519,6 +23543,32 @@ ${(ctx.publicClaims && ctx.publicClaims.length) ? ctx.publicClaims.map(c => `${c
       return false;
     }
     return true;
+  }
+
+  // 「我驗到／我手上／我自己查驗」這類第一人稱情報，必須和自己真正的查驗一致，不能捏造（壞人可以假報）
+  function isOwnFactClaimConsistent(pov, text) {
+    try {
+      if (!pov || !text || !pov.isGoodCamp) return true;
+      const facts = (pov.myInspectLogs || [])
+        .filter(ins => ins && ins.resultText && !/(偷襲|一片黑|被幹|暈眩|致盲|無法辨別|看不懂)/.test(ins.resultText))
+        .map(ins => ({ beast: ins.beastName, status: ins.resultText.includes('真品') ? '真品' : (ins.resultText.includes('贗品') ? '贗品' : null) }))
+        .filter(f => f.beast && f.status);
+      const reliable = (pov.myRole === '方震' || pov.myInspectWasBlinded) ? [] : facts;
+      const FIRST = /我(自己)?(也)?(驗到|驗了|查驗|拿到|摸到|手上|親手驗|確認)/;
+      const beasts = pov.currentBeasts || [];
+      for (const clause of text.split(/[。！!？?；;\n]/)) {
+        if (!FIRST.test(clause)) continue;
+        const cl = BotDeductionEngine.parseOwnClaims(clause, beasts);
+        for (const c of cl) {
+          const f = reliable.find(x => x.beast === c.beast);
+          if (!f || f.status !== c.status) {
+            console.warn('[GeminiBrain] 攔截到捏造或與查驗不符的第一人稱情報:', clause);
+            return false;
+          }
+        }
+      }
+      return true;
+    } catch (e) { return true; }
   }
 
   function isJiyunfuAmbushSpeechSafe(pov, text) {
@@ -23544,7 +23594,7 @@ ${(ctx.publicClaims && ctx.publicClaims.length) ? ctx.publicClaims.map(c => `${c
     if (out) {
       let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
       if (window.stripSelfDoubt) cleaned = window.stripSelfDoubt(cleaned);
-      if (isValidBotSpeech(cleaned) && isJiyunfuAmbushSpeechSafe(pov, cleaned) && isFangzhenSpeechSafe(pov, cleaned)) {
+      if (isValidBotSpeech(cleaned) && isJiyunfuAmbushSpeechSafe(pov, cleaned) && isFangzhenSpeechSafe(pov, cleaned) && isOwnFactClaimConsistent(pov, cleaned)) {
         const speech = cleaned.slice(0, 140);
         cache['speech|' + botId + '|' + pov.currentRoundIdx] = speech;
         rememberDecisionContext('speech', room, botId);
