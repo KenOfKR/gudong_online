@@ -5781,8 +5781,24 @@ class BotDeductionEngine {
     return top[Math.floor(Math.random() * top.length)].id;
   }
 
+  // 自己公開盤過的人，終局鑑人要投他（說一套投一套會很怪）
+  static _stanceVote(pov, candidates) {
+    try {
+      const cm = (window.__botPublicStances || {})[pov.myId];
+      if (!cm || !candidates || Date.now() - cm.t > 6 * 3600 * 1000) return null;
+      if (!candidates.some(c => c.id === cm.targetId)) return null;
+      if ((pov.knownTeammateIds || []).includes(cm.targetId)) return null;
+      if (pov.myRole === '方震' && (pov.fangZhenInspections || []).some(i => i.isEvil)) return null;
+      const ok = pov.isGoodCamp
+        ? cm.role === '老朝奉'
+        : ((pov.myRole === '老朝奉' && cm.role === '許願') || (pov.myRole === '藥不然' && cm.role === '方震'));
+      return ok && Math.random() < 0.88 ? cm.targetId : null;
+    } catch (e) { return null; }
+  }
+
   static decidePersonVote(pov, beliefs, candidates) {
     if (!candidates || candidates.length === 0) return null;
+    { const sv = BotDeductionEngine._stanceVote(pov, candidates); if (sv) return sv; }
     // 候選名單順序（真人先、電腦補在後）不得影響結果
     candidates = BotDeductionEngine._shuffle(candidates);
 
@@ -5884,14 +5900,16 @@ class BotDeductionEngine {
           // 鎖定 2：若老朝奉自己在先前的發言或推演中已明確鎖定過某位玩家為許願（言行一致防割裂，85% 高度貫徹）
           let priorTargetId = pov._laoSuspectedXuId || null;
           if (!priorTargetId && Array.isArray(pov.speeches)) {
+            let bestDist = Infinity;
             pov.speeches.flat().forEach(sp => {
               if (sp && (sp.playerId === pov.myId || sp.speakerId === pov.myId)) {
                 const txt = sp.speech || sp.text || '';
-                if (txt.includes('許願')) {
-                  goodCandidates.forEach(gc => {
-                    if (txt.includes(gc.name)) priorTargetId = gc.id;
-                  });
-                }
+                const xi = txt.indexOf('許願');
+                if (xi < 0) return;
+                goodCandidates.forEach(gc => {
+                  const ni = txt.indexOf(gc.name);
+                  if (ni >= 0 && Math.abs(ni - xi) < bestDist) { bestDist = Math.abs(ni - xi); priorTargetId = gc.id; }
+                });
               }
             });
           }
@@ -6661,19 +6679,24 @@ class BotDeductionEngine {
           const rs = (id) => roleScore(id) || {};
           const scoreCap = (q) => Math.max(Number(rs(q.id).xuYuan ?? 0), Number(rs(q.id).fangZhen ?? 0), Number(rs(q.id).jiYunFu ?? 0))
             + (voteFacts[q.id] ? voteFacts[q.id].real.length * 12 : 0) - (voteFacts[q.id] ? voteFacts[q.id].fake.length * 6 : 0);
-          const cap = pool.map(q => ({ q, s: scoreCap(q) })).sort((a, b) => b.s - a.s)[0];
+          // 老朝奉最後鑑人要找許願、藥不然要找方震：公開盤的身分必須與此一致（鄭國渠不限）
+          const myKind = pov.myRole === '老朝奉' ? 'xuYuan' : (pov.myRole === '藥不然' ? 'fangZhen' : pickOne(['xuYuan', 'fangZhen', 'jiYunFu']));
+          const kindName = { xuYuan: '許願', fangZhen: '方震', jiYunFu: '姬雲浮' };
+          const scoreKind = (q) => Number(rs(q.id)[myKind] ?? 0)
+            + (voteFacts[q.id] ? voteFacts[q.id].real.length * 12 : 0) - (voteFacts[q.id] ? voteFacts[q.id].fake.length * 6 : 0);
+          const cap = pool.map(q => ({ q, s: scoreKind(q) })).sort((a, b) => b.s - a.s)[0];
           const framed = pool.map(q => ({ q, n: (voteFacts[q.id] || { fake: [] }).fake.length })).sort((a, b) => b.n - a.n)[0];
-          if (framed && framed.n > 0 && chance(0.40)) {
+          if (framed && framed.n > 0 && chance(0.30)) {
             const d = getPlayerColorDesc(framed.q);
+            const g = pickOne(['老朝奉', '藥不然', '鄭國渠']);
             campPick = { target: framed.q, text: V('PROFILE_EVIL_FRAME', [
-              `${d}上一輪把票投在揭曉是贗品的【${voteFacts[framed.q.id].fake[0]}】，我覺得他有問題，大家這輪別被他帶著走。`,
-              `說實話${d}前面的票型我不太放心，投到贗品那件不像單純看錯。`
+              `${d}上一輪把票投在揭曉是贗品的【${voteFacts[framed.q.id].fake[0]}】，我猜他就是${g}，大家這輪別被他帶著走。`,
+              `說實話${d}前面的票型我不放心，投到贗品那件不像看錯，我押他是${g}。`
             ]) };
           } else if (cap) {
             const d = getPlayerColorDesc(cap.q);
-            const roleName = pickOne(['許願', '許願', '方震', '姬雲浮']);
+            const roleName = kindName[myKind];
             const why = (voteFacts[cap.q.id] && voteFacts[cap.q.id].real.length) ? '前面的票投得很準，資訊量也比一般人多' : '說話節奏和資訊量都不像隨便猜';
-            // 若老朝奉親自判定某人為許願能力位，立即在 POV 與全域信念中錨定目標，保證終局鑑人言行一致！
             if (pov.myRole === '老朝奉' && roleName === '許願') {
               pov._laoSuspectedXuId = cap.q.id;
               if (beliefs && beliefs.roleScores && beliefs.roleScores[cap.q.id]) {
@@ -6681,13 +6704,18 @@ class BotDeductionEngine {
               }
             }
             campPick = { target: cap.q, role: roleName, text: V('PROFILE_EVIL_HUNT', [
-              `我現在比較在意${d}，${why}，我猜他是${roleName}一類的能力位，大家別全跟他的方向走。`,
-              `${d}${why}，這種人通常手上握著關鍵資訊，我會盯他這輪怎麼投。`,
-              `如果要我猜誰是${roleName}，我會押${d}，${why}。`
+              `我直接猜${d}就是${roleName}，${why}，大家別全跟他的方向走。`,
+              `${d}${why}，我押他是${roleName}，這輪我會盯他怎麼投。`,
+              `如果要我點名誰是${roleName}，我會點${d}，${why}。`
             ]) };
           }
         }
       }
+    }
+    // 記下公開表態，終局鑑人時要與自己講過的話一致（pov 每次都會重建，所以存在全域）
+    if (campPick && campPick.role && campPick.role !== '壞人') {
+      window.__botPublicStances = window.__botPublicStances || {};
+      window.__botPublicStances[pov.myId] = { targetId: campPick.target.id, role: campPick.role, round: curRoundIdx, t: Date.now() };
     }
     if (campPick) speech += (/[。！!？?]$/.test(speech) ? '' : '。') + campPick.text;
 
@@ -23735,6 +23763,7 @@ ${roundSpeeches}
       }
     }
 
+    { const sv = BotDeductionEngine._stanceVote(pov, candidates); if (sv) { cache['person_vote|' + botId] = sv; return sv; } }
     const candStr = candidates.map(p => `${p.name}(ID:${p.id})`).join('、');
     const rs = (beliefs && beliefs.roleScores) || {};
     
