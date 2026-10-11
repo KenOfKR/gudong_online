@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 3.8.1)</title>  
+ <title>古董局中局 (版本 3.8.6)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -567,6 +567,21 @@
      </div>
      <div id="onlActiveTurnPassOrders" class="space-y-2"></div>
    </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerA" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerA" class="space-y-2.5"></div>
+   </div>
  </div>
  </div>  
   
@@ -615,6 +630,21 @@
      </div>
      <div id="onlStepBPassOrders" class="space-y-2"></div>
    </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerB" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerB" class="space-y-2.5"></div>
+   </div>
  </div>
  </div>  
   
@@ -638,7 +668,7 @@
  </div>  
   
  <!-- 手機傳遞順序展示 (座位圖正下方，依需求2) -->
- <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
+ <div id="onlStepCPassOrdersBox" class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
    <div class="flex items-center justify-between border-b border-neutral-800/80 pb-1.5">
      <div class="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
        <span>📱</span>
@@ -648,6 +678,21 @@
    </div>
    <div id="onlActiveStepCPassOrders" class="space-y-2"></div>
  </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerC" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerC" class="space-y-2.5"></div>
+   </div>
 
  <!-- 確認交接按鈕區塊 -->  
  <div id="onlStepCConfirmWrapper" class="hidden pt-1 text-center">  
@@ -661,47 +706,6 @@
  <button type="button" onclick="onlProceedToDiscussion()" class="w-full py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-sm rounded-xl shadow-lg transition">  
  前往鑑寶（進入發言與投票） 🏛️  
  </button>  
- </div>  
- </div>  
-  
- <!-- 傳手機操作階段歷史資訊：各回合發言記錄 ＆ 各回合獸首投票票型（清晰隔開避免資訊過多） -->  
- <div id="onlActiveTurnHistorySection" class="border-t-2 border-dashed border-neutral-800 text-left space-y-3" style="margin-top: 4.5rem; padding-top: 2rem;">  
- <!-- 區隔標題與折疊/展開按鈕 -->  
- <div class="flex items-center justify-between p-3 rounded-xl bg-neutral-950/90 border border-neutral-800 cursor-pointer hover:border-amber-500/50 transition shadow-md" onclick="toggleActiveTurnHistoryCollapse()">  
- <div class="flex items-center space-x-2 text-xs font-bold text-amber-400">  
- <span>📜</span>  
- <span>歷史戰情回顧（發言記錄 ＆ 投票票型）</span>  
- </div>  
- <div class="flex items-center space-x-1">  
- <span id="onlActiveTurnHistoryToggleText" class="text-[11px] font-mono text-amber-400 font-bold">▼ 點擊展開/收合</span>  
- </div>  
- </div>  
-  
- <!-- 展開內容容器：各回合發言記錄與各回合獸首投票票型 -->  
- <div id="onlActiveTurnHistoryContent" class="space-y-3">  
- <!-- 1. 各回合發言記錄 -->  
- <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">  
- <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
- <span class="flex items-center space-x-1.5">  
- <span>🗣️</span>  
- <span class="text-amber-400 font-black">各回合發言記錄</span>  
- </span>  
- <span class="text-[10px] text-neutral-400">歷史發言</span>  
- </div>  
- <div id="onlActiveTurnSpeechesContainer" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>  
- </div>  
-  
- <!-- 2. 各回合獸首投票票型（點擊獸首可以看攤開明細） -->  
- <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">  
- <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
- <span class="flex items-center space-x-1.5">  
- <span>🗳️</span>  
- <span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）：</span>  
- </span>  
- </div>  
- <div id="onlActiveTurnBeastsChipsContainer" class="space-y-2.5"></div>  
- </div>  
- </div>  
  </div>  
  </div>  
   
@@ -1616,16 +1620,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null || request.resource.data.keys().hasAll(['status']);
 
-      // 2. 私有角色子集合 (防作弊核心防線：嚴格限制讀取，僅本人與託管機器人可見)
+      // 2. 私有角色子集合：本人才能讀自己的角色；本局發牌協調者可在原子交易中建立／更新私有角色。
+      // 發牌交易同時將 hostAuthUid 寫入房間，因此使用 getAfter 驗證交易後的協調者身分。
       match /private/{playerId} {
-        // 真人使用 tab-level playerId，私有文件以 resource.data.authUid 驗證本人；BOT 維持 mock_p_ 白名單。
-        allow read: if request.auth != null && (
-          resource.data.authUid == request.auth.uid ||
-          playerId.matches('mock_p_.*')
-        );
-        allow write: if request.auth != null && (
-          playerId.matches('mock_p_.*') ||
-          request.resource.data.authUid == request.auth.uid
+        allow read: if request.auth != null && resource.data.authUid == request.auth.uid;
+        allow create, update: if request.auth != null && (
+          request.resource.data.authUid == request.auth.uid ||
+          getAfter(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.hostAuthUid == request.auth.uid
         );
       }
     }
@@ -1927,6 +1928,70 @@ function setTabPlayerId(id) {
 }
 
 
+// v3.8.5 原有修正：穩定裝置憑證與座位恢復。暱稱只供顯示，跨裝置相同暱稱不會直接取得他人座位。
+function normalizeOnlineNickname(name) {
+  return String(name || '').normalize('NFKC').trim().toLocaleLowerCase();
+}
+function getDeviceSecretKey(roomCode, nickname) {
+  const norm = normalizeOnlineNickname(nickname);
+  if (!norm) return '';
+  const key = 'gudong_device_secret_v1_' + encodeURIComponent(norm);
+  try {
+    let token = localStorage.getItem(key);
+    if (!token) {
+      token = 'dev_' + ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+      localStorage.setItem(key, token);
+    }
+    return token;
+  } catch (e) {
+    try {
+      const sessionKey = 'gudong_device_secret_v1_' + encodeURIComponent(norm);
+      let token = sessionStorage.getItem(sessionKey);
+      if (!token) { token = 'dev_' + Date.now().toString(36) + Math.random().toString(36).slice(2); sessionStorage.setItem(sessionKey, token); }
+      return token;
+    } catch (_) { return ''; }
+  }
+}
+function getDeviceSeatMapping(roomCode, nickname) {
+  const token = getDeviceSecretKey(roomCode, nickname);
+  if (!token) return null;
+  try { return localStorage.getItem('gudong_device_seat_v1_' + String(roomCode || '') + '_' + token); }
+  catch (e) { return null; }
+}
+function saveDeviceSeatMapping(roomCode, playerId, nickname) {
+  const token = getDeviceSecretKey(roomCode, nickname);
+  if (!token || !playerId) return;
+  try { localStorage.setItem('gudong_device_seat_v1_' + String(roomCode || '') + '_' + token, String(playerId)); } catch(e) {}
+}
+function isComputerControlledPlayer(player) {
+  return !!(player && ((typeof player.id === 'string' && player.id.startsWith('mock_p_')) || player.isBotControlled === true));
+}
+function findRecoverableOnlinePlayer(room, nickname, deviceToken, authUid, preferredId) {
+  const players = room && Array.isArray(room.players) ? room.players : [];
+  const wantedName = normalizeOnlineNickname(nickname);
+  const mappedId = getDeviceSeatMapping(currentOnlineRoomCode, nickname);
+  const exact = players.find(p => p.id === preferredId && (!wantedName || normalizeOnlineNickname(p.name) === wantedName));
+  if (exact) return exact;
+  const mapped = players.find(p => p.id === mappedId && (!deviceToken || !p.deviceToken || p.deviceToken === deviceToken));
+  if (mapped) return mapped;
+  if (deviceToken) {
+    const tokenMatches = players.filter(p => p.deviceToken === deviceToken && (!wantedName || normalizeOnlineNickname(p.name) === wantedName));
+    if (tokenMatches.length === 1) return tokenMatches[0];
+  }
+  if (authUid && wantedName) {
+    const uidMatches = players.filter(p => p.authUid === authUid && normalizeOnlineNickname(p.name) === wantedName);
+    if (uidMatches.length === 1) return uidMatches[0];
+  }
+  return null;
+}
+function isSameNicknameOccupiedByAnotherIdentity(room, nickname, deviceToken, authUid) {
+  const wantedName = normalizeOnlineNickname(nickname);
+  if (!wantedName || !room || !Array.isArray(room.players)) return false;
+  return room.players.some(p => normalizeOnlineNickname(p.name) === wantedName &&
+    !((deviceToken && p.deviceToken === deviceToken) || (authUid && p.authUid === authUid)));
+}
+
+
 // =========================================================================
 // 線上版雙視角觀戰模式核心控制 (Spectator Mode & View Switching, 依要求 1, 2, 3)
 // =========================================================================
@@ -2022,7 +2087,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
     const start = Number(room.startTimestamp);
     const assigned = Number(roleData.assignedAt);
     if (!Number.isFinite(start) || start <= 0 || !Number.isFinite(assigned) || assigned <= 0) return false;
-    return assigned >= start - 3000 && assigned <= Date.now() + 30000;
+    // 放寬跨設備時鐘容差至 60 秒，並確保同一輪 startTimestamp 週期內的私有角色皆為有效
+    return Math.abs(assigned - start) <= 60000 || (assigned >= start - 30000 && assigned <= Date.now() + 60000);
   }
 
   function getFreshSessionRoleForRoom(room, playerId) {
@@ -2044,16 +2110,38 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
 
   function getOnlineMePlayer(room) {
     if (!room || !Array.isArray(room.players)) return null;
-    let me = room.players.find(p => p.id === myOnlinePlayerId);
-    if (!me) return null;
+    const publicMe = room.players.find(p => p.id === myOnlinePlayerId);
+    if (!publicMe) return null;
+    // 私有角色只放在本機副本，絕不污染公開 room.players。
+    // 否則後續 `onlineUpdate({ players: room.players })` 可能意外公開角色。
+    const me = Object.assign({}, publicMe);
     if (!me.role || me.role === '') {
       const sRole = getFreshSessionRoleForRoom(room, myOnlinePlayerId);
       if (sRole) me.role = sRole;
       if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) me.role = myPrivateRoleData.role;
     }
+    if (isFreshRoleDataForRoom(myPrivateRoleData, room) && myPrivateRoleData.confusedRound !== undefined) {
+      me.confusedRound = myPrivateRoleData.confusedRound;
+    }
     return me;
   }
   window.getOnlineMePlayer = getOnlineMePlayer;
+
+  // 老朝奉與藥不然只從本人私有角色文件中的互認資訊得知隊友。
+  function getKnownTeammateForRole(room, myRole) {
+    const expectedRole = myRole === '老朝奉' ? '藥不然' : (myRole === '藥不然' ? '老朝奉' : null);
+    if (!expectedRole) return null;
+    if (isFreshRoleDataForRoom(myPrivateRoleData, room) &&
+        myPrivateRoleData.role === myRole && myPrivateRoleData.knownTeammate &&
+        myPrivateRoleData.knownTeammate.role === expectedRole) {
+      return Object.assign({}, myPrivateRoleData.knownTeammate, {
+        id: myPrivateRoleData.knownTeammate.playerId || myPrivateRoleData.knownTeammate.id
+      });
+    }
+    // 相容電腦角色仍公開的舊流程；找不到時不能錯誤宣告「本局沒有隊友」。
+    return (room && Array.isArray(room.players) ? room.players : []).find(p => p.role === expectedRole) || null;
+  }
+  window.getKnownTeammateForRole = getKnownTeammateForRole;
 
   function ensureAnonymousAuth() {
     return new Promise(function(resolve) {
@@ -2111,6 +2199,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
     if (!db || !isFirebaseReady || !ONLINE_ROOM_DOC || !myOnlinePlayerId) return;
 
     var privatePath = ONLINE_ROOM_DOC + '/private/' + myOnlinePlayerId;
+    window._roleListenerPlayerId = myOnlinePlayerId;
+    window._roleListenerDocPath = privatePath;
     myPrivateRoleUnsubscribe = db.doc(privatePath).onSnapshot(function(docSnap) {
       if (docSnap.exists && docSnap.data()) {
         var pData = docSnap.data();
@@ -2690,7 +2780,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.1 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.6 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -6926,8 +7016,6 @@ class BotDeductionEngine {
  actionLogs: {},  
  currentGameUploaded: false,  
  lastCalculatedResult: null,  
- kickedPlayerIds: [],  
- kickStats: {}  
  };  
   
   
@@ -7316,46 +7404,38 @@ function checkWatermarkUploadedState() {
  window.showToast = showToast;  
   
  function copySecurityRulesCode() {  
- const code = `// === Cloud Firestore Security Rules (firestore.rules) ===  
-rules_version = '2';  
-service cloud.firestore {  
- match /databases/{database}/documents {  
- match /GudongOnlineGame/{roomId} {  
- allow read: if true;  
- allow write: if request.auth != null || request.resource.data.keys().hasAll(['status']);  
- match /privateRoles/{userId} {  
- allow read: if request.auth != null && request.auth.uid == userId;  
- allow write: if request.auth != null && request.auth.uid == userId;  
- }  
- }  
- match /users/{userId} {  
- allow read, write: if request.auth != null && request.auth.uid == userId;  
- }  
- }  
-}  
-  
-// === Realtime Database Rules (database.rules.json) ===  
-{  
- "rules": {  
- "rooms": {  
- "$roomId": {  
- "publicState": { ".read": true, ".write": "auth != null" },  
- "private": {  
- "$uid": {  
- ".read": "auth != null && auth.uid === $uid",  
- ".write": "auth != null && auth.uid === $uid"  
- }  
- }  
- }  
- },  
- "users": {  
- "$uid": {  
- ".read": "auth != null && auth.uid === $uid",  
- ".write": "auth != null && auth.uid === $uid"  
- }  
- }  
- }  
-}`;  
+ const code = `// === Cloud Firestore Security Rules (firestore.rules) ===
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /GudongOnlineGame/{roomId} {
+      allow read: if true;
+      allow write: if request.auth != null || request.resource.data.keys().hasAll(['status']);
+
+      // 私有角色：玩家只能讀自己的角色；本局發牌協調者可在同一個交易中寫入全體私有角色。
+      match /private/{playerId} {
+        allow read: if request.auth != null && resource.data.authUid == request.auth.uid;
+        allow create, update: if request.auth != null && (
+          request.resource.data.authUid == request.auth.uid ||
+          getAfter(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.hostAuthUid == request.auth.uid
+        );
+      }
+    }
+    match /GudongDatabase/{docId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.isAllHuman == true
+        && request.resource.data.durationMinutes >= 36
+        && request.resource.data.players.size() == 8;
+      allow update, delete: if request.auth != null;
+    }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+// 注意：此檔內的 Realtime Database 規則僅為範例，與本遊戲 Firestore 路徑分開部署。`;  
  if (navigator.clipboard) {  
  navigator.clipboard.writeText(code).then(() => {  
  showToast('✓ 安全規則範例已複製至剪貼簿！', 'success');  
@@ -7551,34 +7631,71 @@ service cloud.firestore {
   
  // --- 7. 斷線接管與死鎖防護 (Deadlock Prevention & Auto-Takeover) ---  
  var _isExecutingAutoTakeover = false;  
- async function executeAutoTakeoverForCurrentTurn(room) {  
- if (!room || !isFirebaseReady || !db) return;  
- const curRoundIdx = room.currentRoundIdx || 0;  
- const curRound = room.rounds && room.rounds[curRoundIdx];  
- const turnPlayerId = room.currentTurnPlayerId;  
- const turnPlayer = (room.players || []).find(p => p.id === turnPlayerId);  
- if (!turnPlayer || !curRound) return;  
-  
- console.warn(`[死鎖防護] 玩家【${turnPlayer.name}】回合逾時未回應，啟動房主自動代管推進！`);  
- showToast(`⏱️ 玩家【${turnPlayer.name}】逾時未動作，系統已自動代管推進！`, 'warning', 3000);  
-  
- const passOrder = curRound.passOrder || [];  
- const remainingPlayers = (room.players || []).filter(p => !passOrder.includes(p.id));  
-  
- if (remainingPlayers.length > 0) {  
- const nextP = remainingPlayers[Math.floor(Math.random() * remainingPlayers.length)];  
- passOrder.push(nextP.id);  
- await onlineUpdate({  
- 'rounds': room.rounds,  
- 'currentTurnPlayerId': nextP.id,  
- 'currentTurnDeadline': getServerNow() + 30000,  
- 'lastActivityTime': Date.now()  
- });  
- } else {  
- await executeOnlineAdvanceToDiscussion(room);  
- }  
- }  
- window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;  
+ async function executeAutoTakeoverForCurrentTurn(room, requestedPlayerId = null) {
+  if (!room || !isFirebaseReady || !db || _isExecutingAutoTakeover) return;
+  const staleBefore = Date.now() - 45000;
+  let candidateId = requestedPlayerId;
+  const curRoundIdx = Number(room.currentRoundIdx || 0);
+  const curRound = room.rounds && room.rounds[curRoundIdx];
+  if (!candidateId) {
+    if (room.status === 'playing') candidateId = room.currentTurnPlayerId;
+    else if (room.status === 'discussion') candidateId = room.currentSpeakerId;
+    else if (room.status === 'voting') candidateId = (room.players || []).find(p => !isComputerControlledPlayer(p) && !(curRound && curRound.votes && curRound.votes[p.id]) && Number(p.lastSeenAt || 0) > 0 && Number(p.lastSeenAt) < staleBefore)?.id;
+    else if (room.status === 'person_voting') candidateId = (room.players || []).find(p => !isComputerControlledPlayer(p) && !(room.personVotes || {})[p.id] && Number(p.lastSeenAt || 0) > 0 && Number(p.lastSeenAt) < staleBefore)?.id;
+  }
+  if (!candidateId || !curRound) return;
+  _isExecutingAutoTakeover = true;
+  let claimedRoom = null;
+  try {
+    const docRef = db.doc(ONLINE_ROOM_DOC);
+    await db.runTransaction(async transaction => {
+      const snap = await transaction.get(docRef);
+      if (!snap.exists) return;
+      const data = snap.data();
+      if (!['playing','discussion','voting','person_voting'].includes(data.status)) return;
+      const rIdx = Number(data.currentRoundIdx || 0);
+      const round = data.rounds && data.rounds[rIdx];
+      if (!round) return;
+      let activeId = null;
+      if (data.status === 'playing') activeId = data.currentTurnPlayerId;
+      else if (data.status === 'discussion') activeId = data.currentSpeakerId;
+      else if (data.status === 'voting') {
+        const row = (data.players || []).find(p => p.id === candidateId);
+        if (!row || (round.votes || {})[candidateId]) return;
+        activeId = candidateId;
+      } else if (data.status === 'person_voting') {
+        const row = (data.players || []).find(p => p.id === candidateId);
+        if (!row || (data.personVotes || {})[candidateId]) return;
+        activeId = candidateId;
+      }
+      if (activeId !== candidateId) return;
+      const players = (data.players || []).map(p => ({...p}));
+      const target = players.find(p => p.id === candidateId);
+      if (!target || isComputerControlledPlayer(target) || !Number(target.lastSeenAt || 0) || Number(target.lastSeenAt) >= staleBefore) return;
+      target.isBotControlled = true;
+      target.botTakeoverAt = Date.now();
+      target.botTakeoverBy = myOnlinePlayerId;
+      const nextRoom = {...data, players};
+      nextRoom.hostId = myOnlinePlayerId; // 接管者成為後續電腦行動協調者；交易只允許一位成功接管。
+      transaction.update(docRef, { players, hostId: myOnlinePlayerId, takeoverUpdatedAt: Date.now() });
+      claimedRoom = nextRoom;
+    });
+    if (!claimedRoom) return;
+    const target = (claimedRoom.players || []).find(p => p.id === candidateId);
+    showToast(`玩家【${target ? target.name : candidateId}】已超過 45 秒沒有心跳，電腦暫時接手。`, 'warning', 4500);
+    // 直接執行當前缺席玩家的本階段行動，保留原 playerId、角色、座位、歷史與票型。
+    if (claimedRoom.status === 'playing' && typeof window.executeMockTurnStep === 'function') await window.executeMockTurnStep(claimedRoom, candidateId, claimedRoom.rounds[claimedRoom.currentRoundIdx]);
+    else if (claimedRoom.status === 'discussion' && typeof window.executeMockSpeechStep === 'function') await window.executeMockSpeechStep(claimedRoom, candidateId, claimedRoom.rounds[claimedRoom.currentRoundIdx]);
+    else if (claimedRoom.status === 'voting' && typeof window.executeMockVoteStep === 'function') await window.executeMockVoteStep(claimedRoom, candidateId, claimedRoom.rounds[claimedRoom.currentRoundIdx]);
+    else if (claimedRoom.status === 'person_voting' && typeof window.executeMockPersonVoteStep === 'function') await window.executeMockPersonVoteStep(claimedRoom, candidateId);
+    else console.warn('[Takeover] 已標記接管，但目前階段的 BOT 執行器尚未可用，等待下一次快照重試。');
+  } catch (e) {
+    console.warn('[Takeover] 自動接管失敗:', e);
+  } finally {
+    _isExecutingAutoTakeover = false;
+  }
+}
+window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;  
   
   
  // =========================================================================  
@@ -8120,7 +8237,9 @@ service cloud.firestore {
  let onlineAnimDotsCount = 1;  
  let onlSelectedInspectBeast = null;  
  let onlSelectedPassNextId = null;  
- let onlMyVoteMap = {};  
+ let onlMyVoteMap = {};
+ let onlMySubmittedVoteRounds = {};
+ let onlMySubmittedPersonVote = null;  
  let onlSelectedPersonTargetId = null;  
  var _lastAutoScrolledVotingRound = -1;  
  var _hasAutoScrolledPersonVoting = false;  
@@ -8594,6 +8713,28 @@ service cloud.firestore {
  }  
  }  
   
+
+ // 在開始監聽前先用穩定憑證找回既有座位，避免同一位玩家重開頁面被誤判為觀戰者。
+ window._joinIdentityConflict = false;
+ const joinDeviceToken = getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName);
+ if (isFirebaseReady && db) {
+   try {
+     const existingSnap = await db.doc(ONLINE_ROOM_DOC).get();
+     if (existingSnap.exists) {
+       const existingRoom = existingSnap.data();
+       const recovered = findRecoverableOnlinePlayer(existingRoom, myOnlinePlayerName, joinDeviceToken, currentAuthUid, myOnlinePlayerId);
+       if (recovered) {
+         myOnlinePlayerId = recovered.id;
+         setTabPlayerId(myOnlinePlayerId);
+         saveDeviceSeatMapping(currentOnlineRoomCode, recovered.id, myOnlinePlayerName);
+       } else if (isSameNicknameOccupiedByAnotherIdentity(existingRoom, myOnlinePlayerName, joinDeviceToken, currentAuthUid)) {
+         window._joinIdentityConflict = true;
+         console.warn('[Reconnect] 同暱稱已由另一身分占用，本次以觀戰者加入，避免搶走原玩家座位。');
+       }
+     }
+   } catch (restoreErr) { console.warn('[Reconnect] 預先恢復座位失敗，稍後由房間監聽再判定:', restoreErr); }
+ }
+  
  showOnlineSubView('onlSecLobby');  
   
  // 樂觀預先渲染：立即顯示自己入座在席次1與代表字、顏色，零秒延遲，畫面絕不空洞！  
@@ -8635,7 +8776,8 @@ service cloud.firestore {
   
  if (onlineRoomUnsubscribe) onlineRoomUnsubscribe();  
   
- listenToMyPrivateRole();
+ startOnlinePresenceHeartbeat();
+ startOnlineTakeoverWatchdog();
  onlineRoomUnsubscribe = docRef.onSnapshot(docSnap => {  
  if (!docSnap.exists) {  
  // 初始化空房間  
@@ -8643,7 +8785,11 @@ service cloud.firestore {
  return;  
  }  
   
- onlineRoomData = docSnap.data();  
+ onlineRoomData = docSnap.data();
+ const desiredPrivatePath = ONLINE_ROOM_DOC + '/private/' + myOnlinePlayerId;
+ if (window._roleListenerPlayerId !== myOnlinePlayerId || window._roleListenerDocPath !== desiredPrivatePath) {
+   listenToMyPrivateRole();
+ }
  handleOnlineRoomUpdate(onlineRoomData);  
  }, err => {  
  console.error('線上房間監聽錯誤:', err);  
@@ -8970,6 +9116,8 @@ service cloud.firestore {
           const isMock = !!(p.id && p.id.startsWith('mock_p_'));  
           return {  
             id: p.id,  
+            authUid: p.authUid || null,
+            deviceToken: p.deviceToken || null,
             name: p.name,  
             repChar: p.repChar || getRepresentativeChar(p.name),  
             colorId: p.colorId,  
@@ -9082,6 +9230,8 @@ service cloud.firestore {
  // 核心修復：只保留真人玩家，徹底清除虛擬電腦角色  
  const updatedPlayers = humanPlayers.map((p, idx) => ({  
  ...p,  
+ authUid: p.authUid || null,
+ deviceToken: p.deviceToken || null,
  seatIndex: (p.seatIndex !== undefined && p.seatIndex !== null) ? p.seatIndex : idx,  
  readyToStart: false,  
  isReady: false,  
@@ -9261,7 +9411,9 @@ service cloud.firestore {
  onlTempLaoActive = false;  
  onlTempZhengBlock = null;  
  onlYaoTargetId = null;  
- onlMyVoteMap = {};  
+ onlMyVoteMap = {};
+  onlMySubmittedVoteRounds = {};
+  onlMySubmittedPersonVote = null;  
  onlCollapsedRoundsMap = {};  
  window._lastSeenOnlineRound = null;  
  _lastAutoScrolledVotingRound = -1;  
@@ -9311,6 +9463,74 @@ function diffRoomState(prev, next) {
   };
 }
 window.diffRoomState = diffRoomState;
+
+// v3.8.5 原有修正：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
+var _onlinePresenceHeartbeatTimer = null;
+var _onlineTakeoverWatchdogTimer = null;
+function startOnlinePresenceHeartbeat() {
+  if (_onlinePresenceHeartbeatTimer) return;
+  _onlinePresenceHeartbeatTimer = setInterval(async () => {
+    const liveRoom = onlineRoomData;
+    const pid = myOnlinePlayerId;
+    if (!liveRoom || !pid || !isFirebaseReady || !db || window.isOnlineSpectator) return;
+    if (!(liveRoom.players || []).some(p => p.id === pid)) return;
+    try {
+      const docRef = db.doc(ONLINE_ROOM_DOC);
+      await db.runTransaction(async transaction => {
+        const snap = await transaction.get(docRef);
+        if (!snap.exists) return;
+        const data = snap.data();
+        const players = Array.isArray(data.players) ? data.players.map(p => ({...p})) : [];
+        const self = players.find(p => p.id === pid);
+        if (!self) return;
+        self.lastSeenAt = Date.now();
+        transaction.update(docRef, { players });
+      });
+    } catch (e) { console.debug('[Presence] 心跳更新稍後重試:', e && e.message || e); }
+  }, 20000);
+}
+function startOnlineTakeoverWatchdog() {
+  if (_onlineTakeoverWatchdogTimer) return;
+  _onlineTakeoverWatchdogTimer = setInterval(() => {
+    const room = onlineRoomData;
+    if (!room || !room.status || !['playing','discussion','voting','person_voting'].includes(room.status)) return;
+    const players = room.players || [];
+    const staleBefore = Date.now() - 45000;
+    // 舊房間資料沒有 lastSeenAt 時先補一次基準時間，否則舊對局永遠無法判斷斷線。
+    if (players.some(p => !Number(p.lastSeenAt || 0)) && myOnlinePlayerId && players.some(p => p.id === myOnlinePlayerId) && isFirebaseReady && db) {
+      db.runTransaction(async transaction => {
+        const ref = db.doc(ONLINE_ROOM_DOC); const snap = await transaction.get(ref); if (!snap.exists) return;
+        const d = snap.data(); if (!['playing','discussion','voting','person_voting'].includes(d.status)) return;
+        const now = Date.now(); const ps = (d.players || []).map(p => ({...p})); let changed = false;
+        ps.forEach(p => { if (!Number(p.lastSeenAt || 0)) { p.lastSeenAt = now; changed = true; } });
+        if (changed) transaction.update(ref, { players: ps });
+      }).catch(() => {});
+    }
+    // 若房主心跳已過期，由目前在線玩家接手協調電腦行動，避免所有 BOT 永遠等離線房主。
+    const hostId = room.hostId || getRoomHostId(room);
+    const hostPlayer = players.find(p => p.id === hostId);
+    if (hostPlayer && !isComputerControlledPlayer(hostPlayer) && Number(hostPlayer.lastSeenAt || 0) > 0 && Number(hostPlayer.lastSeenAt) < staleBefore && myOnlinePlayerId && players.some(p => p.id === myOnlinePlayerId) && hostId !== myOnlinePlayerId && isFirebaseReady && db) {
+      db.runTransaction(async transaction => {
+        const ref = db.doc(ONLINE_ROOM_DOC); const snap = await transaction.get(ref); if (!snap.exists) return;
+        const d = snap.data(); const freshHost = (d.players || []).find(p => p.id === d.hostId);
+        if (d.hostId === hostId && freshHost && Number(freshHost.lastSeenAt || 0) > 0 && Number(freshHost.lastSeenAt) < Date.now() - 45000) transaction.update(ref, { hostId: myOnlinePlayerId, hostTakeoverAt: Date.now() });
+      }).catch(() => {});
+    }
+    let candidate = null;
+    if (room.status === 'playing') candidate = players.find(p => p.id === room.currentTurnPlayerId);
+    else if (room.status === 'discussion') candidate = players.find(p => p.id === room.currentSpeakerId);
+    else if (room.status === 'voting') {
+      const round = room.rounds && room.rounds[room.currentRoundIdx];
+      candidate = players.find(p => p && !isComputerControlledPlayer(p) && !(round && round.votes && round.votes[p.id]) && Number(p.lastSeenAt || 0) > 0 && Number(p.lastSeenAt) < staleBefore);
+    } else if (room.status === 'person_voting') {
+      const pv = room.personVotes || {};
+      candidate = players.find(p => p && !isComputerControlledPlayer(p) && !pv[p.id] && Number(p.lastSeenAt || 0) > 0 && Number(p.lastSeenAt) < staleBefore);
+    }
+    if (candidate && !isComputerControlledPlayer(candidate) && Number(candidate.lastSeenAt || 0) > 0 && Number(candidate.lastSeenAt) < staleBefore) {
+      executeAutoTakeoverForCurrentTurn(room, candidate.id).catch(e => console.warn('[Takeover] 自動接管稍後重試:', e));
+    }
+  }, 5000);
+}
 
 function handleOnlineRoomUpdate(room) {  
  if (!room) return;
@@ -9449,11 +9669,15 @@ onlineRoomData = room;
  checkAndRenderRestartVoteModal(room);  
  checkAndRenderCloseVoteModal(room);  
   
- // 偵測全新對局啟動或房間處於大廳等待時，自動清空瀏覽器殘留資料  
- if (room.status === 'waiting' || (room.startTimestamp && window._lastSeenOnlineGameStart !== room.startTimestamp)) {  
- window._lastSeenOnlineGameStart = room.startTimestamp || null;  
- resetAllOnlineClientState();  
- }  
+ // v3.8.5 原有修正：只有「進入等待大廳」或「觀察到既有對局真的換 startTimestamp」才清本機狀態。
+ // 初次載入正在進行的對局時不清除剛恢復的角色／投票狀態；也不在每次 waiting 快照重置。
+ const previousRoomStatus = window._lastSeenOnlineStatus || null;
+ const previousGameStart = window._lastSeenOnlineGameStart || null;
+ const enteredWaitingNow = room.status === 'waiting' && previousRoomStatus !== 'waiting';
+ const observedNewGame = !!(room.startTimestamp && previousGameStart && previousGameStart !== room.startTimestamp);
+ if (enteredWaitingNow || observedNewGame) resetAllOnlineClientState();
+ if (room.startTimestamp) window._lastSeenOnlineGameStart = room.startTimestamp;
+ else if (room.status === 'waiting') window._lastSeenOnlineGameStart = null;  
  // 偵測輪次推進時重置本地查驗與投票狀態  
  // 依要求5：進入發言環節後會先自動收合前幾回合發言，當前輪預設展開  
  if (room.status === 'discussion') {  
@@ -9495,6 +9719,8 @@ onlineRoomData = room;
  onlSelectedInspectBeast = null;  
  onlSelectedPassNextId = null;  
  onlMyVoteMap = {};  
+ onlMySubmittedVoteRounds = {};  
+ onlMySubmittedPersonVote = null;  
  onlYaoTargetId = null;  
  onlTempZhengBlock = null;  
  onlTempLaoActive = false;  
@@ -9542,9 +9768,8 @@ onlineRoomData = room;
  }  
  }  
   
- // 偵測自己是否確實被房主主動踢出房間 (僅在明確記錄於 kickedPlayerIds 時觸發，絕不因同步間隙誤踢)  
- const isKicked = Boolean(room.kickedPlayerIds && room.kickedPlayerIds.includes(myOnlinePlayerId));  
- if (isKicked) {  
+ // 若在大廳等待階段曾入座，但後續已被房主移出席位，安全退回模式選擇畫面
+ if (room.status === 'waiting' && window._hasEverJoinedLobby && !(room.players || []).some(p => p.id === myOnlinePlayerId || p.name === myOnlinePlayerName)) {  
  window._hasEverJoinedLobby = false;  
  if (onlineRoomUnsubscribe) {  
  onlineRoomUnsubscribe();  
@@ -9560,7 +9785,47 @@ onlineRoomData = room;
  window._hasEverJoinedLobby = true;  
  }  
   
- const players = room.players || [];  
+ const players = room.players || [];
+ // 重連後以裝置憑證／同一匿名 UID 恢復原 playerId，私有角色訂閱也同步改回原座位。
+ if (!players.some(p => p.id === myOnlinePlayerId) && myOnlinePlayerName) {
+   const token = getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName);
+   const recovered = findRecoverableOnlinePlayer(room, myOnlinePlayerName, token, currentAuthUid, getTabPlayerId());
+   if (recovered) {
+     const previousId = myOnlinePlayerId;
+     myOnlinePlayerId = recovered.id;
+     setTabPlayerId(recovered.id);
+     saveDeviceSeatMapping(currentOnlineRoomCode, recovered.id, recovered.name || myOnlinePlayerName);
+     myOnlinePlayerName = recovered.name || myOnlinePlayerName;
+     window._joinIdentityConflict = false;
+     // 將舊版座位升級成可持續恢復的紀錄；只有憑證已匹配到原座位才更新。
+     if (isFirebaseReady && db && currentAuthUid) {
+       db.runTransaction(async transaction => {
+         const ref = db.doc(ONLINE_ROOM_DOC); const snap = await transaction.get(ref); if (!snap.exists) return;
+         const d = snap.data(); const ps = (d.players || []).map(p => ({...p}));
+         const row = ps.find(p => p.id === recovered.id);
+         if (!row || normalizeOnlineNickname(row.name) !== normalizeOnlineNickname(myOnlinePlayerName)) return;
+         if (row.authUid && row.authUid !== currentAuthUid && row.deviceToken !== token) return;
+         row.authUid = currentAuthUid;
+         row.deviceToken = row.deviceToken || token;
+         row.lastSeenAt = Date.now();
+         transaction.update(ref, { players: ps });
+       }).catch(e => console.debug('[Reconnect] 座位憑證升級稍後重試:', e && e.message || e));
+       // 讓本人以目前匿名 UID 讀取原角色文件；角色欄位本身不更動。
+       db.doc(`${ONLINE_ROOM_DOC}/private/${recovered.id}`).update({ authUid: currentAuthUid }).catch(() => {});
+     }
+     if (previousId !== recovered.id) listenToMyPrivateRole();
+     // 若已非該玩家目前行動，重連真人可取回控制權；正執行中的電腦動作則先完成。
+     const activeId = room.status === 'playing' ? room.currentTurnPlayerId : (room.status === 'discussion' ? room.currentSpeakerId : null);
+     if (recovered.isBotControlled && activeId !== recovered.id && !((room.status === 'voting' && room.rounds && room.rounds[room.currentRoundIdx] && room.rounds[room.currentRoundIdx].votes && room.rounds[room.currentRoundIdx].votes[recovered.id]) || (room.status === 'person_voting' && room.personVotes && room.personVotes[recovered.id]))) {
+       db.doc(ONLINE_ROOM_DOC).get().then(snap => {
+         if (!snap.exists) return;
+         const d = snap.data(); const ps = (d.players || []).map(p => ({...p}));
+         const rp = ps.find(p => p.id === recovered.id);
+         if (rp && rp.isBotControlled) { rp.isBotControlled = false; rp.botReclaimedAt = Date.now(); db.doc(ONLINE_ROOM_DOC).update({ players: ps }).catch(() => {}); }
+       }).catch(() => {});
+     }
+   }
+ }
  let me = getOnlineMePlayer(room) || players.find(p => p.id === myOnlinePlayerId);  
   
  // 保持自身獨立的 Tab-level ID，絕不掠奪其他玩家席位 ID  
@@ -9573,18 +9838,8 @@ onlineRoomData = room;
    }  
  }
   
-  // 需求 1：觀戰者自動判定 (若房間未滿或名單有電腦玩家可替換，絕不誤判為觀戰者)
-  let isSpectator = false;
-  if (!me) {
-    const hasMock = players.some(p => p.id && p.id.startsWith('mock_p_'));
-    if (room.status === 'waiting' && (players.length < 8 || hasMock)) {
-      isSpectator = false;
-    } else {
-      isSpectator = true;
-    }
-  } else {
-    isSpectator = !players.some(p => p.id === myOnlinePlayerId);
-  }
+  // v3.8.5 原有修正：只有名單內真的有自己的 playerId 才能操作；未入座者一律觀戰，避免 UI 假裝已入座。
+  let isSpectator = !players.some(p => p.id === myOnlinePlayerId);
   window.isOnlineSpectator = isSpectator;
   updateSpectatorBarUI();  
   
@@ -9602,6 +9857,36 @@ onlineRoomData = room;
      me.role = sessionRole;
    }
  }
+ }
+
+ // v3.8.5 原有修正：若玩家重連時已在 playing／discussion／voting 階段，不能只依賴角色快照監聽。
+ // 私有文件可能比公開房間先到，第一次因 startTimestamp 尚未同步而被略過；此處再依本局時間戳補讀一次。
+ if (me && !window.isOnlineSpectator && room.status !== 'waiting' && room.status !== 'roles' && room.startTimestamp &&
+     (!me.role || me.role === '???') && isFirebaseReady && db &&
+     window._privateRoleFetchAttemptStart !== room.startTimestamp && !window._privateRoleFetchInFlight) {
+   window._privateRoleFetchAttemptStart = room.startTimestamp;
+   window._privateRoleFetchInFlight = true;
+   const roleFetchPlayerId = myOnlinePlayerId;
+   db.doc(`${ONLINE_ROOM_DOC}/private/${roleFetchPlayerId}`).get().then(roleSnap => {
+     window._privateRoleFetchInFlight = false;
+     if (!roleSnap.exists || !roleSnap.data()) return;
+     const privateData = roleSnap.data();
+     const liveRoom = onlineRoomData;
+     if (!liveRoom || !isFreshRoleDataForRoom(privateData, liveRoom) || roleFetchPlayerId !== myOnlinePlayerId) return;
+     myPrivateRoleData = privateData;
+     if (!(liveRoom.players || []).some(p => p.id === roleFetchPlayerId)) return;
+     // 不可把私有角色寫進 liveRoom.players，避免之後的整份 players 更新外洩身分。
+     try {
+       sessionStorage.setItem('gudong_active_role_' + roleFetchPlayerId, privateData.role);
+       sessionStorage.setItem('gudong_active_role_start_' + roleFetchPlayerId, String(liveRoom.startTimestamp));
+     } catch(e) {}
+     console.info('🔒 [Reconnect] 已從本局私有資料補回角色:', privateData.role);
+     handleOnlineRoomUpdate(liveRoom);
+   }).catch(err => {
+     window._privateRoleFetchInFlight = false;
+     console.warn('[Reconnect] 補讀本局私有角色失敗:', err && err.message || err);
+     showToast('座位已找回，但角色資料讀取失敗。請確認 Firebase 私有角色規則已更新後重新載入。', 'warning', 5500);
+   });
  }
  
  // 依要求1：安全的狀態機 (State Machine) 重置過渡邏輯：監聽到 resetting 時鎖定 UI 並暫停舊資料處理  
@@ -9685,7 +9970,7 @@ onlineRoomData = room;
         if (room.status === 'voting') { autoScrollToVotingStageIfNeeded(room); }  
 
         // 需求 1：發言階段若輪到虛擬玩家，房主客戶端立即驅動打字發言，避免卡在虛擬角色  
-        if (room.status === 'discussion' && room.currentSpeakerId && room.currentSpeakerId.startsWith('mock_p_')) {  
+        if (room.status === 'discussion' && room.currentSpeakerId && isComputerControlledPlayer((room.players || []).find(p => p.id === room.currentSpeakerId))) {  
           try {
             triggerMockPlayerSpeech(room, room.currentSpeakerId);  
           } catch(err) {
@@ -9723,7 +10008,7 @@ async function kickOnlinePlayer(targetId, event) {
  const target = (onlineRoomData && onlineRoomData.players || []).find(p => p.id === targetId);  
  if (!target) return;  
   
- if (!confirm(`確定要將【${target.name}】踢出房間嗎？`)) return;  
+ if (!confirm(`確定要將【${target.name}】移出房間嗎？`)) return;  
   
  const docRef = db.doc(ONLINE_ROOM_DOC);  
  try {  
@@ -9731,48 +10016,26 @@ async function kickOnlinePlayer(targetId, event) {
  if (!snap.exists) return;  
  const data = snap.data();  
  let players = data.players ? [...data.players] : [];  
- let kickedPlayerIds = data.kickedPlayerIds ? [...data.kickedPlayerIds] : [];  
- let kickStats = data.kickStats ? { ...data.kickStats } : {};  
   
  const pIdx = players.findIndex(p => p.id === targetId);  
  if (pIdx === -1) return;  
   
- // 移除被踢玩家  
+ // 直接移除被移出玩家，席位空出，無黑名單干擾  
  players.splice(pIdx, 1);  
- // 依要求4：剔除玩家後直接讓座位空出，絕不重編其他玩家 seatIndex  
   
- // 記錄被踢名單，防範該玩家端自動重連 (autoJoinLobbySeats)  
- if (!kickedPlayerIds.includes(targetId)) {  
- kickedPlayerIds.push(targetId);  
- }  
-  
- const curKicks = (kickStats[targetId] && kickStats[targetId].count) || 0;  
- const newKicks = curKicks + 1;  
- let lockedUntil = 0;  
- if (newKicks >= 3) {  
- lockedUntil = Date.now() + 3 * 60 * 1000; // 連踢 3 次鎖定 3 分鐘  
- }  
- kickStats[targetId] = {  
- count: newKicks,  
- lockedUntil: lockedUntil,  
- lastKickedAt: Date.now()  
- };  
-  
- // 依要求3：立即樂觀更新本地畫面，換座與剔除零延遲不卡頓  
+ // 立即樂觀更新本地畫面，換座與剔除零延遲  
  if (onlineRoomData) {  
  onlineRoomData.players = players;  
- onlineRoomData.kickedPlayerIds = kickedPlayerIds;  
  const me = players.find(p => p.id === myOnlinePlayerId);  
  renderOnlineLobby(onlineRoomData, me);  
  }  
   
  await docRef.update({  
  players: players,  
- kickedPlayerIds: kickedPlayerIds,  
- kickStats: kickStats  
+ lastActivityTime: Date.now()  
  });  
  } catch(e) {  
- console.error('踢出玩家失敗:', e);  
+ console.error('移出玩家失敗:', e);  
  }  
  }  
  window.kickOnlinePlayer = kickOnlinePlayer;  
@@ -9780,16 +10043,7 @@ async function kickOnlinePlayer(targetId, event) {
  async function autoJoinLobbySeats(room) {  
  if (!myOnlinePlayerId || !isFirebaseReady || !db) return;  
   
- // 關鍵修復：若已被房主或他人踢出，絕不可自動入座！  
- if (room && room.kickedPlayerIds && room.kickedPlayerIds.includes(myOnlinePlayerId)) {  
-   return;  
- }  
- if (room && room.kickStats && room.kickStats[myOnlinePlayerId]) {  
-   const ks = room.kickStats[myOnlinePlayerId];  
-   if (ks.lockedUntil && Date.now() < ks.lockedUntil) {  
-     return;  
-   }  
- }  
+// 已全面移除黑名單阻擋，支援自由換位與重連  
   
  const docRef = db.doc(ONLINE_ROOM_DOC);  
   
@@ -9804,11 +10058,21 @@ async function kickOnlinePlayer(targetId, event) {
      const existingMe = players.find(p => p.id === myOnlinePlayerId);
      if (existingMe) {
        if (currentAuthUid) existingMe.authUid = currentAuthUid;
+       existingMe.deviceToken = existingMe.deviceToken || getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName);
+       existingMe.lastSeenAt = Date.now();
+       saveDeviceSeatMapping(currentOnlineRoomCode, existingMe.id, existingMe.name);
        transaction.update(docRef, { players: players, lastActivityTime: Date.now() });
        return;
      }
 
-     // 關鍵修復：若房間已有 8 人但名單內包含電腦虛擬玩家 (mock_p_)，真實玩家自動替換掉最後一位電腦玩家！
+     const myToken = getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName);
+     // 同暱稱但無本裝置憑證／本人 UID 的紀錄，不可再建立第二個同名座位。
+     if (players.some(p => normalizeOnlineNickname(p.name) === normalizeOnlineNickname(myOnlinePlayerName) && !(p.deviceToken === myToken || (currentAuthUid && p.authUid === currentAuthUid)))) {
+       window._joinIdentityConflict = true;
+       return;
+     }
+
+     // 若房間已有 8 人但名單內包含電腦虛擬玩家 (mock_p_)，真實玩家自動替換掉最後一位電腦玩家！
      if (players.length >= 8) {
        let mockIdx = -1;
        for (let i = players.length - 1; i >= 0; i--) {
@@ -9840,6 +10104,8 @@ async function kickOnlinePlayer(targetId, event) {
      const newPlayer = {  
        id: myOnlinePlayerId,  
        authUid: currentAuthUid || null,
+       deviceToken: getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName),
+       lastSeenAt: Date.now(),
        name: myOnlinePlayerName,  
        repChar: repChar,  
        colorId: availColor.id,  
@@ -9853,6 +10119,7 @@ async function kickOnlinePlayer(targetId, event) {
      };  
   
      players.push(newPlayer);  
+     saveDeviceSeatMapping(currentOnlineRoomCode, newPlayer.id, newPlayer.name);
      transaction.update(docRef, { players: players, lastActivityTime: Date.now() });  
    });
  } catch (err) {  
@@ -10350,9 +10617,12 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  }  
   
- let players = data.players || [];  
-  
- // 確保房間內剛好有 8 位玩家 (若不足 8 位，自動以戰國武將補齊空位；若超過 8 位，保留前 8 位)  
+ let players = Array.isArray(data.players) ? data.players.map(p => ({...p})) : [];
+ // 先依 ID 去重。超過 8 位真實玩家時拒絕開局，不再靜默截斷名單。
+ players = Array.from(new Map(players.filter(p => p && p.id).map(p => [p.id, p])).values());
+ if (players.length > 8) throw new Error(`房間有 ${players.length} 位不同玩家，超過 8 人上限；請先清理多餘席位再開局。`);
+
+ // 人數不足時以電腦玩家補滿。
  const neededCount = 8 - players.length;  
  if (neededCount > 0) {  
  const shuffledWarlords = cryptoShuffle(WARLORD_MOCK_NAMES);  
@@ -10399,12 +10669,11 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  }  
   
- // 去重並嚴格取前 8 位玩家  
- const uniquePlayersMap = new Map();  
- players.forEach(p => {  
- if (!uniquePlayersMap.has(p.id)) uniquePlayersMap.set(p.id, p);  
- });  
- players = Array.from(uniquePlayersMap.values()).slice(0, 8);  
+ // 發牌前最後一道硬性驗證：必須恰好 8 位不同玩家；絕不以 slice 默默丟掉任何人。
+ const uniquePlayersMap = new Map();
+ players.forEach(p => { if (p && p.id && !uniquePlayersMap.has(p.id)) uniquePlayersMap.set(p.id, p); });
+ players = Array.from(uniquePlayersMap.values());
+ if (players.length !== 8) throw new Error(`發牌中止：目前只有 ${players.length} 位不同玩家，必須剛好 8 位。`);  
   
  // 嚴格保證 8 位玩家恰好填滿 0, 1, 2, 3, 4, 5, 6, 7 席次，絕不重複且無任何空缺！  
  const usedSeatSet = new Set();  
@@ -10437,7 +10706,9 @@ async function kickOnlinePlayer(targetId, event) {
   
  // 隨機分派角色，保證不重複且絕無玩家無角色  
  players.forEach((p, idx) => {  
- p.role = shuffledRoles[idx];  
+ p.role = shuffledRoles[idx];
+ p.lastSeenAt = Number(p.lastSeenAt || 0) || now;
+ if (!p.deviceToken && p.id === myOnlinePlayerId) p.deviceToken = getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName || p.name);
  p.roleConfirmed = p.id.startsWith('mock_p_') ? true : false;  
  p.isAmbushed = false;  
  p.isPermanentlyAmbushed = false;  
@@ -10473,11 +10744,14 @@ async function kickOnlinePlayer(targetId, event) {
  try {
    players.forEach((p, idx) => {
      const privDocRef = db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`);
+     const allyRole = p.role === '老朝奉' ? '藥不然' : (p.role === '藥不然' ? '老朝奉' : null);
+     const ally = allyRole ? players.find(other => other.id !== p.id && other.role === allyRole) : null;
      transaction.set(privDocRef, {
        playerId: p.id,
        authUid: p.authUid || (p.id === myOnlinePlayerId ? currentAuthUid : null),
        role: p.role,
        confusedRound: p.confusedRound,
+       knownTeammate: ally ? { playerId: ally.id, name: ally.name || '玩家', colorId: ally.colorId || null, role: ally.role } : null,
        assignedAt: now
      });
    });
@@ -10488,10 +10762,13 @@ async function kickOnlinePlayer(targetId, event) {
  // 立即在本地客戶端快照並鎖定本人真實角色，杜絕異步快照延遲
  const mySelfPlayer = players.find(p => p.id === myOnlinePlayerId);
  if (mySelfPlayer) {
+   const localAllyRole = mySelfPlayer.role === '老朝奉' ? '藥不然' : (mySelfPlayer.role === '藥不然' ? '老朝奉' : null);
+   const localAlly = localAllyRole ? players.find(other => other.id !== mySelfPlayer.id && other.role === localAllyRole) : null;
    myPrivateRoleData = {
      playerId: mySelfPlayer.id,
      role: mySelfPlayer.role,
      confusedRound: mySelfPlayer.confusedRound,
+     knownTeammate: localAlly ? { playerId: localAlly.id, name: localAlly.name || '玩家', colorId: localAlly.colorId || null, role: localAlly.role } : null,
      assignedAt: now
    };
    try {
@@ -10517,6 +10794,8 @@ async function kickOnlinePlayer(targetId, event) {
  transaction.update(docRef, {  
  status: 'roles',  
  gameState: 'roles',  
+ hostId: myOnlinePlayerId,
+ hostAuthUid: currentAuthUid || null,
  launchLock: { lockedBy: myOnlinePlayerId, timestamp: now },  
  startTimestamp: now,  
  sessionIndex: data.sessionIndex || 1,  
@@ -10530,7 +10809,10 @@ async function kickOnlinePlayer(targetId, event) {
  });  
  });  
  } catch(e) {  
- console.error('開局交易失敗:', e);  
+ console.error('開局交易失敗:', e);
+ showToast('開局失敗：' + (e && e.message ? e.message : '請檢查房間人數、網路與 Firebase 權限'), 'warning', 5000);
+ const retryBtn = document.getElementById('btnOnlReadyStart');
+ if (retryBtn) { retryBtn.disabled = false; retryBtn.onclick = toggleMyReadyStart; retryBtn.innerText = '重新嘗試開始'; }
  } finally {  
  // 發牌交易完成或失敗時，立即解鎖，防範卡死  
  window._isDealingRoles = false;  
@@ -10720,12 +11002,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  if (!me) return;  
   
- // 修改5：自動倒數過後直接進入確認角色，不必再點確認  
- if (room.status === 'roles') {  
- if (!me.roleConfirmed) {  
- confirmMyRoleReady();  
- }  
- }  
+ // v3.8.5 原有修正：不在角色載入前提前確認；先恢復私有角色，再決定是否自動確認。
  // 需求2：線上多人版完全移除長按防窺鎖定機制，卡片直接展示！  
  if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) {
    me.role = myPrivateRoleData.role;
@@ -10746,12 +11023,42 @@ async function kickOnlinePlayer(targetId, event) {
  const wmBg = document.getElementById('onlRoleWatermarkBg');  
  const confirmBtn = document.getElementById('btnOnlConfirmRole');  
   
- roleNameEl.innerText = me.role || '???';  
+ // 核心修復：防止私有角色同步延遲時誤顯示為「???」與「老朝奉陣營」
+ const hasValidRole = !!(me.role && me.role !== '' && me.role !== '???');
+ if (hasValidRole && room.status === 'roles' && !me.roleConfirmed && !window._roleConfirmPending) {
+   window._roleConfirmPending = true;
+   confirmMyRoleReady().finally(() => { window._roleConfirmPending = false; });
+ }
+ if (!hasValidRole) {
+   // 嘗試從私有資料庫直接讀取備援
+   if (myOnlinePlayerId && isFirebaseReady && db && !window._fetchingDirectPrivateRole) {
+     window._fetchingDirectPrivateRole = true;
+     db.doc(`${ONLINE_ROOM_DOC}/private/${myOnlinePlayerId}`).get().then(snap => {
+       window._fetchingDirectPrivateRole = false;
+       if (snap.exists && snap.data() && snap.data().role) {
+         myPrivateRoleData = snap.data();
+         me.role = myPrivateRoleData.role;
+         try {
+           sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
+           if (room.startTimestamp) sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(room.startTimestamp));
+         } catch(e) {}
+         renderOnlineRoleReveal(room, me);
+       }
+     }).catch(() => { window._fetchingDirectPrivateRole = false; });
+   }
+ }
+
+ roleNameEl.innerText = hasValidRole ? me.role : '身分同步中...';  
  const isGood = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(me.role);  
- campBadge.className = isGood  
- ? 'inline-block px-3 py-1 rounded-full text-xs font-black bg-blue-950 text-blue-300 border border-blue-700 shadow'  
- : 'inline-block px-3 py-1 rounded-full text-xs font-black bg-red-950 text-red-300 border border-red-700 shadow';  
- campBadge.innerText = isGood ? '許願陣營 (好人)' : '老朝奉陣營 (壞人)';  
+ if (!hasValidRole) {
+   campBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-black bg-neutral-800 text-neutral-400 border border-neutral-700 shadow animate-pulse';
+   campBadge.innerText = '⏳ 正在取得角色...';
+ } else {
+   campBadge.className = isGood  
+     ? 'inline-block px-3 py-1 rounded-full text-xs font-black bg-blue-950 text-blue-300 border border-blue-700 shadow'  
+     : 'inline-block px-3 py-1 rounded-full text-xs font-black bg-red-950 text-red-300 border border-red-700 shadow';  
+   campBadge.innerText = isGood ? '許願陣營 (好人)' : '老朝奉陣營 (壞人)';
+ }  
   
  // 角色能力簡介  
  const descs = {  
@@ -10770,11 +11077,11 @@ async function kickOnlinePlayer(targetId, event) {
  const evilCampBanner = document.getElementById('onlRoleEvilCampBanner');  
  if (evilCampBanner) {  
    if (me.role === '老朝奉') {  
-     const yaoP = (room.players || []).find(p => p.role === '藥不然');  
+     const yaoP = getKnownTeammateForRole(room, me.role);  
      const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;  
      const yaoTag = yaoP && yaoC  
        ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${yaoC.hex}; color: ${yaoC.id === 'white' || yaoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${yaoP.name}</span><span class="ml-1 text-neutral-200 font-bold">是你的隊友藥不然</span>`  
-       : '<span class="text-neutral-400">（本局無藥不然）</span>';  
+       : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
      evilCampBanner.classList.remove('hidden');  
      evilCampBanner.innerHTML = `  
        <div class="text-xs text-rose-300 font-bold flex items-center justify-center space-x-1 flex-wrap">  
@@ -10782,11 +11089,11 @@ async function kickOnlinePlayer(targetId, event) {
        </div>  
      `;  
    } else if (me.role === '藥不然') {  
-     const laoP = (room.players || []).find(p => p.role === '老朝奉');  
+     const laoP = getKnownTeammateForRole(room, me.role);  
      const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;  
      const laoTag = laoP && laoC  
        ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${laoC.hex}; color: ${laoC.id === 'white' || laoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${laoP.name}</span><span class="ml-1 text-neutral-200 font-bold">是你的隊友老朝奉</span>`  
-       : '<span class="text-neutral-400">（本局無老朝奉）</span>';  
+       : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
      evilCampBanner.classList.remove('hidden');  
      evilCampBanner.innerHTML = `  
        <div class="text-xs text-rose-300 font-bold flex items-center justify-center space-x-1 flex-wrap">  
@@ -10823,7 +11130,12 @@ async function kickOnlinePlayer(targetId, event) {
   
  async function confirmMyRoleReady() {  
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;
- if (!onlineRoomData || !myOnlinePlayerId || !isFirebaseReady || !db) return;  
+ if (!onlineRoomData || !myOnlinePlayerId || !isFirebaseReady || !db) return;
+ const localMe = getOnlineMePlayer(onlineRoomData);
+ if (!localMe || !localMe.role || localMe.role === '???') {
+   showToast('角色資料尚未同步完成，請稍候再確認，避免卡住開局。', 'warning', 2500);
+   return;
+ }  
  const docRef = db.doc(ONLINE_ROOM_DOC);  
   
  try {  
@@ -10960,7 +11272,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  }  
   
- if (turnPlayerId && turnPlayerId.startsWith('mock_p_') && room.status === 'playing') {  
+ if (turnPlayerId && isComputerControlledPlayer((room.players || []).find(p => p.id === turnPlayerId)) && room.status === 'playing') {  
  triggerMockPlayerTurnAction(room, turnPlayerId);  
  }  
  }  
@@ -11370,58 +11682,26 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  }  
  }  
   
- var _onlActiveTurnHistoryCollapsed = true;  
- function toggleActiveTurnHistoryCollapse() {  
- window._hasExplicitlyToggledTurnHistory = true;  
- _onlActiveTurnHistoryCollapsed = !_onlActiveTurnHistoryCollapsed;  
- const content = document.getElementById('onlActiveTurnHistoryContent');  
- const toggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
- if (content) {  
- if (_onlActiveTurnHistoryCollapsed) {  
- content.classList.add('hidden');  
- if (toggleText) toggleText.innerText = '▶ 點擊展開';  
- } else {  
- content.classList.remove('hidden');  
- if (toggleText) toggleText.innerText = '▼ 點擊收合';  
- }  
- }  
- }  
- window.toggleActiveTurnHistoryCollapse = toggleActiveTurnHistoryCollapse;  
-  
  function renderOnlineMyActiveTurn(room, me, curRound) {  
  me = getOnlineMePlayer(room) || me;
  renderPassOrderRows(room, curRound);  
  renderActiveTurnCircleSeats(room, me, curRound);  
   
- // 依修改1：操作階段渲染各回合發言記錄與各回合獸首投票票型（點擊獸首可以看攤開明細）  
- renderWaitingTurnSpeeches(room, me, curRound, 'onlActiveTurnSpeechesContainer');  
- renderWaitingTurnBeastsChips(room, me, curRound, 'onlActiveTurnBeastsChipsContainer');  
-  
- // 修改3：傳手機操作階段，下方歷史區塊預設狀態永遠保持收合，要特別點開才能看到  
- if (!window._hasExplicitlyToggledTurnHistory) {  
- _onlActiveTurnHistoryCollapsed = true;  
- }  
- const histContent = document.getElementById('onlActiveTurnHistoryContent');  
- const histToggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
- if (histContent) {  
- if (_onlActiveTurnHistoryCollapsed) {  
- histContent.classList.add('hidden');  
- if (histToggleText) histToggleText.innerText = '▶ 點擊展開';  
- } else {  
- histContent.classList.remove('hidden');  
- if (histToggleText) histToggleText.innerText = '▼ 點擊收合';  
- }  
- }  
-  
- // 壞人陣營同伴互認：老朝奉與藥不然互相相認
+   // v3.8.6：發言紀錄與票型直接列在各階段「手機傳遞順序（三回合）」下方，不再使用獨立折疊區塊。
+  ['A', 'B', 'C'].forEach(suffix => {
+    renderWaitingTurnSpeeches(room, me, curRound, `onlActiveTurnSpeechesContainer${suffix}`);
+    renderWaitingTurnBeastsChips(room, me, curRound, `onlActiveTurnBeastsChipsContainer${suffix}`);
+  });
+
+  // 壞人陣營同伴互認：老朝奉與藥不然互相相認
  const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');  
  if (me.role === '老朝奉' && turnCampBanner) {  
    turnCampBanner.classList.remove('hidden');  
-   const yaoP = (room.players || []).find(x => x.role === '藥不然');  
+   const yaoP = getKnownTeammateForRole(room, me.role);  
    const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;  
    const yaoNameTag = yaoP && yaoC 
      ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${yaoC.hex}; color: ${yaoC.id === 'white' || yaoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${yaoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友藥不然</span>` 
-     : '<span class="text-neutral-400">（本局無藥不然）</span>';  
+     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
   
    turnCampBanner.innerHTML = `  
      <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
@@ -11431,11 +11711,11 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
    `;  
  } else if (me.role === '藥不然' && turnCampBanner) {  
    turnCampBanner.classList.remove('hidden');  
-   const laoP = (room.players || []).find(x => x.role === '老朝奉');  
+   const laoP = getKnownTeammateForRole(room, me.role);  
    const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;  
    const laoNameTag = laoP && laoC 
      ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${laoC.hex}; color: ${laoC.id === 'white' || laoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${laoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友老朝奉</span>` 
-     : '<span class="text-neutral-400">（本局無老朝奉）</span>';  
+     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
   
    turnCampBanner.innerHTML = `  
      <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
@@ -12576,7 +12856,7 @@ function executeOnlineAdvanceToDiscussion(rParam) {
 
         logSyncEvent('✓ ADVANCE', `Rev #${nextRev}: 第 ${curRIdx + 1} 回合查驗完畢，推進至順時針發言階段 (首位發言者: ${firstSpeakerId})`, 'highlight');
       }).then(() => {
-        if (firstSpeakerId && firstSpeakerId.startsWith('mock_p_')) {
+        if (firstSpeakerId && isComputerControlledPlayer((room.players || []).find(p => p.id === firstSpeakerId))) {
           setTimeout(() => {
             if (onlineRoomData) triggerMockPlayerSpeech(onlineRoomData, firstSpeakerId);
           }, 400);
@@ -13994,7 +14274,7 @@ async function onlSubmitMySpeech() {
    logSyncEvent('✓ SPEECH', `Rev #${nextRev}: 玩家 ${actorId} 發言送出 (${totalSpoken}/${totalPlayers}) ➔ ${nextStatus === 'voting' ? '全員完畢，開放鑑寶投票' : '下一發言: ' + nextSpeakerId}`, 'success');
  }).then(() => {
    if (textarea) textarea.value = '';  
-   if (nextSpeakerIdToTrigger && nextSpeakerIdToTrigger.startsWith('mock_p_')) {
+   if (nextSpeakerIdToTrigger && isComputerControlledPlayer((onlineRoomData && onlineRoomData.players || []).find(p => p.id === nextSpeakerIdToTrigger))) {
      setTimeout(() => {
        if (onlineRoomData) triggerMockPlayerSpeech(onlineRoomData, nextSpeakerIdToTrigger);
      }, 300);
@@ -14019,7 +14299,9 @@ function renderOnlineVotingView(room, me) {
   
  startOnlineVotingDotsAnimation(votedCount);  
   
- const hasMyVoted = !!votes[myOnlinePlayerId];  
+ const isServerVoted = Boolean(votes && votes[myOnlinePlayerId]);  
+ const isLocalVoted = Boolean(onlMySubmittedVoteRounds && onlMySubmittedVoteRounds[curRoundIdx]);  
+ const hasMyVoted = isServerVoted || isLocalVoted;  
  const formSec = document.getElementById('onlVotingFormSection');  
  const submittedNotice = document.getElementById('onlVoteSubmittedNotice');  
  const btnSubmit = document.getElementById('btnOnlSubmitVote');  
@@ -14083,7 +14365,7 @@ function renderOnlineVotingView(room, me) {
  renderOnlineBeastsChipsStack(room);  
   
  // 電腦測試玩家自動投票  
- const mockUnvoted = (room.players || []).filter(p => p.id.startsWith('mock_p_') && !(votes && votes[p.id]));  
+ const mockUnvoted = (room.players || []).filter(p => isComputerControlledPlayer(p) && !(votes && votes[p.id]));  
  if (mockUnvoted.length > 0 && isVotingOpen) {  
  triggerMockPlayerVoting(room);  
  }  
@@ -14130,7 +14412,7 @@ function renderOnlineVotingView(room, me) {
               const starterName = nextStarter ? nextStarter.name : '下輪首家';  
               const pc = nextStarter ? (COLOR_PALETTE.find(c => c.id === nextStarter.colorId) || COLOR_PALETTE[0]) : COLOR_PALETTE[0];  
               const targetStageText = (curRoundIdx < 2) ? `第 ${curRoundIdx + 2} 回合` : '鑑人投票階段';  
-              if (nextStarterId && nextStarterId.startsWith('mock_p_')) {
+              if (nextStarterId && isComputerControlledPlayer((room.players || []).find(p => p.id === nextStarterId))) {
                 nextNoticeEl.innerHTML = `🤖 首家電腦玩家 <span class="${pc.bgClass} px-1.5 py-0.5 rounded text-[11px] font-black">${pc.name}色 ${starterName}</span> 正在開啟【${targetStageText}】...`;
               } else {
                 nextNoticeEl.innerHTML = `⏳ 投票已揭曉！等待首家 <span class="${pc.bgClass} px-1.5 py-0.5 rounded text-[11px] font-black">${pc.name}色 ${starterName}</span> 點擊開啟【${targetStageText}】...`;
@@ -14139,7 +14421,7 @@ function renderOnlineVotingView(room, me) {
           }  
   
           // 若下回合首家為電腦玩家 (AI)，僅由在線房主協調於 2 秒自動推進，徹底杜絕非房主重疊計時導致跳輪！
-          if (nextStarterId && nextStarterId.startsWith('mock_p_')) {  
+          if (nextStarterId && isComputerControlledPlayer((room.players || []).find(p => p.id === nextStarterId))) {  
             const hostId = getRoomHostId(room);  
             const isHost = (hostId === myOnlinePlayerId);  
             if (isHost && !window._autoAdvanceBotRoundTimer) {  
@@ -14367,7 +14649,10 @@ function renderOnlineVotingView(room, me) {
  alert('目前尚在發言階段，請等待全員發言完畢後再進行投票！');  
  return;  
  }  
-  
+ if ((curRound.votes && curRound.votes[myOnlinePlayerId]) || (onlMySubmittedVoteRounds && onlMySubmittedVoteRounds[curRoundIdx])) {
+   showToast('本回合選票已送出，不需要再投一次。', 'info', 2000);
+   return;
+ }
  if (!curRound.votes) curRound.votes = {};  
   
  const maxVotesThisRound = getOnlineMyAvailableVotes(curRound.roundNum);  
@@ -14384,26 +14669,80 @@ function renderOnlineVotingView(room, me) {
  ballot[b.name] = parseInt(onlMyVoteMap[b.name]) || 0;  
  });  
   
- curRound.votes[myOnlinePlayerId] = ballot;  
+ // 1. 本地樂觀鎖定：立刻記錄該輪已成功送出選票，防止任何快照延遲或競爭將畫面重繪回未投票表單
+ onlMySubmittedVoteRounds[curRoundIdx] = ballot;  
   
  const formSec = document.getElementById('onlVotingFormSection');  
  if (formSec) formSec.classList.add('hidden');  
  const submittedNotice = document.getElementById('onlVoteSubmittedNotice');  
- if (submittedNotice) submittedNotice.classList.remove('hidden');  
+ if (submittedNotice) submittedNotice.classList.remove('hidden');
+ const submitButton = document.getElementById('btnOnlSubmitVote');
+ if (submitButton) { submitButton.disabled = true; submitButton.innerText = '已送出，正在確認…'; }
   
  if (window.soundCtrl && window.soundCtrl.playTokenSound) {  
  window.soundCtrl.playTokenSound();  
  }  
   
- const totalPlayers = (room.players || []).length || 8;  
- const totalVoted = (room.players || []).filter(p => curRound.votes && curRound.votes[p.id]).length;  
-  
- if (totalVoted >= totalPlayers && !curRound.voteResults) {  
- await executeOnlineCalculateVotes(room, curRound);  
- return;  
- }  
-  
- await onlineUpdate({ rounds: room.rounds });  
+ // 2. Firestore 原子交易；確認伺服器已接受才算完成。若主交易與備援都失敗，撤銷樂觀鎖並允許重試。
+ const docRef = db.doc(ONLINE_ROOM_DOC);
+ let allVotedDone = false;
+ let latestRoom = null;
+ let saved = false;
+ try {
+   await db.runTransaction(async transaction => {
+     const snap = await transaction.get(docRef);
+     if (!snap.exists) throw new Error('房間已不存在');
+     const freshRoom = snap.data();
+     if (freshRoom.status !== 'voting') throw new Error('投票階段已結束');
+     const rIdx = Number(freshRoom.currentRoundIdx !== undefined ? freshRoom.currentRoundIdx : curRoundIdx);
+     if (rIdx !== curRoundIdx) throw new Error('回合已變更，請確認目前投票進度');
+     const players = freshRoom.players || [];
+     if (!players.some(p => p.id === myOnlinePlayerId)) throw new Error('找不到您的座位，請重新連線');
+     const rounds = Array.isArray(freshRoom.rounds) ? freshRoom.rounds.map(r => ({...r})) : [];
+     const roundObj = rounds[rIdx];
+     if (!roundObj) throw new Error('找不到本回合資料');
+     roundObj.votes = {...(roundObj.votes || {})};
+     roundObj.votes[myOnlinePlayerId] = ballot;
+     const totalVoted = players.filter(p => roundObj.votes[p.id]).length;
+     if (totalVoted >= players.length && !roundObj.voteResults) {
+       allVotedDone = true;
+       latestRoom = {...freshRoom, rounds};
+     }
+     transaction.update(docRef, { rounds, lastActivityTime: Date.now() });
+   });
+   saved = true;
+   if (allVotedDone && latestRoom) {
+     const rIdx = Number(latestRoom.currentRoundIdx || 0);
+     await executeOnlineCalculateVotes(latestRoom, latestRoom.rounds[rIdx]);
+   }
+ } catch(err) {
+   console.error('投票送出交易失敗:', err);
+   // 備援也使用交易＋重讀最新狀態，避免以 dotted path 覆蓋整個 rounds 陣列。
+   try {
+     await db.runTransaction(async transaction => {
+       const snap = await transaction.get(docRef);
+       if (!snap.exists) throw new Error('房間已不存在');
+       const freshRoom = snap.data();
+       const rIdx = Number(freshRoom.currentRoundIdx !== undefined ? freshRoom.currentRoundIdx : curRoundIdx);
+       if (freshRoom.status !== 'voting' || rIdx !== curRoundIdx) throw new Error('投票階段或回合已改變');
+       if (!(freshRoom.players || []).some(p => p.id === myOnlinePlayerId)) throw new Error('找不到您的座位');
+       const rounds = Array.isArray(freshRoom.rounds) ? freshRoom.rounds.map(r => ({...r})) : [];
+       if (!rounds[rIdx]) throw new Error('找不到本回合');
+       rounds[rIdx].votes = {...(rounds[rIdx].votes || {}), [myOnlinePlayerId]: ballot};
+       transaction.update(docRef, { rounds, lastActivityTime: Date.now() });
+     });
+     saved = true;
+   } catch(fallbackErr) {
+     console.error('投票備援交易也失敗:', fallbackErr);
+   }
+   if (!saved) {
+     delete onlMySubmittedVoteRounds[curRoundIdx];
+     if (formSec) formSec.classList.remove('hidden');
+     if (submittedNotice) submittedNotice.classList.add('hidden');
+     if (submitButton) { submitButton.disabled = false; submitButton.innerText = '重新送出投票'; }
+     showToast('選票尚未確認送出，已恢復投票表單，請檢查網路後重試。', 'warning', 5000);
+   }
+ }
  }  
  window.onlSubmitMyVote = onlSubmitMyVote;  
   
@@ -14736,7 +15075,7 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
  // 依要求：若虛擬玩家未投票則已投票人數不應該計算虛擬玩家已投票，嚴格統計實際投票人數  
  const votedCount = (room.players || []).filter(p => pVotes && pVotes[p.id]).length;  
   
- const mockUnvoted = (room.players || []).filter(p => p.id.startsWith('mock_p_') && !pVotes[p.id]);  
+ const mockUnvoted = (room.players || []).filter(p => isComputerControlledPlayer(p) && !pVotes[p.id]);  
  if (mockUnvoted.length > 0) {  
  triggerMockPlayerPersonVoting(room);  
  }  
@@ -14758,7 +15097,9 @@ window.onlAdvanceNextRoundOrPersonVote = onlAdvanceNextRoundOrPersonVote;
         room.players[0];  
  }  
   
- const hasMyVoted = !!pVotes[myOnlinePlayerId];  
+ const isServerPersonVoted = Boolean(pVotes && pVotes[myOnlinePlayerId]);  
+ const isLocalPersonVoted = Boolean(onlMySubmittedPersonVote);  
+ const hasMyVoted = isServerPersonVoted || isLocalPersonVoted;  
  const card = document.getElementById('onlPersonVotingCard');  
  const candidatesGrid = document.getElementById('onlPersonCandidatesGrid');  
  const confirmWrapper = document.getElementById('onlPersonConfirmWrapper');  
@@ -15104,6 +15445,18 @@ function renderOnlinePersonVotingReference(room) {
       }
       if (!amIDriver) return;
 
+      // 核心自癒：角色展示階段 (roles) 若全員皆已確認 (或逾時 8 秒) 自動推進至正式查驗階段 (playing)，防止卡死
+      if (room.status === 'roles') {
+        const confirmedCount = (room.players || []).filter(p => p.roleConfirmed).length;
+        const allHumansConfirmed = (room.players || []).filter(p => !p.id.startsWith('mock_p_')).every(p => p.roleConfirmed);
+        const rolesElapsed = Date.now() - (room.startTimestamp || Date.now());
+        if (confirmedCount === 8 || allHumansConfirmed || rolesElapsed > 8000) {
+          console.log('🚀 [看門狗自癒] 角色展示全員就緒或超時自癒，自動推進至第 1 回合查驗！');
+          await executeOnlineStartPlaying(room);
+          return;
+        }
+      }
+
       const curRoundIdx = (room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0;
       const curRound = room.rounds ? room.rounds[curRoundIdx] : null;
       if (!curRound) return;
@@ -15115,13 +15468,13 @@ function renderOnlinePersonVotingReference(room) {
       if (_mockActionPending) return;
 
       // 1. 查驗行動階段：當前輪到電腦玩家
-      if (room.status === 'playing' && room.currentTurnPlayerId && room.currentTurnPlayerId.startsWith('mock_p_')) {
+      if (room.status === 'playing' && room.currentTurnPlayerId && isComputerControlledPlayer((room.players || []).find(p => p.id === room.currentTurnPlayerId))) {
         await executeMockTurnStep(room, room.currentTurnPlayerId, curRound);
         return;
       }
 
       // 2. 自由發言階段：當前輪到電腦玩家發言
-      if (room.status === 'discussion' && room.currentSpeakerId && room.currentSpeakerId.startsWith('mock_p_')) {
+      if (room.status === 'discussion' && room.currentSpeakerId && isComputerControlledPlayer((room.players || []).find(p => p.id === room.currentSpeakerId))) {
         await executeMockSpeechStep(room, room.currentSpeakerId, curRound);
         return;
       }
@@ -15129,7 +15482,7 @@ function renderOnlinePersonVotingReference(room) {
       // 3. 個人鑑寶投票階段：有電腦玩家未投票
       if (room.status === 'voting') {
         const votes = curRound.votes || {};
-        const unvotedMock = (room.players || []).find(p => p.id.startsWith('mock_p_') && !votes[p.id]);
+        const unvotedMock = (room.players || []).find(p => isComputerControlledPlayer(p) && !votes[p.id]);
         if (unvotedMock) {
           await executeMockVoteStep(room, unvotedMock.id, curRound);
           return;
@@ -15139,7 +15492,7 @@ function renderOnlinePersonVotingReference(room) {
       // 4. 鑑人投票階段：有電腦玩家未投票
       if (room.status === 'person_voting') {
         const pVotes = room.personVotes || {};
-        const unvotedMock = (room.players || []).find(p => p.id.startsWith('mock_p_') && !pVotes[p.id]);
+        const unvotedMock = (room.players || []).find(p => isComputerControlledPlayer(p) && !pVotes[p.id]);
         if (unvotedMock) {
           await executeMockPersonVoteStep(room, unvotedMock.id);
           return;
@@ -15152,7 +15505,7 @@ function renderOnlinePersonVotingReference(room) {
         if (curRoundObj && curRoundObj.voteResults) {
           const passOrder = curRoundObj.passOrder || [];
           const nextStarterId = passOrder.length > 0 ? passOrder[passOrder.length - 1] : (room.players && room.players[0] ? room.players[0].id : null);
-          if (nextStarterId && nextStarterId.startsWith('mock_p_') && !window._autoAdvanceBotRoundTimer) {
+          if (nextStarterId && isComputerControlledPlayer((room.players || []).find(p => p.id === nextStarterId)) && !window._autoAdvanceBotRoundTimer) {
             _mockActionPending = true;
             _lastMockActionTime = now;
             window._autoAdvanceBotRoundTimer = setTimeout(async () => {
@@ -15516,7 +15869,7 @@ function renderOnlinePersonVotingReference(room) {
         });
 
         // 階段 4：發言送出後適度停留緩衝（2.5 秒），讓全桌玩家看得清楚剛才發言，再驅動下一位；若發言完畢進入投票，立即啟動電腦投票
-        if (nextSpeakerIdToTrigger && nextSpeakerIdToTrigger.startsWith('mock_p_')) {
+        if (nextSpeakerIdToTrigger && isComputerControlledPlayer((onlineRoomData && onlineRoomData.players || []).find(p => p.id === nextSpeakerIdToTrigger))) {
           setTimeout(() => {
             if (onlineRoomData) triggerMockPlayerSpeech(onlineRoomData, nextSpeakerIdToTrigger);
           }, 2500);
@@ -15758,7 +16111,7 @@ function renderOnlinePersonVotingReference(room) {
       const curRound = room.rounds[room.currentRoundIdx];
       if (!curRound.votes) curRound.votes = {};
 
-      const mockUnvoted = (room.players || []).filter(p => p.id.startsWith('mock_p_') && !curRound.votes[p.id]);
+      const mockUnvoted = (room.players || []).filter(p => isComputerControlledPlayer(p) && !curRound.votes[p.id]);
       if (mockUnvoted.length === 0) return;
 
       if (_mockActionPending) return;
@@ -15772,7 +16125,7 @@ function renderOnlinePersonVotingReference(room) {
       if (hostId !== myOnlinePlayerId) return;
 
       const pVotes = room.personVotes || {};
-      const unvotedList = (room.players || []).filter(p => p.id.startsWith('mock_p_') && !pVotes[p.id]);
+      const unvotedList = (room.players || []).filter(p => isComputerControlledPlayer(p) && !pVotes[p.id]);
       if (unvotedList.length === 0) return;
 
       if (_mockActionPending) return;
@@ -15804,7 +16157,8 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
       const voterId = myOnlinePlayerId || window.myOnlinePlayerId;
       const docRef = db.doc(ONLINE_ROOM_DOC);
 
-      // 本地樂觀回饋
+      // 本地樂觀回饋與投票鎖定 (防止快照延遲或他人投票導致畫面閃回)
+      onlMySubmittedPersonVote = targetId;
       const confirmWrapper = document.getElementById('onlPersonConfirmWrapper');
       if (confirmWrapper) confirmWrapper.classList.add('hidden');
       const submittedNotice = document.getElementById('onlPersonVoteSubmittedNotice');
@@ -17055,6 +17409,13 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
             });
           }
 
+          const selfRow = players.find(p => p.id === myOnlinePlayerId);
+          if (selfRow) {
+            selfRow.authUid = currentAuthUid || selfRow.authUid || null;
+            selfRow.deviceToken = selfRow.deviceToken || getDeviceSecretKey(currentOnlineRoomCode, myOnlinePlayerName || selfRow.name);
+            selfRow.lastSeenAt = Date.now();
+            saveDeviceSeatMapping(currentOnlineRoomCode, selfRow.id, selfRow.name);
+          }
           transaction.update(docRef, {
             status: data.status || 'waiting',
             players: players,
@@ -17071,212 +17432,20 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
 
 async function addMockPlayersAndStart() {
   if (!myOnlinePlayerId || !isFirebaseReady || !db) {
-    showToast('⚠️ 連線尚未就緒，請檢查網路連線', 'warning', 2000);
+    showToast('連線尚未就緒，請檢查網路連線。', 'warning', 2500);
     return;
   }
-  showToast('🤖 正在一鍵補齊電腦玩家並開局...', 'info', 1800);
-
-  const docRef = db.doc(ONLINE_ROOM_DOC);
-  const now = Date.now();
-  window._isDealingRoles = true;
-  window._dealingRolesStartTime = now;
-
+  // v3.8.5 原有修正：一鍵開局只走唯一的標準發牌引擎，避免第二套分配角色邏輯造成 ???／重複角色。
   try {
-    await db.runTransaction(async (transaction) => {
-      const snap = await transaction.get(docRef);
-      if (!snap.exists) return;
-      const data = snap.data();
-
-      let players = data.players ? [...data.players] : [];
-      const usedColors = new Set(players.map(p => p.colorId));
-      const usedNames = new Set(players.map(p => p.name));
-
-      // 1. 確保真人玩家在名單中且已就緒
-      let me = players.find(p => p.id === myOnlinePlayerId);
-      if (!me) {
-        const myName = myOnlinePlayerName || '玩家 1';
-        const rep = getRepresentativeChar(myName);
-        const myColor = COLOR_PALETTE.find(c => !usedColors.has(c.id)) || COLOR_PALETTE[0];
-        usedColors.add(myColor.id);
-        usedNames.add(myName);
-        me = {
-          id: myOnlinePlayerId,
-          name: myName,
-          repChar: rep,
-          colorId: myColor.id,
-          seatIndex: 0,
-          readyToStart: true,
-          isReady: true,
-          role: '',
-          roleConfirmed: true,
-          isAmbushed: false,
-          isPermanentlyAmbushed: false,
-          confusedRound: null
-        };
-        players.push(me);
-      } else {
-        me.readyToStart = true;
-        me.isReady = true;
-        me.roleConfirmed = true;
-      }
-      if (me) me.authUid = currentAuthUid || me.authUid || null;
-
-      
-
-      // 2. 席次正規化
-      const seatSet = new Set();
-      players.forEach(p => {
-        if (p.seatIndex !== undefined && p.seatIndex !== null && p.seatIndex >= 0 && p.seatIndex < 8 && !seatSet.has(p.seatIndex)) {
-          seatSet.add(p.seatIndex);
-        } else {
-          p.seatIndex = null;
-        }
-      });
-      players.forEach(p => {
-        if (p.seatIndex === null) {
-          for (let s = 0; s < 8; s++) {
-            if (!seatSet.has(s)) {
-              p.seatIndex = s;
-              seatSet.add(s);
-              break;
-            }
-          }
-        }
-      });
-
-      // 3. 補齊電腦玩家至 8 人
-      const shuffledNicknames = cryptoShuffle(BOT_NICKNAME_POOL);
-      let mockIdx = 0;
-      while (players.length < 8 && mockIdx < shuffledNicknames.length) {
-        const n = shuffledNicknames[mockIdx++];
-        if (usedNames.has(n)) continue;
-
-        const availColor = COLOR_PALETTE.find(c => !usedColors.has(c.id)) || COLOR_PALETTE[players.length % 8];
-        usedColors.add(availColor.id);
-        usedNames.add(n);
-
-        let availSeat = 0;
-        for (let s = 0; s < 8; s++) {
-          if (!seatSet.has(s)) {
-            availSeat = s;
-            seatSet.add(s);
-            break;
-          }
-        }
-
-        const repChar = getRepresentativeChar(n);
-        const dna = BotDeductionEngine.generateBotDNA('mock_p_' + now + '_' + players.length, '');
-        players.push({
-          id: 'mock_p_' + now + '_' + players.length,
-          name: n,
-          repChar: repChar,
-          colorId: availColor.id,
-          seatIndex: availSeat,
-          readyToStart: true,
-          isReady: true,
-          role: '',
-          roleConfirmed: true,
-          isAmbushed: false,
-          isPermanentlyAmbushed: false,
-          confusedRound: null,
-          actionDNA: dna.actionDNA,
-          speechDNA: dna.speechDNA,
-          personaTitle: dna.personaTitle
-        });
-      }
-
-      // 4. 8人角色嚴格洗牌分發
-      const ALL_8_ROLES = ['許願', '方震', '黃煙煙', '木戶加奈', '姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
-      const shuffledRoles = cryptoShuffle(ALL_8_ROLES);
-      players.forEach((p, idx) => {
-        p.role = shuffledRoles[idx];
-        p.roleConfirmed = true;
-        p.isAmbushed = false;
-        p.isPermanentlyAmbushed = false;
-        p.inspectHistory = [];
-        p.abilityHistory = [];
-        if (p.role === '黃煙煙' || p.role === '木戶加奈') {
-          p.confusedRound = Math.floor(Math.random() * 3);
-        } else {
-          p.confusedRound = null;
-        }
-      });
-
-      // 5. 生成 3 回合 12 獸首
-      const shuffledZodiac = cryptoShuffle(ZODIAC_ORDER);
-      const rounds = [];
-      for (let r = 0; r < 3; r++) {
-        const beasts4 = shuffledZodiac.slice(r * 4, (r + 1) * 4);
-        rounds.push({
-          roundNum: r + 1,
-          beasts: createRoundBeasts(beasts4),
-          passOrder: [],
-          speeches: [],
-          votes: {},
-          voteResults: null,
-          blockedBeast: null,
-          laoChaoFengActive: false
-        });
-      }
-
-      const starter = players[Math.floor(Math.random() * players.length)];
-      rounds[0].starterPlayerId = starter.id;
-      rounds[0].passOrder = [starter.id];
-
-           // S-1: 同時寫入各玩家的私有角色資料 (Private Subcollections)，徹底同步避免殘留覆蓋
-      try {
-        players.forEach((p) => {
-          const privDocRef = db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`);
-          transaction.set(privDocRef, {
-            playerId: p.id,
-            authUid: p.authUid || (p.id === myOnlinePlayerId ? currentAuthUid : null),
-       role: p.role,
-            confusedRound: p.confusedRound,
-            assignedAt: now
-          });
-        });
-      } catch(pErr) {
-        console.warn('私有角色寫入記錄:', pErr);
-      }
-
-      // 立即在本地快照並鎖定本人真實角色與 Session
-      if (me) {
-        myPrivateRoleData = {
-          playerId: me.id,
-          role: me.role,
-          confusedRound: me.confusedRound,
-          assignedAt: now
-        };
-        try {
-          sessionStorage.setItem('gudong_active_role_' + myOnlinePlayerId, me.role);
-          sessionStorage.setItem('gudong_active_role_start_' + myOnlinePlayerId, String(now));
-        } catch(e) {}
-      }
-
-      const sealedRoleMap = {};
-      players.forEach(p => { sealedRoleMap[p.id] = p.role; });
-      const sealedRolesToken = await sealRoleMap(sealedRoleMap);
-
-      transaction.update(docRef, {
-        status: 'roles',
-        gameState: 'roles',
-        players: players,
-        rounds: rounds,
-        currentRoundIdx: 0,
-        currentTurnPlayerId: starter.id,
-        sealedRolesToken: sealedRolesToken,
-        botActionKeys: {},
-        startTimestamp: now,
-        lastActivityTime: now
-      });
-    });
-
-    showToast('🚀 已成功開局！進入角色展示階段', 'success', 2000);
-  } catch(e) {
-    console.error('addMockPlayersAndStart error:', e);
-    showToast('一鍵開局失敗: ' + (e.message || e), 'warning', 3000);
-  } finally {
-    window._isDealingRoles = false;
+    const snap = await db.doc(ONLINE_ROOM_DOC).get();
+    if (!snap.exists || snap.data().status !== 'waiting') {
+      showToast('目前不是等待開局階段，請先回到大廳。', 'warning', 2500);
+      return;
+    }
+    await executeOnlineStartDeal(snap.data(), true);
+  } catch (e) {
+    console.error('[一鍵開局] 標準發牌引擎失敗:', e);
+    showToast('一鍵開局失敗：' + (e && e.message ? e.message : '請重試'), 'warning', 4000);
   }
 }
 window.addMockPlayersAndStart = addMockPlayersAndStart;
@@ -17704,8 +17873,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       G.yaoSelectedTargetId = null;
       G.personVoteIdx = 0;
       G.pendingCandidateId = null;
-      G.kickedPlayerIds = [];
-      G.kickStats = {};
+      
       _localRoleRevealWaitingHandover = false; // 玩家 1 剛點開始遊戲，直接進入第 1 位玩家身分卡（具防窺鎖定）
       _localRoleCardOpen = false;
       saveState();
