@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 3.8.4)</title>  
+ <title>古董局中局 (版本 3.8.9)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -419,7 +419,7 @@
  <div id="onlQuickFillBotBtnWrapper" class="mt-2.5">  
  <button type="button" onclick="addMockPlayersAndStart()" class="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 text-neutral-950 font-black text-sm rounded-xl shadow-xl transition active:scale-[0.99] flex items-center justify-center space-x-1.5 cursor-pointer animate-pulse">  
  <span>🤖</span>  
- <span>一鍵補齊電腦玩家並直接開局 ➔</span>  
+ <span>一鍵補齊電腦並倒數開局 ➔</span>  
  </button>  
  </div>  
  <p id="onlWaitingNotice" class="text-xs text-neutral-500 mt-2">請等待 8 位玩家全員在線並按下確認後正式發牌開局...</p>  
@@ -567,6 +567,21 @@
      </div>
      <div id="onlActiveTurnPassOrders" class="space-y-2"></div>
    </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerA" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerA" class="space-y-2.5"></div>
+   </div>
  </div>
  </div>  
   
@@ -615,6 +630,21 @@
      </div>
      <div id="onlStepBPassOrders" class="space-y-2"></div>
    </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerB" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerB" class="space-y-2.5"></div>
+   </div>
  </div>
  </div>  
   
@@ -637,8 +667,16 @@
  <div id="onlStepCCircleSeats" class="absolute inset-0 pointer-events-auto"></div>  
  </div>  
   
+ <!-- 確認交接按鈕：固定放在座位圖正下方，方便手機操作 -->
+ <!-- 確認交接按鈕區塊 -->  
+ <div id="onlStepCConfirmWrapper" class="hidden pt-1 text-center">  
+ <button id="btnOnlConfirmNextPlayer" onclick="onlConfirmPassNextPlayer()" class="w-full py-3.5 rounded-xl font-black text-sm shadow-xl transition cursor-pointer">  
+ 確認選擇此玩家 ➔  
+ </button>  
+ </div>  
+  
  <!-- 手機傳遞順序展示 (座位圖正下方，依需求2) -->
- <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
+ <div id="onlStepCPassOrdersBox" class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
    <div class="flex items-center justify-between border-b border-neutral-800/80 pb-1.5">
      <div class="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
        <span>📱</span>
@@ -648,13 +686,22 @@
    </div>
    <div id="onlActiveStepCPassOrders" class="space-y-2"></div>
  </div>
+   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
+       <span class="text-[10px] text-neutral-400">依回合整理</span>
+     </div>
+     <div id="onlActiveTurnSpeechesContainerC" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+   </div>
+   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
+   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
+     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
+       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
+     </div>
+     <div id="onlActiveTurnBeastsChipsContainerC" class="space-y-2.5"></div>
+   </div>
 
- <!-- 確認交接按鈕區塊 -->  
- <div id="onlStepCConfirmWrapper" class="hidden pt-1 text-center">  
- <button id="btnOnlConfirmNextPlayer" onclick="onlConfirmPassNextPlayer()" class="w-full py-3.5 rounded-xl font-black text-sm shadow-xl transition cursor-pointer">  
- 確認選擇此玩家 ➔  
- </button>  
- </div>  
   
  <div id="onlAllInspectedBanner" class="hidden text-center py-2 space-y-2">  
  <div class="text-xs text-emerald-400 font-bold">✓ 本回合全員皆已查驗完成！</div>  
@@ -664,47 +711,8 @@
  </div>  
  </div>  
   
- <!-- 傳手機操作階段歷史資訊：各回合發言記錄 ＆ 各回合獸首投票票型（清晰隔開避免資訊過多） -->  
- <div id="onlActiveTurnHistorySection" class="border-t-2 border-dashed border-neutral-800 text-left space-y-3" style="margin-top: 4.5rem; padding-top: 2rem;">  
- <!-- 區隔標題與折疊/展開按鈕 -->  
- <div class="flex items-center justify-between p-3 rounded-xl bg-neutral-950/90 border border-neutral-800 cursor-pointer hover:border-amber-500/50 transition shadow-md" onclick="toggleActiveTurnHistoryCollapse()">  
- <div class="flex items-center space-x-2 text-xs font-bold text-amber-400">  
- <span>📜</span>  
- <span>歷史戰情回顧（發言記錄 ＆ 投票票型）</span>  
- </div>  
- <div class="flex items-center space-x-1">  
- <span id="onlActiveTurnHistoryToggleText" class="text-[11px] font-mono text-amber-400 font-bold">▼ 點擊展開/收合</span>  
- </div>  
- </div>  
-  
- <!-- 展開內容容器：各回合發言記錄與各回合獸首投票票型 -->  
- <div id="onlActiveTurnHistoryContent" class="space-y-3">  
- <!-- 1. 各回合發言記錄 -->  
- <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">  
- <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
- <span class="flex items-center space-x-1.5">  
- <span>🗣️</span>  
- <span class="text-amber-400 font-black">各回合發言記錄</span>  
- </span>  
- <span class="text-[10px] text-neutral-400">歷史發言</span>  
- </div>  
- <div id="onlActiveTurnSpeechesContainer" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>  
- </div>  
-  
- <!-- 2. 各回合獸首投票票型（點擊獸首可以看攤開明細） -->  
- <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">  
- <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
- <span class="flex items-center space-x-1.5">  
- <span>🗳️</span>  
- <span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）：</span>  
- </span>  
- </div>  
- <div id="onlActiveTurnBeastsChipsContainer" class="space-y-2.5"></div>  
- </div>  
- </div>  
- </div>  
- </div>  
-  
+ </div>
+
  <!-- B. 當前非我行動：傳手機等待階段 (依修改2：顯示座位順序圓圖、各回合發言記錄、各回合獸首投票票型) -->  
  <div id="onlWaitingTurnView" class="hidden space-y-4">  
   
@@ -1590,7 +1598,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.8.1</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.8.9</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -1924,7 +1932,7 @@ function setTabPlayerId(id) {
 }
 
 
-// v3.8.5：穩定裝置憑證與座位恢復。暱稱只供顯示，跨裝置相同暱稱不會直接取得他人座位。
+// v3.8.5 原有修正：穩定裝置憑證與座位恢復。暱稱只供顯示，跨裝置相同暱稱不會直接取得他人座位。
 function normalizeOnlineNickname(name) {
   return String(name || '').normalize('NFKC').trim().toLocaleLowerCase();
 }
@@ -2776,7 +2784,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.5 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.10 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -9460,7 +9468,7 @@ function diffRoomState(prev, next) {
 }
 window.diffRoomState = diffRoomState;
 
-// v3.8.5：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
+// v3.8.5 原有修正：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
 var _onlinePresenceHeartbeatTimer = null;
 var _onlineTakeoverWatchdogTimer = null;
 function startOnlinePresenceHeartbeat() {
@@ -9562,17 +9570,12 @@ function handleOnlineRoomUpdate(room) {
   
  // 1. 動態選舉：在線真人席次最小者為主動開局協調者 (Leader)  
  const isLeader = !window.isOnlineSpectator && isCurrentDynamicLeader(room);  
- if (isLeader && allReadyElapsed >= 1500 && !window._isDealingRoles) {  
- console.log('👑 [動態協調者] 本機為席位最小之在線真人協調者，主動發起開局交易！');  
- executeOnlineStartDeal(room, false);  
- }  
-  
- // 2. 超過 3.5 秒自動接管自癒 (Auto-Takeover)  
- // 若原協調者切後台或斷線，任何在線客戶端自動發起強制救援開局交易  
- if (!window.isOnlineSpectator && allReadyElapsed >= 3500 && !window._hasTriggeredAutoHealing) {  
- window._hasTriggeredAutoHealing = true;  
- console.warn('⚡ [看門狗自癒] 8 人全員就緒超過 3.5 秒未開局，任何在線客戶端自動發起強制救援開局！');  
- executeOnlineStartDeal(room, true);  
+ // 一般開局由 startLobbyCountdown 倒數結束後發起，不可在倒數中途搶先發牌。
+ // 倒數正常應在 3 秒結束；保留 6 秒救援窗口，避免看門狗搶先發牌。
+ if (!window.isOnlineSpectator && allReadyElapsed >= 6000 && !window._hasTriggeredAutoHealing) {
+   window._hasTriggeredAutoHealing = true;
+   console.warn('⚡ [看門狗自癒] 倒數後仍未開局，觸發 6 秒救援開局！');
+   executeOnlineStartDeal(onlineRoomData || room, true);
  }  
 
  // 設置定期看門狗定時器，防止無 Firestore 寫入時客戶端停擺
@@ -9593,18 +9596,18 @@ function handleOnlineRoomUpdate(room) {
      const elapsed = Date.now() - (window._lobbyAllReadyStartTime || Date.now());
      const amLeader = !window.isOnlineSpectator && isCurrentDynamicLeader(onlineRoomData);
      if (!window._isDealingRoles) {
-       if ((amLeader && elapsed >= 3200) || elapsed >= 4500) {
+       if (elapsed >= 6500) {
          clearInterval(window._lobbyWatchdogTimer);
          window._lobbyWatchdogTimer = null;
-         console.log('👑 [看門狗定期心跳] 8人全員就緒，自動觸發開局！');
-         executeOnlineStartDeal(onlineRoomData, elapsed >= 4500);
+         console.log('👑 [看門狗定期心跳] 倒數後仍未開局，觸發最後救援！');
+         executeOnlineStartDeal(onlineRoomData, elapsed >= 6500);
        }
      }
    }, 500);
  }
   
  // 3. 超過 4.0 秒按鈕緊急旁路 (Emergency Bypass)  
- if (allReadyElapsed >= 4000) {  
+ if (allReadyElapsed >= 8000) {  
  const startBtn = document.getElementById('btnOnlReadyStart');  
  if (startBtn) {  
  startBtn.disabled = false;  
@@ -9617,7 +9620,7 @@ function handleOnlineRoomUpdate(room) {
  }  
  const waitingNotice = document.getElementById('onlWaitingNotice');  
  if (waitingNotice) {  
- waitingNotice.innerHTML = "<span class='text-amber-400 font-bold'>⚠️ 偵測到開局協調超時，請點擊上方按鈕直接開局！</span>";  
+ waitingNotice.innerHTML = "<span class='text-amber-400 font-bold'>⚠️ 倒數後仍未開局，請點擊上方按鈕進行救援！</span>";  
  }  
  }  
  } else {  
@@ -9665,7 +9668,7 @@ onlineRoomData = room;
  checkAndRenderRestartVoteModal(room);  
  checkAndRenderCloseVoteModal(room);  
   
- // v3.8.5：只有「進入等待大廳」或「觀察到既有對局真的換 startTimestamp」才清本機狀態。
+ // v3.8.5 原有修正：只有「進入等待大廳」或「觀察到既有對局真的換 startTimestamp」才清本機狀態。
  // 初次載入正在進行的對局時不清除剛恢復的角色／投票狀態；也不在每次 waiting 快照重置。
  const previousRoomStatus = window._lastSeenOnlineStatus || null;
  const previousGameStart = window._lastSeenOnlineGameStart || null;
@@ -9834,7 +9837,7 @@ onlineRoomData = room;
    }  
  }
   
-  // v3.8.5：只有名單內真的有自己的 playerId 才能操作；未入座者一律觀戰，避免 UI 假裝已入座。
+  // v3.8.5 原有修正：只有名單內真的有自己的 playerId 才能操作；未入座者一律觀戰，避免 UI 假裝已入座。
   let isSpectator = !players.some(p => p.id === myOnlinePlayerId);
   window.isOnlineSpectator = isSpectator;
   updateSpectatorBarUI();  
@@ -9855,7 +9858,7 @@ onlineRoomData = room;
  }
  }
 
- // v3.8.5：若玩家重連時已在 playing／discussion／voting 階段，不能只依賴角色快照監聽。
+ // v3.8.5 原有修正：若玩家重連時已在 playing／discussion／voting 階段，不能只依賴角色快照監聽。
  // 私有文件可能比公開房間先到，第一次因 startTimestamp 尚未同步而被略過；此處再依本局時間戳補讀一次。
  if (me && !window.isOnlineSpectator && room.status !== 'waiting' && room.status !== 'roles' && room.startTimestamp &&
      (!me.role || me.role === '???') && isFirebaseReady && db &&
@@ -10126,44 +10129,52 @@ async function kickOnlinePlayer(targetId, event) {
   function startLobbyCountdown(room) {
     const countdownBox = document.getElementById('onlStartCountdownOverlay');
     const countdownNum = document.getElementById('onlCountdownNum');
-    if (!countdownBox || !countdownNum) return;
+    if (!countdownBox || !countdownNum || _lobbyCountdownTimer) return;
 
-    if (_lobbyCountdownTimer) return;
+    const initialRoom = room || onlineRoomData;
+    if (!initialRoom || initialRoom.status !== 'waiting') return;
+    const initialPlayers = initialRoom.players || [];
+    if (initialPlayers.length !== 8 || initialPlayers.filter(p => p.readyToStart).length !== 8) return;
 
+    // 所有玩家都看見相同倒數；只有動態協調者播報，避免多裝置回音。
+    const shouldSpeakCountdown = !window.isOnlineSpectator && isCurrentDynamicLeader(initialRoom);
     countdownBox.classList.remove('hidden');
     _lobbyCountdownVal = 3;
     countdownNum.innerText = '3';
-
-    speak('遊戲即將開始，請確認座位順序');
-    speak('3');
+    if (shouldSpeakCountdown) speak('3');
 
     _lobbyCountdownTimer = setInterval(() => {
       _lobbyCountdownVal--;
       if (_lobbyCountdownVal > 0) {
         countdownNum.innerText = String(_lobbyCountdownVal);
-        speak(String(_lobbyCountdownVal));
-      } else {
-        clearInterval(_lobbyCountdownTimer);
-        _lobbyCountdownTimer = null;
-        countdownNum.innerText = '0';
-        countdownBox.classList.add('hidden');
-
-        const firstHuman = (room.players || []).find(p => p.id && !p.id.startsWith('mock_p_'));
-        if (!firstHuman || firstHuman.id === myOnlinePlayerId) {
-          executeOnlineStartDeal(room);
-        }
+        if (shouldSpeakCountdown) speak(String(_lobbyCountdownVal));
+        return;
       }
+
+      clearInterval(_lobbyCountdownTimer);
+      _lobbyCountdownTimer = null;
+      countdownNum.innerText = '0';
+      countdownBox.classList.add('hidden');
+
+      const latestRoom = onlineRoomData || initialRoom;
+      const latestPlayers = latestRoom && latestRoom.players || [];
+      const stillAllReady = latestPlayers.length === 8 && latestPlayers.filter(p => p.readyToStart).length === 8;
+      if (latestRoom && latestRoom.status === 'waiting' && stillAllReady &&
+          !window.isOnlineSpectator && isCurrentDynamicLeader(latestRoom)) {
+        executeOnlineStartDeal(latestRoom, false);
+      }
+      // 若協調者在倒數期間離線，handleOnlineRoomUpdate 的 6 秒自癒看門狗會接手。
     }, 1000);
   }
 
-  function stopLobbyCountdown() {  
-    if (_lobbyCountdownTimer) {  
-      clearInterval(_lobbyCountdownTimer);  
-      _lobbyCountdownTimer = null;  
-    }  
-    const countdownBox = document.getElementById('onlStartCountdownOverlay');  
-    if (countdownBox) countdownBox.classList.add('hidden');  
-  }  
+  function stopLobbyCountdown() {
+    if (_lobbyCountdownTimer) {
+      clearInterval(_lobbyCountdownTimer);
+      _lobbyCountdownTimer = null;
+    }
+    const countdownBox = document.getElementById('onlStartCountdownOverlay');
+    if (countdownBox) countdownBox.classList.add('hidden');
+  }
   window.startLobbyCountdown = startLobbyCountdown;
   window.stopLobbyCountdown = stopLobbyCountdown;
 
@@ -10282,8 +10293,8 @@ async function kickOnlinePlayer(targetId, event) {
   
  if (isAllReady) {  
  startBtn.className = "w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-lg rounded-xl shadow-xl transition active:scale-[0.99] cursor-pointer animate-pulse";  
- startBtn.innerHTML = "🚀 全員已就緒・點此立即開局！";  
- startBtn.onclick = () => { stopLobbyCountdown(); executeOnlineStartDeal(room); };  
+ startBtn.innerHTML = "⏳ 全員已就緒・倒數結束後開局";  
+ startBtn.onclick = () => { startLobbyCountdown(onlineRoomData || room); };  
  } else if (isMyReady) {  
  startBtn.className = "w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-neutral-950 font-black text-lg rounded-xl shadow-xl transition active:scale-[0.99] cursor-pointer";  
  startBtn.innerHTML = `✓ 您已就緒・等待其他玩家 (${readyCount}/8)`;  
@@ -10305,7 +10316,7 @@ async function kickOnlinePlayer(targetId, event) {
  } else if (!isAllReady) {  
  waitingNotice.innerText = `8 人已到齊！已就緒 ${readyCount}/8 人，請尚未就緒的玩家點擊確認...`;  
  } else {  
- waitingNotice.innerText = `🎉 8 位玩家全員已就緒！系統啟動開局倒數，亦可點上方按鈕立即開局！`;  
+ waitingNotice.innerText = `🎉 8 位玩家全員已就緒！正在執行統一的 3 秒倒數，倒數結束後正式發牌。`;  
  }  
  }  
   
@@ -10545,11 +10556,7 @@ async function kickOnlinePlayer(targetId, event) {
        players: players,
        lastActivityTime: Date.now()
      });
-
-     if (onlineRoomData) {
-       onlineRoomData.players = players;
-       renderOnlineLobby(onlineRoomData, me);
-     }
+     // 由 Firestore snapshot 在交易提交後更新大廳；不要在 transaction callback 內觸發倒數。
    });
  } catch(e) {
    console.error('更新就緒狀態失敗:', e);
@@ -10998,7 +11005,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  if (!me) return;  
   
- // v3.8.5：不在角色載入前提前確認；先恢復私有角色，再決定是否自動確認。
+ // v3.8.5 原有修正：不在角色載入前提前確認；先恢復私有角色，再決定是否自動確認。
  // 需求2：線上多人版完全移除長按防窺鎖定機制，卡片直接展示！  
  if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) {
    me.role = myPrivateRoleData.role;
@@ -11022,8 +11029,22 @@ async function kickOnlinePlayer(targetId, event) {
  // 核心修復：防止私有角色同步延遲時誤顯示為「???」與「老朝奉陣營」
  const hasValidRole = !!(me.role && me.role !== '' && me.role !== '???');
  if (hasValidRole && room.status === 'roles' && !me.roleConfirmed && !window._roleConfirmPending) {
+   // 每場角色第一次確實顯示後，至少留 1 秒讓玩家看清楚；兩種開局流程一致。
+   if (window._roleRevealStartTimestamp !== room.startTimestamp) {
+     window._roleRevealStartTimestamp = room.startTimestamp;
+     window._roleRevealMinUntil = Date.now() + 1000;
+   }
    window._roleConfirmPending = true;
-   confirmMyRoleReady().finally(() => { window._roleConfirmPending = false; });
+   const expectedStartTimestamp = room.startTimestamp;
+   setTimeout(() => {
+     const latestRoom = onlineRoomData;
+     const latestMe = latestRoom ? getOnlineMePlayer(latestRoom) : null;
+     if (latestRoom && latestRoom.status === 'roles' && latestRoom.startTimestamp === expectedStartTimestamp && latestMe && !latestMe.roleConfirmed) {
+       confirmMyRoleReady().finally(() => { window._roleConfirmPending = false; });
+     } else {
+       window._roleConfirmPending = false;
+     }
+   }, 1000);
  }
  if (!hasValidRole) {
    // 嘗試從私有資料庫直接讀取備援
@@ -11128,6 +11149,10 @@ async function kickOnlinePlayer(targetId, event) {
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;
  if (!onlineRoomData || !myOnlinePlayerId || !isFirebaseReady || !db) return;
  const localMe = getOnlineMePlayer(onlineRoomData);
+ if (window._roleRevealMinUntil && Date.now() < window._roleRevealMinUntil) {
+   showToast('請先看清楚您的角色，角色卡至少展示 1 秒後即可確認。', 'info', 1800);
+   return;
+ }
  if (!localMe || !localMe.role || localMe.role === '???') {
    showToast('角色資料尚未同步完成，請稍候再確認，避免卡住開局。', 'warning', 2500);
    return;
@@ -11201,7 +11226,7 @@ async function kickOnlinePlayer(targetId, event) {
        actingBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">📺 圓桌總覽</span><span class="text-xs font-bold text-neutral-300 mr-1">當前：</span><span class="${actingColor.bgClass} px-1.5 py-0.5 rounded text-xs font-black text-white mr-1">${actingColor.name}</span><span class="text-xs font-bold text-neutral-100">${actingPlayer ? actingPlayer.name : ''}</span>`;
      }
    } else {
-     const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
+     const myP = me || (room.players || []).find(p => p.id === myOnlinePlayerId); // 公開 players 沒有角色，需用含私有角色的 me  
      if (myP) {
        const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
        actingBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
@@ -11355,9 +11380,22 @@ async function kickOnlinePlayer(targetId, event) {
  window.renderWaitingTurnCircleSeats = renderWaitingTurnCircleSeats;  
   
  // 修改1：各回合發言紀錄統一樣式（與發言階段氣泡格式相同：他人靠左、自己靠右附帶 (您) 與頭像，支援折疊收合）  
+ // 畫面簽章：心跳（lastSeenAt）等與紀錄無關的房間更新不要重畫，否則發言紀錄的捲動位置會一直被重置
+ function _historyRenderSig(room, extra) {
+   try {
+     return JSON.stringify([
+       (room.rounds || []).map(r => [r.roundNum, r.speeches, r.voteResults, r.passOrder, r.speechOrder, (r.beasts || []).map(b => b.name), (r.turnLogs && r.turnLogs[myOnlinePlayerId]) || null]),
+       (room.players || []).map(p => [p.id, p.name, p.colorId, p.repChar]),
+       room.currentRoundIdx, myOnlinePlayerId, onlCollapsedRoundsMap, extra
+     ]);
+   } catch (e) { return null; }
+ }
  function renderWaitingTurnSpeeches(room, me, curRound, containerId = 'onlWaitingSpeechesContainer', isGameOver = false) {  
  const container = document.getElementById(containerId);  
  if (!container) return;  
+ const _sig = _historyRenderSig(room, ['sp', isGameOver]);
+ if (_sig && container.dataset.renderSig === _sig && container.childElementCount > 0) return;
+ container.dataset.renderSig = _sig || '';
  container.innerHTML = '';  
   
  const curRoundIdx = (room && room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0;  
@@ -11520,6 +11558,9 @@ window.getMyInspectComparisonBadgeHtml = getMyInspectComparisonBadgeHtml;
 function renderWaitingTurnBeastsChips(room, me, curRound, containerId = 'onlWaitingBeastsChipsContainer') {  
  const container = document.getElementById(containerId);  
  if (!container) return;  
+ const _sig = _historyRenderSig(room, ['chips']);
+ if (_sig && container.dataset.renderSig === _sig && container.childElementCount > 0) return;
+ container.dataset.renderSig = _sig || '';
  container.innerHTML = '';  
   
  const rounds = room.rounds || [];  
@@ -11678,50 +11719,18 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  }  
  }  
   
- var _onlActiveTurnHistoryCollapsed = true;  
- function toggleActiveTurnHistoryCollapse() {  
- window._hasExplicitlyToggledTurnHistory = true;  
- _onlActiveTurnHistoryCollapsed = !_onlActiveTurnHistoryCollapsed;  
- const content = document.getElementById('onlActiveTurnHistoryContent');  
- const toggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
- if (content) {  
- if (_onlActiveTurnHistoryCollapsed) {  
- content.classList.add('hidden');  
- if (toggleText) toggleText.innerText = '▶ 點擊展開';  
- } else {  
- content.classList.remove('hidden');  
- if (toggleText) toggleText.innerText = '▼ 點擊收合';  
- }  
- }  
- }  
- window.toggleActiveTurnHistoryCollapse = toggleActiveTurnHistoryCollapse;  
-  
  function renderOnlineMyActiveTurn(room, me, curRound) {  
  me = getOnlineMePlayer(room) || me;
  renderPassOrderRows(room, curRound);  
  renderActiveTurnCircleSeats(room, me, curRound);  
   
- // 依修改1：操作階段渲染各回合發言記錄與各回合獸首投票票型（點擊獸首可以看攤開明細）  
- renderWaitingTurnSpeeches(room, me, curRound, 'onlActiveTurnSpeechesContainer');  
- renderWaitingTurnBeastsChips(room, me, curRound, 'onlActiveTurnBeastsChipsContainer');  
-  
- // 修改3：傳手機操作階段，下方歷史區塊預設狀態永遠保持收合，要特別點開才能看到  
- if (!window._hasExplicitlyToggledTurnHistory) {  
- _onlActiveTurnHistoryCollapsed = true;  
- }  
- const histContent = document.getElementById('onlActiveTurnHistoryContent');  
- const histToggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
- if (histContent) {  
- if (_onlActiveTurnHistoryCollapsed) {  
- histContent.classList.add('hidden');  
- if (histToggleText) histToggleText.innerText = '▶ 點擊展開';  
- } else {  
- histContent.classList.remove('hidden');  
- if (histToggleText) histToggleText.innerText = '▼ 點擊收合';  
- }  
- }  
-  
- // 壞人陣營同伴互認：老朝奉與藥不然互相相認
+   // v3.8.6：發言紀錄與票型直接列在各階段「手機傳遞順序（三回合）」下方，不再使用獨立折疊區塊。
+  ['A', 'B', 'C'].forEach(suffix => {
+    renderWaitingTurnSpeeches(room, me, curRound, `onlActiveTurnSpeechesContainer${suffix}`);
+    renderWaitingTurnBeastsChips(room, me, curRound, `onlActiveTurnBeastsChipsContainer${suffix}`);
+  });
+
+  // 壞人陣營同伴互認：老朝奉與藥不然互相相認
  const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');  
  if (me.role === '老朝奉' && turnCampBanner) {  
    turnCampBanner.classList.remove('hidden');  
@@ -12018,6 +12027,13 @@ else {
 function renderOnlineRoleAbilitySection(room, me, curRound, myLog) {  
  const container = document.getElementById('onlRoleAbilityContainer');  
  if (!container) return;  
+ // room.players 對真人角色已脫敏；事件重繪時要由本人私有角色快取還原本機副本。
+ const resolvedPrivateMe = getOnlineMePlayer(room);
+ if (resolvedPrivateMe && resolvedPrivateMe.role) me = resolvedPrivateMe;
+ if (!me || !me.role) {
+   container.innerHTML = '<div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl text-center text-xs text-amber-300">正在同步您的角色能力，請稍候…</div>';
+   return;
+ }
  container.innerHTML = '';  
   
  const isUnderAmbush = me.isAmbushed || me.isPermanentlyAmbushed;  
@@ -12563,9 +12579,13 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
   
  async function onlGoToStepC() {
  if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;  
- const room = onlineRoomData;  
- const me = room.players.find(p => p.id === myOnlinePlayerId);  
- const curRound = room.rounds[room.currentRoundIdx];  
+ const room = onlineRoomData;
+ const me = getOnlineMePlayer(room) || room.players.find(p => p.id === myOnlinePlayerId);
+ const curRound = room.rounds[room.currentRoundIdx];
+ if (!me || !me.role) {
+   showToast('角色資料尚未同步完成，請稍候再操作。', 'warning', 2200);
+   return;
+ }  
  if (!curRound.turnLogs) curRound.turnLogs = {};  
  if (!curRound.turnLogs[myOnlinePlayerId]) curRound.turnLogs[myOnlinePlayerId] = {};  
  const myLog = curRound.turnLogs[myOnlinePlayerId];  
@@ -13061,7 +13081,7 @@ async function onlConfirmPassNextPlayer() {
  let privateBadge = '';  
  if (pId === myOnlinePlayerId) {  
    const meP = (room.players || []).find(x => x.id === myOnlinePlayerId);  
-   privateBadge = getPrivateRoleBadgeHtml(meP, r, room);  
+   privateBadge = getPrivateRoleBadgeHtml((typeof getOnlineMePlayer === 'function' ? getOnlineMePlayer(room) : meP) || meP, r, room);  
  }  
   
  chipsHtml += `  
@@ -13758,7 +13778,7 @@ function renderOnlineDiscussionView(room, me) {
    if (window.isOnlineSpectator) {
      speakerBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-xs font-black bg-purple-950 text-purple-300 border border-purple-600 mr-1 shadow">👁️ 觀戰中</span><span class="text-xs font-bold text-neutral-300">發言進度 (${displaySpeakerIndex}/8)</span>`;
    } else {
-     const myP = (room.players || []).find(p => p.id === myOnlinePlayerId) || me;  
+     const myP = me || (room.players || []).find(p => p.id === myOnlinePlayerId); // 公開 players 沒有角色，需用含私有角色的 me  
      if (myP) {
        const myC = COLOR_PALETTE.find(c => c.id === myP.colorId) || COLOR_PALETTE[0];  
        speakerBadge.innerHTML = `<span class="${myC.bgClass} px-2 py-0.5 rounded text-xs font-black mr-1 inline-flex items-center justify-center">${myC.name}</span><span class="text-xs font-bold text-neutral-100">${myP.name}</span><span class="text-xs font-bold text-amber-400 font-mono ml-1">(${myP.role || '???'})</span>`;  
@@ -15397,58 +15417,11 @@ function renderOnlinePersonVotingReference(room) {
         }
       }
 
-      // 3. 各回合發言欄紀錄：可折疊版本 (跟操作中的頁面完全一致)
+      // 3. 各回合發言欄紀錄：直接重用回合中的共用渲染器
+      // 這樣鑑人階段與回合中會使用相同的傳遞/發言排序、頭像、左右氣泡、文字換行及折疊樣式。
       if (refSpeech) {
-        refSpeech.innerHTML = '';
-        [1, 2, 3].forEach(rNum => {
-          const rObj = (room.rounds || []).find(r => r.roundNum === rNum);
-          const speeches = rObj ? (rObj.speeches || []) : [];
-          if (speeches.length === 0) return;
-
-          if (onlPersonRefCollapsedSpeeches[rNum] === undefined) {
-            onlPersonRefCollapsedSpeeches[rNum] = true; // 預設收合，保持版面清爽
-          }
-          const isCollapsed = !!onlPersonRefCollapsedSpeeches[rNum];
-
-          const roundBox = document.createElement('div');
-          roundBox.className = 'p-2.5 bg-neutral-900/90 border border-neutral-800 rounded-xl space-y-1.5';
-
-          let listHtml = '';
-          speeches.forEach(sp => {
-            const spPlayer = (room.players || []).find(p => p.id === sp.playerId || p.id === sp.speakerId);
-            const pc = COLOR_PALETTE.find(c => c.id === (spPlayer ? spPlayer.colorId : sp.colorId)) || COLOR_PALETTE[0];
-            const isMe = (sp.playerId === myOnlinePlayerId || sp.speakerId === myOnlinePlayerId);
-
-            listHtml += `
-              <div class="flex items-start space-x-2 py-1.5 ${isMe ? 'flex-row-reverse space-x-reverse' : ''}">
-                <div class="w-7 h-7 rounded-full ${pc.bgClass} border border-neutral-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow">
-                  ${(spPlayer && spPlayer.repChar) || getRepresentativeChar(sp.speakerName || '')}
-                </div>
-                <div class="max-w-[78%] space-y-0.5">
-                  <div class="text-[9px] text-neutral-400 font-mono ${isMe ? 'text-right' : 'text-left'}">
-                    <span class="${pc.bgClass} px-1 rounded text-[8px] font-bold text-white mr-1">${pc.name}</span>
-                    <span>${sp.speakerName || (spPlayer ? spPlayer.name : '')}</span>
-                    <span class="text-neutral-500 ml-1">${sp.time || ''}</span>
-                  </div>
-                  <div class="p-2.5 rounded-xl text-xs break-words whitespace-pre-wrap ${isMe ? 'bg-amber-950/80 border border-amber-500/70 text-amber-200' : 'bg-neutral-950 border border-neutral-800 text-neutral-100'}">
-                    ${sp.text}
-                  </div>
-                </div>
-              </div>
-            `;
-          });
-
-          roundBox.innerHTML = `
-            <div onclick="togglePersonRefSpeechCollapse(${rNum})" class="py-1.5 px-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px] font-bold flex justify-between items-center cursor-pointer transition hover:border-amber-500/50 select-none">
-              <span class="text-neutral-300">📜 第 ${rNum} 回合發言紀錄 (${speeches.length}則)</span>
-              <span id="onlPersonRefSpeechToggle_${rNum}" class="font-mono text-amber-400 text-[10px]">${isCollapsed ? '▶ 點擊展開' : '▼ 點擊收合'}</span>
-            </div>
-            <div id="onlPersonRefSpeechBody_${rNum}" class="space-y-1.5 max-h-60 overflow-y-auto pt-1 ${isCollapsed ? 'hidden' : ''}">
-              ${listHtml}
-            </div>
-          `;
-          refSpeech.appendChild(roundBox);
-        });
+        const speechMe = (room.players || []).find(p => p.id === myOnlinePlayerId) || null;
+        renderWaitingTurnSpeeches(room, speechMe, null, 'onlPersonRefSpeechContainer', true);
       }
     }
     window.renderOnlinePersonVotingReference = renderOnlinePersonVotingReference;
@@ -15478,8 +15451,8 @@ function renderOnlinePersonVotingReference(room) {
         const confirmedCount = (room.players || []).filter(p => p.roleConfirmed).length;
         const allHumansConfirmed = (room.players || []).filter(p => !p.id.startsWith('mock_p_')).every(p => p.roleConfirmed);
         const rolesElapsed = Date.now() - (room.startTimestamp || Date.now());
-        if (confirmedCount === 8 || allHumansConfirmed || rolesElapsed > 8000) {
-          console.log('🚀 [看門狗自癒] 角色展示全員就緒或超時自癒，自動推進至第 1 回合查驗！');
+        if (confirmedCount === 8 || allHumansConfirmed || rolesElapsed > 9000) {
+          console.log('🚀 [看門狗自癒] 角色展示全員就緒或 9 秒超時自癒，自動推進至第 1 回合查驗！');
           await executeOnlineStartPlaying(room);
           return;
         }
@@ -16441,7 +16414,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
         // 依需求 1：技能顯示只能顯示給自己看，並不會看到隊友的技能顯示狀態
         let badgeHtml = '';
         if (rObj && pId === myOnlinePlayerId) {
-          badgeHtml = getPrivateRoleBadgeHtml(p, rObj, room);
+          badgeHtml = getPrivateRoleBadgeHtml((typeof getOnlineMePlayer === 'function' ? getOnlineMePlayer(room) : p) || p, rObj, room);
         }
 
         return `
@@ -17463,17 +17436,36 @@ async function addMockPlayersAndStart() {
     showToast('連線尚未就緒，請檢查網路連線。', 'warning', 2500);
     return;
   }
-  // v3.8.5：一鍵開局只走唯一的標準發牌引擎，避免第二套分配角色邏輯造成 ???／重複角色。
   try {
-    const snap = await db.doc(ONLINE_ROOM_DOC).get();
-    if (!snap.exists || snap.data().status !== 'waiting') {
-      showToast('目前不是等待開局階段，請先回到大廳。', 'warning', 2500);
-      return;
-    }
-    await executeOnlineStartDeal(snap.data(), true);
+    // 與「先補滿電腦，再按就緒」共用相同的大廳名單、席位、DNA 與發牌流程。
+    await addMockPlayersToLobby();
+    const docRef = db.doc(ONLINE_ROOM_DOC);
+    await db.runTransaction(async transaction => {
+      const snap = await transaction.get(docRef);
+      if (!snap.exists) throw new Error('找不到房間資料');
+      const data = snap.data();
+      if (data.status !== 'waiting') throw new Error('目前不是等待開局階段，請先回到大廳');
+      const players = Array.isArray(data.players) ? data.players.map(p => ({...p})) : [];
+      if (players.length !== 8 || new Set(players.map(p => p.id)).size !== 8) {
+        throw new Error('電腦玩家尚未補滿 8 個有效席位，請再試一次');
+      }
+      const me = players.find(p => p.id === myOnlinePlayerId);
+      if (!me) throw new Error('找不到您的座位，請重新加入房間');
+      me.readyToStart = true;
+      me.isReady = true;
+      me.lastSeenAt = Date.now();
+      players.forEach(p => {
+        if (p.id && p.id.startsWith('mock_p_')) {
+          p.readyToStart = true;
+          p.isReady = true;
+        }
+      });
+      transaction.update(docRef, { players, lastActivityTime: Date.now() });
+    });
+    showToast('🤖 已補齊電腦並替您就緒；全體真人就緒後會統一倒數 3 秒開局。', 'success', 3500);
   } catch (e) {
-    console.error('[一鍵開局] 標準發牌引擎失敗:', e);
-    showToast('一鍵開局失敗：' + (e && e.message ? e.message : '請重試'), 'warning', 4000);
+    console.error('[一鍵補齊電腦] 失敗:', e);
+    showToast('一鍵補齊失敗：' + (e && e.message ? e.message : '請重試'), 'warning', 4000);
   }
 }
 window.addMockPlayersAndStart = addMockPlayersAndStart;
