@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 3.8.6)</title>  
+ <title>古董局中局 (版本 3.8.4)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -567,21 +567,6 @@
      </div>
      <div id="onlActiveTurnPassOrders" class="space-y-2"></div>
    </div>
-   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
-       <span class="text-[10px] text-neutral-400">依回合整理</span>
-     </div>
-     <div id="onlActiveTurnSpeechesContainerA" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
-   </div>
-   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
-     </div>
-     <div id="onlActiveTurnBeastsChipsContainerA" class="space-y-2.5"></div>
-   </div>
  </div>
  </div>  
   
@@ -630,21 +615,6 @@
      </div>
      <div id="onlStepBPassOrders" class="space-y-2"></div>
    </div>
-   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
-       <span class="text-[10px] text-neutral-400">依回合整理</span>
-     </div>
-     <div id="onlActiveTurnSpeechesContainerB" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
-   </div>
-   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
-     </div>
-     <div id="onlActiveTurnBeastsChipsContainerB" class="space-y-2.5"></div>
-   </div>
  </div>
  </div>  
   
@@ -668,7 +638,7 @@
  </div>  
   
  <!-- 手機傳遞順序展示 (座位圖正下方，依需求2) -->
- <div id="onlStepCPassOrdersBox" class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
+ <div class="p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2.5 shadow-md text-left my-2.5">
    <div class="flex items-center justify-between border-b border-neutral-800/80 pb-1.5">
      <div class="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
        <span>📱</span>
@@ -678,21 +648,6 @@
    </div>
    <div id="onlActiveStepCPassOrders" class="space-y-2"></div>
  </div>
-   <!-- 各回合發言記錄：直接接在手機傳遞順序下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗣️</span><span class="text-amber-400 font-black">各回合發言記錄</span></span>
-       <span class="text-[10px] text-neutral-400">依回合整理</span>
-     </div>
-     <div id="onlActiveTurnSpeechesContainerC" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
-   </div>
-   <!-- 各回合獸首投票票型：直接接在發言記錄下方 -->
-   <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">
-     <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">
-       <span class="flex items-center space-x-1.5"><span>🗳️</span><span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）</span></span>
-     </div>
-     <div id="onlActiveTurnBeastsChipsContainerC" class="space-y-2.5"></div>
-   </div>
 
  <!-- 確認交接按鈕區塊 -->  
  <div id="onlStepCConfirmWrapper" class="hidden pt-1 text-center">  
@@ -706,6 +661,47 @@
  <button type="button" onclick="onlProceedToDiscussion()" class="w-full py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-sm rounded-xl shadow-lg transition">  
  前往鑑寶（進入發言與投票） 🏛️  
  </button>  
+ </div>  
+ </div>  
+  
+ <!-- 傳手機操作階段歷史資訊：各回合發言記錄 ＆ 各回合獸首投票票型（清晰隔開避免資訊過多） -->  
+ <div id="onlActiveTurnHistorySection" class="border-t-2 border-dashed border-neutral-800 text-left space-y-3" style="margin-top: 4.5rem; padding-top: 2rem;">  
+ <!-- 區隔標題與折疊/展開按鈕 -->  
+ <div class="flex items-center justify-between p-3 rounded-xl bg-neutral-950/90 border border-neutral-800 cursor-pointer hover:border-amber-500/50 transition shadow-md" onclick="toggleActiveTurnHistoryCollapse()">  
+ <div class="flex items-center space-x-2 text-xs font-bold text-amber-400">  
+ <span>📜</span>  
+ <span>歷史戰情回顧（發言記錄 ＆ 投票票型）</span>  
+ </div>  
+ <div class="flex items-center space-x-1">  
+ <span id="onlActiveTurnHistoryToggleText" class="text-[11px] font-mono text-amber-400 font-bold">▼ 點擊展開/收合</span>  
+ </div>  
+ </div>  
+  
+ <!-- 展開內容容器：各回合發言記錄與各回合獸首投票票型 -->  
+ <div id="onlActiveTurnHistoryContent" class="space-y-3">  
+ <!-- 1. 各回合發言記錄 -->  
+ <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-2.5 shadow-xl text-left">  
+ <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
+ <span class="flex items-center space-x-1.5">  
+ <span>🗣️</span>  
+ <span class="text-amber-400 font-black">各回合發言記錄</span>  
+ </span>  
+ <span class="text-[10px] text-neutral-400">歷史發言</span>  
+ </div>  
+ <div id="onlActiveTurnSpeechesContainer" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>  
+ </div>  
+  
+ <!-- 2. 各回合獸首投票票型（點擊獸首可以看攤開明細） -->  
+ <div class="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 shadow-xl text-left">  
+ <div class="flex items-center justify-between text-xs font-bold text-neutral-300 border-b border-neutral-800 pb-2">  
+ <span class="flex items-center space-x-1.5">  
+ <span>🗳️</span>  
+ <span class="text-amber-400 font-bold">各回合獸首投票票型（點擊獸首可以看攤開明細）：</span>  
+ </span>  
+ </div>  
+ <div id="onlActiveTurnBeastsChipsContainer" class="space-y-2.5"></div>  
+ </div>  
+ </div>  
  </div>  
  </div>  
   
@@ -1928,7 +1924,7 @@ function setTabPlayerId(id) {
 }
 
 
-// v3.8.5 原有修正：穩定裝置憑證與座位恢復。暱稱只供顯示，跨裝置相同暱稱不會直接取得他人座位。
+// v3.8.5：穩定裝置憑證與座位恢復。暱稱只供顯示，跨裝置相同暱稱不會直接取得他人座位。
 function normalizeOnlineNickname(name) {
   return String(name || '').normalize('NFKC').trim().toLocaleLowerCase();
 }
@@ -2780,7 +2776,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.6 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.5 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -9464,7 +9460,7 @@ function diffRoomState(prev, next) {
 }
 window.diffRoomState = diffRoomState;
 
-// v3.8.5 原有修正：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
+// v3.8.5：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
 var _onlinePresenceHeartbeatTimer = null;
 var _onlineTakeoverWatchdogTimer = null;
 function startOnlinePresenceHeartbeat() {
@@ -9669,7 +9665,7 @@ onlineRoomData = room;
  checkAndRenderRestartVoteModal(room);  
  checkAndRenderCloseVoteModal(room);  
   
- // v3.8.5 原有修正：只有「進入等待大廳」或「觀察到既有對局真的換 startTimestamp」才清本機狀態。
+ // v3.8.5：只有「進入等待大廳」或「觀察到既有對局真的換 startTimestamp」才清本機狀態。
  // 初次載入正在進行的對局時不清除剛恢復的角色／投票狀態；也不在每次 waiting 快照重置。
  const previousRoomStatus = window._lastSeenOnlineStatus || null;
  const previousGameStart = window._lastSeenOnlineGameStart || null;
@@ -9838,7 +9834,7 @@ onlineRoomData = room;
    }  
  }
   
-  // v3.8.5 原有修正：只有名單內真的有自己的 playerId 才能操作；未入座者一律觀戰，避免 UI 假裝已入座。
+  // v3.8.5：只有名單內真的有自己的 playerId 才能操作；未入座者一律觀戰，避免 UI 假裝已入座。
   let isSpectator = !players.some(p => p.id === myOnlinePlayerId);
   window.isOnlineSpectator = isSpectator;
   updateSpectatorBarUI();  
@@ -9859,7 +9855,7 @@ onlineRoomData = room;
  }
  }
 
- // v3.8.5 原有修正：若玩家重連時已在 playing／discussion／voting 階段，不能只依賴角色快照監聽。
+ // v3.8.5：若玩家重連時已在 playing／discussion／voting 階段，不能只依賴角色快照監聽。
  // 私有文件可能比公開房間先到，第一次因 startTimestamp 尚未同步而被略過；此處再依本局時間戳補讀一次。
  if (me && !window.isOnlineSpectator && room.status !== 'waiting' && room.status !== 'roles' && room.startTimestamp &&
      (!me.role || me.role === '???') && isFirebaseReady && db &&
@@ -11002,7 +10998,7 @@ async function kickOnlinePlayer(targetId, event) {
  }  
  if (!me) return;  
   
- // v3.8.5 原有修正：不在角色載入前提前確認；先恢復私有角色，再決定是否自動確認。
+ // v3.8.5：不在角色載入前提前確認；先恢復私有角色，再決定是否自動確認。
  // 需求2：線上多人版完全移除長按防窺鎖定機制，卡片直接展示！  
  if (!me.role && isFreshRoleDataForRoom(myPrivateRoleData, room)) {
    me.role = myPrivateRoleData.role;
@@ -11682,18 +11678,50 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
  }  
  }  
   
+ var _onlActiveTurnHistoryCollapsed = true;  
+ function toggleActiveTurnHistoryCollapse() {  
+ window._hasExplicitlyToggledTurnHistory = true;  
+ _onlActiveTurnHistoryCollapsed = !_onlActiveTurnHistoryCollapsed;  
+ const content = document.getElementById('onlActiveTurnHistoryContent');  
+ const toggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
+ if (content) {  
+ if (_onlActiveTurnHistoryCollapsed) {  
+ content.classList.add('hidden');  
+ if (toggleText) toggleText.innerText = '▶ 點擊展開';  
+ } else {  
+ content.classList.remove('hidden');  
+ if (toggleText) toggleText.innerText = '▼ 點擊收合';  
+ }  
+ }  
+ }  
+ window.toggleActiveTurnHistoryCollapse = toggleActiveTurnHistoryCollapse;  
+  
  function renderOnlineMyActiveTurn(room, me, curRound) {  
  me = getOnlineMePlayer(room) || me;
  renderPassOrderRows(room, curRound);  
  renderActiveTurnCircleSeats(room, me, curRound);  
   
-   // v3.8.6：發言紀錄與票型直接列在各階段「手機傳遞順序（三回合）」下方，不再使用獨立折疊區塊。
-  ['A', 'B', 'C'].forEach(suffix => {
-    renderWaitingTurnSpeeches(room, me, curRound, `onlActiveTurnSpeechesContainer${suffix}`);
-    renderWaitingTurnBeastsChips(room, me, curRound, `onlActiveTurnBeastsChipsContainer${suffix}`);
-  });
-
-  // 壞人陣營同伴互認：老朝奉與藥不然互相相認
+ // 依修改1：操作階段渲染各回合發言記錄與各回合獸首投票票型（點擊獸首可以看攤開明細）  
+ renderWaitingTurnSpeeches(room, me, curRound, 'onlActiveTurnSpeechesContainer');  
+ renderWaitingTurnBeastsChips(room, me, curRound, 'onlActiveTurnBeastsChipsContainer');  
+  
+ // 修改3：傳手機操作階段，下方歷史區塊預設狀態永遠保持收合，要特別點開才能看到  
+ if (!window._hasExplicitlyToggledTurnHistory) {  
+ _onlActiveTurnHistoryCollapsed = true;  
+ }  
+ const histContent = document.getElementById('onlActiveTurnHistoryContent');  
+ const histToggleText = document.getElementById('onlActiveTurnHistoryToggleText');  
+ if (histContent) {  
+ if (_onlActiveTurnHistoryCollapsed) {  
+ histContent.classList.add('hidden');  
+ if (histToggleText) histToggleText.innerText = '▶ 點擊展開';  
+ } else {  
+ histContent.classList.remove('hidden');  
+ if (histToggleText) histToggleText.innerText = '▼ 點擊收合';  
+ }  
+ }  
+  
+ // 壞人陣營同伴互認：老朝奉與藥不然互相相認
  const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');  
  if (me.role === '老朝奉' && turnCampBanner) {  
    turnCampBanner.classList.remove('hidden');  
@@ -17435,7 +17463,7 @@ async function addMockPlayersAndStart() {
     showToast('連線尚未就緒，請檢查網路連線。', 'warning', 2500);
     return;
   }
-  // v3.8.5 原有修正：一鍵開局只走唯一的標準發牌引擎，避免第二套分配角色邏輯造成 ???／重複角色。
+  // v3.8.5：一鍵開局只走唯一的標準發牌引擎，避免第二套分配角色邏輯造成 ???／重複角色。
   try {
     const snap = await db.doc(ONLINE_ROOM_DOC).get();
     if (!snap.exists || snap.data().status !== 'waiting') {
