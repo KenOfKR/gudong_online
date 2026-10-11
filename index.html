@@ -2175,7 +2175,11 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
               console.log('🔒 [v2.4.0 Auth] 初始匿名登入完成, UID:', currentAuthUid);
               resolve(currentAuthUid);
             }).catch(function(err) {
-              console.warn('[v2.4.0 Auth] 匿名登入服務降級 (繼續使用本地 Session ID):', err && err.message ? err.message : err);
+              window._firebaseAuthLastError = {
+                code: err && err.code ? err.code : 'unknown',
+                message: err && err.message ? err.message : String(err || 'unknown')
+              };
+              console.warn('[v2.4.0 Auth] 匿名登入服務降級 (繼續使用本地 Session ID):', window._firebaseAuthLastError.code, window._firebaseAuthLastError.message);
               resolve(myOnlinePlayerId);
             });
           }
@@ -2784,7 +2788,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.10 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.11 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -17304,22 +17308,48 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
       }
     }
 
+    // GitHub Pages / Firebase Auth 防呆：房間規則要求 request.auth != null，補 BOT 前必須確認匿名登入真的成功。
+    async function requireFirebaseAuthForBotSpawn() {
+      if (!isFirebaseReady || !db) throw new Error('Firebase Firestore 尚未初始化，請重新整理頁面後再試。');
+      if (!myOnlinePlayerId) throw new Error('尚未取得玩家座位 ID，請先重新加入房間。');
+      try {
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+          await getAuthReadyPromise();
+          const user = firebase.auth().currentUser;
+          if (user && user.uid) {
+            currentAuthUid = user.uid;
+            return user.uid;
+          }
+        }
+      } catch (authErr) {
+        console.error('[BOT補位] Firebase 匿名登入失敗：', authErr && (authErr.code || authErr.message) || authErr);
+      }
+      const lastAuthError = window._firebaseAuthLastError;
+      const authDetail = lastAuthError ? (' 最近的登入錯誤：' + lastAuthError.code + ' — ' + lastAuthError.message) : '';
+      throw new Error('Firebase 匿名登入尚未成功；房間寫入規則要求已登入。請到 Firebase Console → Authentication → Sign-in method 啟用 Anonymous，並在 Authentication → Settings → Authorized domains 加入目前的 GitHub Pages 網域（例如帳號.github.io；若有自訂網域也要加入）。' + authDetail);
+    }
+    window.requireFirebaseAuthForBotSpawn = requireFirebaseAuthForBotSpawn;
+
     // 線上房間電腦補齊（原子交易＋嚴格席次去重，保證剛好 8 人且絕不重複席次）
     async function addMockPlayersToLobby() {
       if (!myOnlinePlayerId || !isFirebaseReady || !db) {
-        showToast('⚠️ 連線尚未就緒，請檢查網路連線', 'warning', 2000);
-        return;
+        showToast('⚠️ 連線尚未就緒，請檢查網路連線', 'warning', 2500);
+        return false;
       }
       const docRef = db.doc(ONLINE_ROOM_DOC);
 
       try {
-        await db.runTransaction(async (transaction) => {
+        await requireFirebaseAuthForBotSpawn();
+        const result = await db.runTransaction(async (transaction) => {
           const snap = await transaction.get(docRef);
-          if (!snap.exists) return;
+          if (!snap.exists) throw new Error('找不到線上房間文件，請重新加入房間。');
           const data = snap.data();
-          if (data.status !== 'waiting' && data.status !== 'WAITING_READY') return;
+          if (data.status !== 'waiting' && data.status !== 'WAITING_READY') {
+            throw new Error('目前不是等待中的大廳（房間狀態：' + String(data.status || '未知') + '），請先回到大廳再補電腦。');
+          }
 
           let players = data.players ? [...data.players] : [];
+          if (players.length > 8) throw new Error('房間玩家數已超過 8 人，為避免刪除真人座位，系統不會自動調整。');
           const usedColors = new Set(players.map(p => p.colorId));
 
           // 1. 確保真人玩家本人在名單內（保留真人玩家未就緒，讓真人可以從容換色與調座！）
@@ -17417,16 +17447,28 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
             selfRow.lastSeenAt = Date.now();
             saveDeviceSeatMapping(currentOnlineRoomCode, selfRow.id, selfRow.name);
           }
+          if (players.length !== 8) {
+            throw new Error('補位後人數不是 8 人（目前 ' + players.length + ' 人），請檢查真人座位或電腦暱稱資料。');
+          }
           transaction.update(docRef, {
             status: data.status || 'waiting',
             players: players,
             lastActivityTime: Date.now()
           });
+          return { playerCount: players.length, botCount: players.filter(p => p && p.id && p.id.startsWith('mock_p_')).length };
         });
-        showToast('🤖 已補齊電腦玩家至 8 人滿員！', 'success', 2000);
+        if (!result || result.playerCount !== 8) throw new Error('補位交易未確認寫入成功。');
+        console.info('[BOT補位] Firestore 寫入成功：', result);
+        showToast('🤖 已補齊電腦玩家至 8 人滿員！', 'success', 2500);
+        return true;
       } catch(e) {
-        console.error('補齊電腦玩家失敗:', e);
-        showToast('補齊電腦玩家失敗，請稍後重試', 'warning', 2000);
+        console.error('[BOT補位] Firestore 寫入失敗：', e && e.code, e);
+        let message = e && e.message ? e.message : '未知錯誤';
+        if (e && (e.code === 'permission-denied' || /Missing or insufficient permissions/i.test(message))) {
+          message = 'Firebase 拒絕寫入（permission-denied）。請確認匿名登入已啟用、GitHub Pages 網域已加入 Authorized domains，而且 GudongOnlineGame 規則允許已登入使用者寫入。原始錯誤：' + message;
+        }
+        showToast('補齊電腦玩家失敗：' + message, 'warning', 8000);
+        return false;
       }
     }
     window.addMockPlayersToLobby = addMockPlayersToLobby;
@@ -17438,7 +17480,9 @@ async function addMockPlayersAndStart() {
   }
   try {
     // 與「先補滿電腦，再按就緒」共用相同的大廳名單、席位、DNA 與發牌流程。
-    await addMockPlayersToLobby();
+    const fillSucceeded = await addMockPlayersToLobby();
+    if (fillSucceeded !== true) return;
+    await requireFirebaseAuthForBotSpawn();
     const docRef = db.doc(ONLINE_ROOM_DOC);
     await db.runTransaction(async transaction => {
       const snap = await transaction.get(docRef);
@@ -17464,8 +17508,12 @@ async function addMockPlayersAndStart() {
     });
     showToast('🤖 已補齊電腦並替您就緒；全體真人就緒後會統一倒數 3 秒開局。', 'success', 3500);
   } catch (e) {
-    console.error('[一鍵補齊電腦] 失敗:', e);
-    showToast('一鍵補齊失敗：' + (e && e.message ? e.message : '請重試'), 'warning', 4000);
+    console.error('[一鍵補齊電腦] 失敗:', e && e.code, e);
+    let message = e && e.message ? e.message : '請重試';
+    if (e && (e.code === 'permission-denied' || /Missing or insufficient permissions/i.test(message))) {
+      message = 'Firebase 拒絕寫入（permission-denied）。請檢查匿名登入與 GitHub Pages 授權網域。原始錯誤：' + message;
+    }
+    showToast('一鍵補齊失敗：' + message, 'warning', 8000);
   }
 }
 window.addMockPlayersAndStart = addMockPlayersAndStart;
