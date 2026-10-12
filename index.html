@@ -2788,7 +2788,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.11 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.12 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -3430,6 +3430,13 @@ static get STORAGE_KEY() {
     return '鑑寶宗師';
   }
 
+  // 從目前等級升到下一級所需的經驗值：非線性遞增，避免高等級和低等級成本相同。
+  // Lv1=60、Lv5=360、Lv10=870、Lv20=2340、Lv29=4266。
+  static getRequiredExperienceForLevel(level) {
+    const lv = Math.max(1, Math.min(30, Math.floor(Number(level) || 1)));
+    return Math.round(60 * lv + 3 * lv * (lv - 1));
+  }
+
   static calculateSpecialization(w, style) {
     if (!w) return '均衡推演・適應型';
     let scores = {};
@@ -4024,12 +4031,13 @@ static get STORAGE_KEY() {
             }
           });
 
-          // 升級計算
-          prof.evolution.experience = (prof.evolution.experience || 0) + earnedExp;
-          const reqExp = prof.evolution.level * 60;
-          if (prof.evolution.experience >= reqExp && prof.evolution.level < 30) {
-            prof.evolution.level += 1;
+          // 升級計算：每一級門檻不同且逐級增加；一次結算可按剩餘 EXP 正確跨級。
+          prof.evolution.experience = Math.max(0, Number(prof.evolution.experience) || 0) + earnedExp;
+          while (prof.evolution.level < 30) {
+            const reqExp = this.getRequiredExperienceForLevel(prof.evolution.level);
+            if (prof.evolution.experience < reqExp) break;
             prof.evolution.experience -= reqExp;
+            prof.evolution.level += 1;
             prof.evolution.levelTitle = this.getLevelTitle(prof.evolution.level);
           }
           prof.evolution.specialization = this.calculateSpecialization(w, pStyle);
@@ -16530,8 +16538,51 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
     window.renderOnlineGameOverCircleSeats = renderOnlineGameOverCircleSeats;
     window.renderOnlineGameOverPassOrders = renderOnlineGameOverPassOrders;
 
+    // 將同一場線上對局識別為穩定 key。房間文件每次 onSnapshot 都會重建物件，不能靠 room 上的暫存旗標去重。
+    function getOnlineGameOverMatchKey(room) {
+      const stampKey = (value) => {
+        if (value === undefined || value === null || value === '') return '';
+        try { if (typeof value.toMillis === 'function') return String(value.toMillis()); } catch (e) {}
+        try { if (typeof value.toDate === 'function') return String(value.toDate().getTime()); } catch (e) {}
+        if (value instanceof Date) return String(value.getTime());
+        if (typeof value === 'object' && typeof value.seconds === 'number') {
+          return String(value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1e6));
+        }
+        return String(value);
+      };
+      const roomKey = String((room && room.roomId) || currentOnlineRoomCode || ONLINE_ROOM_DOC || 'online-room');
+      const startKey = stampKey(room && room.startTimestamp) || ('created-' + stampKey(room && room.createdAt));
+      const g = (room && room.gameOverData) || {};
+      const playerKey = ((room && room.players) || []).map(p => String(p.id || p.name || '')).sort().join(',');
+      return [roomKey, startKey || playerKey, String(g.winningCamp || ''), String(g.totalScore ?? '')].join('|');
+    }
+
+    // 同一場終局動作只能執行一次；localStorage 可跨同頁重載去重，記錄僅保留最近 120 場。
+    function claimOnlineGameOverActionOnce(action, matchKey) {
+      const storageKey = 'gudong_online_gameover_' + action + '_keys_v1';
+      const memoryProp = '_gudongOnlineGameOver_' + action + 'Keys';
+      const seen = window[memoryProp] instanceof Set ? window[memoryProp] : (window[memoryProp] = new Set());
+      if (seen.has(matchKey)) return false;
+      try {
+        let keys = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (!Array.isArray(keys)) keys = [];
+        if (keys.includes(matchKey)) {
+          seen.add(matchKey);
+          return false;
+        }
+        keys.push(matchKey);
+        localStorage.setItem(storageKey, JSON.stringify(keys.slice(-120)));
+      } catch (e) {
+        // 若瀏覽器封鎖儲存，至少用當前頁面的 Set 防止快照重複執行。
+      }
+      seen.add(matchKey);
+      return true;
+    }
+
     function renderOnlineGameOverView(room, me) {
       if (!room) return;
+
+      const gameOverMatchKey = getOnlineGameOverMatchKey(room);
 
       // 1. 還原全員身分角色 (確保終局全覽所有區域皆可顯示正確身分)
       const roleMap = (room.gameOverData && room.gameOverData.revealedRoles) || {};
@@ -16540,8 +16591,11 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
         role: p.role || roleMap[p.id] || ''
       }));
 
-      // 2. 觸發電腦玩家對局後演化學習 (嚴格 try-catch 隔離，絕不中斷畫面渲染)
-      if (typeof BotLearningEngine !== 'undefined' && !room._hasEvolvedBots) {
+      // 心跳／在線狀態更新會頻繁觸發 onSnapshot，但同一場終局只需渲染一次，避免畫面閃動與重置。
+      if (window._lastRenderedOnlineGameOverKey === gameOverMatchKey) return;
+
+      // 2. 觸發電腦玩家對局後演化學習：不可使用 room._hasEvolvedBots，因為每次 Firebase 快照都是新物件。
+      if (typeof BotLearningEngine !== 'undefined' && claimOnlineGameOverActionOnce('bot_evolution', gameOverMatchKey)) {
         room._hasEvolvedBots = true;
         try {
           BotLearningEngine.processPostGameEvolution(room, room.gameOverData || {});
@@ -16621,9 +16675,11 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
         console.error('勝負橫幅渲染異常:', err);
       }
 
-      // 音效播放
+      // 每場終局音效只播一次。線上心跳快照更新不應重播音效。
       try {
-        playAudioEffect(isXuWon);
+        if (claimOnlineGameOverActionOnce('sound', gameOverMatchKey)) {
+          playAudioEffect(isXuWon);
+        }
       } catch (err) {}
 
       // 4. 終局圓桌席次與傳遞順序渲染
@@ -16848,6 +16904,9 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
       } catch(err) {
         console.error('更新重新開始按鈕異常:', err);
       }
+
+      // 完成此次完整渲染後才記錄 key；若初始化過程有未預期例外，下次快照仍可重試。
+      window._lastRenderedOnlineGameOverKey = gameOverMatchKey;
     }
 
     function renderBotDeductionLogsView(room) {
@@ -22788,9 +22847,11 @@ class BotSimulationEngine {
     };
 
     if (options.learningEnabled !== false) {
-      BotLearningEngine.reflect(room, gameOverData);
+      // processPostGameEvolution 內部已執行 reflect；不可再先呼叫一次，否則同一局會重複增加 EXP。
       if (window.BotLearningEngine && typeof window.BotLearningEngine.processPostGameEvolution === 'function') {
         window.BotLearningEngine.processPostGameEvolution(room, gameOverData);
+      } else {
+        BotLearningEngine.reflect(room, gameOverData);
       }
     }
 
