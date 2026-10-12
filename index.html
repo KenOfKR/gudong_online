@@ -1627,7 +1627,11 @@ service cloud.firestore {
       // 2. 私有角色子集合：本人才能讀自己的角色；本局發牌協調者可在原子交易中建立／更新私有角色。
       // 發牌交易同時將 hostAuthUid 寫入房間，因此使用 getAfter 驗證交易後的協調者身分。
       match /private/{playerId} {
-        allow read: if request.auth != null && resource.data.authUid == request.auth.uid;
+        allow read: if request.auth != null && (
+          resource.data.authUid == request.auth.uid ||
+          // 真人斷線超過 90 秒由電腦託管時，接手者的 UID 會被寫入 botClaimAuthUid，才可讀取被託管者的本局角色。
+          get(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.get('botClaimAuthUid', {}).get(playerId, '') == request.auth.uid
+        );
         allow create, update: if request.auth != null && (
           request.resource.data.authUid == request.auth.uid ||
           getAfter(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.hostAuthUid == request.auth.uid
@@ -2162,6 +2166,8 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
         roleMap.set(p.id, p.role);
         return;
       }
+      const _tr = getTakeoverRoleMap(room).get(p.id);
+      if (_tr) { roleMap.set(p.id, _tr); return; }
       // 本人優先使用已驗證且與本局相符的私有角色副本。
       if (p.id === myOnlinePlayerId) {
         const me = getOnlineMePlayer(room);
@@ -5025,6 +5031,11 @@ class BotDeductionEngine {
         const privateRole = supplementalRoleMap.get(p.id);
         if (privateRole) return privateRole;
       }
+      // 電腦接手真人時，由接手者讀到的本局角色快取（只在本機記憶體，不寫回公開資料）
+      if (typeof getTakeoverRoleMap === 'function') {
+        const tr = getTakeoverRoleMap(room).get(p.id);
+        if (tr) return tr;
+      }
       return '';
     };
     const rawMe = players.find(p => p.id === botId) || {};
@@ -5336,7 +5347,7 @@ class BotDeductionEngine {
 
     if (pov.myRole === '藥不然') {
       // 絕不因候選名單為空而重新把已知隊友放回可偷襲名單。
-      const candidates = pov.otherPlayers.filter(p => p.id !== pov.myId && !pov.knownTeammateIds.includes(p.id));
+      let candidates = pov.otherPlayers.filter(p => p.id !== pov.myId && !pov.knownTeammateIds.includes(p.id));
       if (candidates.length === 0) {
         return { ability: '找不到可偷襲的非隊友目標，本回合不發動偷襲', abilityLocked: true, skipAmbush: true };
       }
@@ -7494,7 +7505,11 @@ service cloud.firestore {
 
       // 私有角色：玩家只能讀自己的角色；本局發牌協調者可在同一個交易中寫入全體私有角色。
       match /private/{playerId} {
-        allow read: if request.auth != null && resource.data.authUid == request.auth.uid;
+        allow read: if request.auth != null && (
+          resource.data.authUid == request.auth.uid ||
+          // 真人斷線超過 90 秒由電腦託管時，接手者的 UID 會被寫入 botClaimAuthUid，才可讀取被託管者的本局角色。
+          get(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.get('botClaimAuthUid', {}).get(playerId, '') == request.auth.uid
+        );
         allow create, update: if request.auth != null && (
           request.resource.data.authUid == request.auth.uid ||
           getAfter(/databases/$(database)/documents/GudongOnlineGame/$(roomId)).data.hostAuthUid == request.auth.uid
@@ -7709,11 +7724,65 @@ service cloud.firestore {
  }  
  window.initTouchRevealCard = initTouchRevealCard;  
   
+
+ // --- 7.0 電腦託管角色讀取（完整版）---
+ // 真人的公開 players[].role 是空的，角色只在 private/{playerId}。接手時會把「接手者的匿名 UID」寫進 room.botClaimAuthUid[playerId]，
+ // Firebase 規則允許該 UID 讀取被託管玩家的 private 文件；角色只存在本機記憶體快取，絕不寫回公開 room.players。
+ var _takeoverRoleCache = { stamp: null, map: new Map() };
+ function getTakeoverRoleMap(room) {
+   const stamp = room && room.startTimestamp ? String(room.startTimestamp) : null;
+   if (_takeoverRoleCache.stamp !== stamp) _takeoverRoleCache = { stamp: stamp, map: new Map() };
+   return _takeoverRoleCache.map;
+ }
+ function resolveActualRoleForBot(p, room) {
+   if (!p) return '';
+   if (p.role) return p.role;
+   const m = getTakeoverRoleMap(room || (typeof onlineRoomData !== 'undefined' ? onlineRoomData : null));
+   return m.get(p.id) || '';
+ }
+ window.resolveActualRoleForBot = resolveActualRoleForBot;
+ window.getTakeoverRoleMap = getTakeoverRoleMap;
+ function buildBotClaimMap(players, existing) {
+   const claims = Object.assign({}, existing || {});
+   const uid = (typeof currentAuthUid !== 'undefined') ? currentAuthUid : null;
+   (players || []).forEach(p => {
+     if (p && p.id && p.isBotControlled === true && !String(p.id).startsWith('mock_p_')) {
+       if (uid) claims[p.id] = uid; else delete claims[p.id];
+     }
+   });
+   return claims;
+ }
+ window.buildBotClaimMap = buildBotClaimMap;
+ async function ensureTakeoverRole(room, pid) {
+   try {
+     if (!room || !pid || String(pid).startsWith('mock_p_') || !db) return '';
+     const p = (room.players || []).find(x => x.id === pid);
+     if (!p || p.role) return p ? p.role : '';
+     const map = getTakeoverRoleMap(room);
+     if (map.has(pid)) return map.get(pid);
+     const snap = await db.doc(`${ONLINE_ROOM_DOC}/private/${pid}`).get();
+     const d = snap && snap.exists ? snap.data() : null;
+     if (d && d.role && isFreshRoleDataForRoom(d, room)) {
+       map.set(pid, d.role);
+       const kt = d.knownTeammate;
+       if (kt && kt.role && (kt.playerId || kt.id)) map.set(kt.playerId || kt.id, kt.role);
+       return d.role;
+     }
+     console.warn('[Takeover] 讀不到被託管玩家的本局角色，電腦將採保守行動（不查驗、不用技能）。');
+   } catch (e) {
+     window._takeoverRoleError = e && (e.code || e.message) || 'unknown';
+     console.warn('[Takeover] 讀取被託管玩家角色失敗：請確認 Firebase 規則已加入 botClaimAuthUid 讀取許可。', window._takeoverRoleError);
+   }
+   return '';
+ }
+ window.ensureTakeoverRole = ensureTakeoverRole;
+
  // --- 7. 斷線接管與死鎖防護 (Deadlock Prevention & Auto-Takeover) ---  
- var _isExecutingAutoTakeover = false;  
+ var ONLINE_STALE_MS = 90000; // 真人超過 90 秒沒有心跳才視為斷線，由電腦暫時託管
+var _isExecutingAutoTakeover = false;  
  async function executeAutoTakeoverForCurrentTurn(room, requestedPlayerId = null) {
   if (!room || !isFirebaseReady || !db || _isExecutingAutoTakeover) return;
-  const staleBefore = Date.now() - 45000;
+  const staleBefore = Date.now() - ONLINE_STALE_MS;
   let candidateId = requestedPlayerId;
   const curRoundIdx = Number(room.currentRoundIdx || 0);
   const curRound = room.rounds && room.rounds[curRoundIdx];
@@ -7757,12 +7826,15 @@ service cloud.firestore {
       target.botTakeoverBy = myOnlinePlayerId;
       const nextRoom = {...data, players};
       nextRoom.hostId = myOnlinePlayerId; // 接管者成為後續電腦行動協調者；交易只允許一位成功接管。
-      transaction.update(docRef, { players, hostId: myOnlinePlayerId, takeoverUpdatedAt: Date.now() });
+      const botClaimAuthUid = buildBotClaimMap(players, data.botClaimAuthUid);
+      nextRoom.botClaimAuthUid = botClaimAuthUid;
+      transaction.update(docRef, { players, hostId: myOnlinePlayerId, takeoverUpdatedAt: Date.now(), botClaimAuthUid });
       claimedRoom = nextRoom;
     });
     if (!claimedRoom) return;
     const target = (claimedRoom.players || []).find(p => p.id === candidateId);
-    showToast(`玩家【${target ? target.name : candidateId}】已超過 45 秒沒有心跳，電腦暫時接手。`, 'warning', 4500);
+    showToast(`玩家【${target ? target.name : candidateId}】已超過 90 秒沒有心跳，電腦暫時接手。`, 'warning', 4500);
+    await ensureTakeoverRole(claimedRoom, candidateId);
     // 直接執行當前缺席玩家的本階段行動，保留原 playerId、角色、座位、歷史與票型。
     if (claimedRoom.status === 'playing' && typeof window.executeMockTurnStep === 'function') await window.executeMockTurnStep(claimedRoom, candidateId, claimedRoom.rounds[claimedRoom.currentRoundIdx]);
     else if (claimedRoom.status === 'discussion' && typeof window.executeMockSpeechStep === 'function') await window.executeMockSpeechStep(claimedRoom, candidateId, claimedRoom.rounds[claimedRoom.currentRoundIdx]);
@@ -9547,27 +9619,41 @@ window.diffRoomState = diffRoomState;
 // v3.8.5 原有修正：每位真人更新自己的存在時間；只有長時間失去心跳的當前行動者才由電腦接手。
 var _onlinePresenceHeartbeatTimer = null;
 var _onlineTakeoverWatchdogTimer = null;
+async function sendOnlinePresenceHeartbeat() {
+  const liveRoom = onlineRoomData;
+  const pid = myOnlinePlayerId;
+  if (!liveRoom || !pid || !isFirebaseReady || !db || window.isOnlineSpectator) return;
+  if (!(liveRoom.players || []).some(p => p.id === pid)) return;
+  try {
+    const docRef = db.doc(ONLINE_ROOM_DOC);
+    await db.runTransaction(async transaction => {
+      const snap = await transaction.get(docRef);
+      if (!snap.exists) return;
+      const data = snap.data();
+      const players = Array.isArray(data.players) ? data.players.map(p => ({...p})) : [];
+      const self = players.find(p => p.id === pid);
+      if (!self) return;
+      self.lastSeenAt = Date.now();
+      const update = { players };
+      // 本人頁面仍活著（有心跳）→ 自動取回控制權；給電腦 8 秒把手上的動作做完，避免兩邊同時操作。
+      if (self.isBotControlled === true && Date.now() - Number(self.botTakeoverAt || 0) > 8000) {
+        self.isBotControlled = false;
+        self.botReclaimedAt = Date.now();
+        const claims = Object.assign({}, data.botClaimAuthUid || {});
+        delete claims[pid];
+        update.botClaimAuthUid = claims;
+      }
+      transaction.update(docRef, update);
+    });
+  } catch (e) { console.debug('[Presence] 心跳更新稍後重試:', e && e.message || e); }
+}
+window.sendOnlinePresenceHeartbeat = sendOnlinePresenceHeartbeat;
 function startOnlinePresenceHeartbeat() {
   if (_onlinePresenceHeartbeatTimer) return;
-  _onlinePresenceHeartbeatTimer = setInterval(async () => {
-    const liveRoom = onlineRoomData;
-    const pid = myOnlinePlayerId;
-    if (!liveRoom || !pid || !isFirebaseReady || !db || window.isOnlineSpectator) return;
-    if (!(liveRoom.players || []).some(p => p.id === pid)) return;
-    try {
-      const docRef = db.doc(ONLINE_ROOM_DOC);
-      await db.runTransaction(async transaction => {
-        const snap = await transaction.get(docRef);
-        if (!snap.exists) return;
-        const data = snap.data();
-        const players = Array.isArray(data.players) ? data.players.map(p => ({...p})) : [];
-        const self = players.find(p => p.id === pid);
-        if (!self) return;
-        self.lastSeenAt = Date.now();
-        transaction.update(docRef, { players });
-      });
-    } catch (e) { console.debug('[Presence] 心跳更新稍後重試:', e && e.message || e); }
-  }, 20000);
+  _onlinePresenceHeartbeatTimer = setInterval(sendOnlinePresenceHeartbeat, 20000);
+  // 手機切回前景（或解鎖）時立刻補一次心跳，避免背景計時器被瀏覽器降速造成誤判斷線。
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sendOnlinePresenceHeartbeat(); });
+  window.addEventListener('focus', () => { sendOnlinePresenceHeartbeat(); });
 }
 function startOnlineTakeoverWatchdog() {
   if (_onlineTakeoverWatchdogTimer) return;
@@ -9575,7 +9661,7 @@ function startOnlineTakeoverWatchdog() {
     const room = onlineRoomData;
     if (!room || !room.status || !['playing','discussion','voting','person_voting'].includes(room.status)) return;
     const players = room.players || [];
-    const staleBefore = Date.now() - 45000;
+    const staleBefore = Date.now() - ONLINE_STALE_MS;
     // 舊房間資料沒有 lastSeenAt 時先補一次基準時間，否則舊對局永遠無法判斷斷線。
     if (players.some(p => !Number(p.lastSeenAt || 0)) && myOnlinePlayerId && players.some(p => p.id === myOnlinePlayerId) && isFirebaseReady && db) {
       db.runTransaction(async transaction => {
@@ -9593,7 +9679,7 @@ function startOnlineTakeoverWatchdog() {
       db.runTransaction(async transaction => {
         const ref = db.doc(ONLINE_ROOM_DOC); const snap = await transaction.get(ref); if (!snap.exists) return;
         const d = snap.data(); const freshHost = (d.players || []).find(p => p.id === d.hostId);
-        if (d.hostId === hostId && freshHost && Number(freshHost.lastSeenAt || 0) > 0 && Number(freshHost.lastSeenAt) < Date.now() - 45000) transaction.update(ref, { hostId: myOnlinePlayerId, hostTakeoverAt: Date.now() });
+        if (d.hostId === hostId && freshHost && Number(freshHost.lastSeenAt || 0) > 0 && Number(freshHost.lastSeenAt) < Date.now() - ONLINE_STALE_MS) transaction.update(ref, { hostId: myOnlinePlayerId, hostTakeoverAt: Date.now(), botClaimAuthUid: buildBotClaimMap(d.players, d.botClaimAuthUid) });
       }).catch(() => {});
     }
     let candidate = null;
@@ -9896,7 +9982,7 @@ onlineRoomData = room;
          if (!snap.exists) return;
          const d = snap.data(); const ps = (d.players || []).map(p => ({...p}));
          const rp = ps.find(p => p.id === recovered.id);
-         if (rp && rp.isBotControlled) { rp.isBotControlled = false; rp.botReclaimedAt = Date.now(); db.doc(ONLINE_ROOM_DOC).update({ players: ps }).catch(() => {}); }
+         if (rp && rp.isBotControlled) { rp.isBotControlled = false; rp.botReclaimedAt = Date.now(); const _cl = Object.assign({}, d.botClaimAuthUid || {}); delete _cl[rp.id]; db.doc(ONLINE_ROOM_DOC).update({ players: ps, botClaimAuthUid: _cl }).catch(() => {}); }
        }).catch(() => {});
      }
    }
@@ -10867,7 +10953,8 @@ async function kickOnlinePlayer(targetId, event) {
  // 真人角色僅留存在 private/{playerId} 中，DevTools / Console 徹底無法竊窺！
  const sanitizedPublicPlayers = players.map(p => ({
    ...p,
-   role: (p.id && p.id.startsWith('mock_p_')) ? p.role : ''
+   role: (p.id && p.id.startsWith('mock_p_')) ? p.role : '',
+   isBotControlled: false
  }));
 
  transaction.update(docRef, {  
@@ -10875,6 +10962,7 @@ async function kickOnlinePlayer(targetId, event) {
  gameState: 'roles',  
  hostId: myOnlinePlayerId,
  hostAuthUid: currentAuthUid || null,
+ botClaimAuthUid: {},
  launchLock: { lockedBy: myOnlinePlayerId, timestamp: now },  
  startTimestamp: now,  
  sessionIndex: data.sessionIndex || 1,  
@@ -15555,8 +15643,11 @@ function renderOnlinePersonVotingReference(room) {
       if (!curRound) return;
 
       const now = Date.now();
-      if (_mockActionPending && (now - _lastMockActionTime > 60000)) {
+      if (_mockActionPending && (now - _lastMockActionTime > 45000)) {
+        // 電腦動作卡住超過 45 秒：強制解鎖，讓下一輪重新嘗試，確保遊戲不會停住。
+        console.warn('[MockWatchdog] 電腦動作逾時卡住，強制解鎖重試');
         _mockActionPending = false;
+        window._activeSpeakingMockId = null;
       }
       if (_mockActionPending) return;
 
@@ -15618,6 +15709,33 @@ function renderOnlinePersonVotingReference(room) {
     // =========================================================================
     // _mockActionPending and _lastMockActionTime are declared globally
 
+    // 電腦思考的硬性時限：Gemini 太久沒回就放棄，立刻改由本地引擎決策，確保遊戲一定往下走。
+    function withBotThinkTimeout(promise, ms, label) {
+      let timer = null;
+      return Promise.race([
+        Promise.resolve(promise),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error((label || 'Gemini') + ' 思考逾時 ' + ms + 'ms')), ms); })
+      ]).finally(() => { if (timer) clearTimeout(timer); });
+    }
+    window.withBotThinkTimeout = withBotThinkTimeout;
+
+    // 電腦思考提示：真人中離被託管 → 「中離被Gemini 託管中...」；超過 10 秒仍在想 → 「Gemini 有點煩惱...」。回傳 stop() 用來結束計時。
+    function showBotThinkingBadge(el, player, kind, cls) {
+      if (!el || !player) return () => {};
+      const managed = !String(player.id || '').startsWith('mock_p_') && player.isBotControlled === true;
+      const normalText = kind === 'speech' ? '正在思考發言...' : 'Gemini 思考傳遞中...';
+      const render = (text) => { el.innerHTML = `<span class="${cls}">🤖 【${player.name}】${text}</span>`; };
+      render(managed ? '中離被Gemini 託管中...' : normalText);
+      let stopped = false;
+      const firstText = el.textContent;
+      const t = setTimeout(() => {
+        if (stopped || el.textContent !== firstText) return; // 畫面已被其他階段文字取代就不要覆蓋
+        render(managed ? '中離被Gemini 託管中（有點煩惱...）' : 'Gemini 有點煩惱...');
+      }, 10000);
+      return () => { stopped = true; clearTimeout(t); };
+    }
+    window.showBotThinkingBadge = showBotThinkingBadge;
+
     async function getFreshMockThinkingRoom(expectedStatus, actorField, actorId, fallbackRoom) {
       try {
         if (!db || !ONLINE_ROOM_DOC) return fallbackRoom;
@@ -15633,29 +15751,29 @@ function renderOnlinePersonVotingReference(room) {
     async function executeMockTurnStep(room, mockPlayerId, curRound) {
       _mockActionPending = true;
       _lastMockActionTime = Date.now();
+      await ensureTakeoverRole(room, mockPlayerId);
 
       const mockP = (room.players || []).find(p => p.id === mockPlayerId);
       const badge = document.getElementById('onlCurrentTurnPlayerBadge');
-      if (badge && mockP) {
-        badge.innerHTML = `<span class="text-xs font-bold text-amber-400 animate-pulse flex items-center">🤖 【${mockP.name}】Gemini 思考傳遞中...</span>`;
-      }
+      const stopTurnBadge = showBotThinkingBadge(badge, mockP, 'turn', 'text-xs font-bold text-amber-400 animate-pulse flex items-center');
 
       let geminiNextId = null;
       const thinkingRoom = await getFreshMockThinkingRoom('playing', 'currentTurnPlayerId', mockPlayerId, room);
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiNextId = await GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId);
+          geminiNextId = await withBotThinkTimeout(GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId), 20000, 'Gemini 傳位');
         } catch(e) {
           console.warn('[MockTurn] Gemini 思考傳遞逾時，改由本地引擎接手:', e);
         }
       } else {
         await new Promise(r => setTimeout(r, 600 + Math.floor(Math.random() * 400)));
       }
+      stopTurnBadge();
 
       // 電腦藥不然需要依真實目標角色套用特殊偷襲效果。此 Map 僅存在本次運算記憶體中。
       let mockDecisionRoleMap = null;
       let mockRoleLookupIncomplete = false;
-      if (mockP && ['藥不然', '老朝奉'].includes(mockP.role)) {
+      if (mockP && ['藥不然', '老朝奉'].includes(resolveActualRoleForBot(mockP, room))) {
         try {
           const roleLookup = await getOnlinePlayerRoleMap(thinkingRoom || room);
           mockDecisionRoleMap = roleLookup.roleMap;
@@ -15695,7 +15813,7 @@ function renderOnlinePersonVotingReference(room) {
           if (!freshMockP) return;
 
           if (!freshMockP.actionDNA) {
-            const dna = BotDeductionEngine.generateBotDNA(mockPlayerId, freshMockP.role);
+            const dna = BotDeductionEngine.generateBotDNA(mockPlayerId, resolveActualRoleForBot(freshMockP, freshRoom));
             freshMockP.actionDNA = dna.actionDNA;
             freshMockP.speechDNA = dna.speechDNA;
             freshMockP.personaTitle = dna.personaTitle;
@@ -15706,13 +15824,18 @@ function renderOnlinePersonVotingReference(room) {
 
           const botPOV = BotDeductionEngine.buildPOV(freshRoom, mockPlayerId, mockDecisionRoleMap);
           const beliefs = BotDeductionEngine.evaluateBeliefs(botPOV);
+          const actualRole = resolveActualRoleForBot(freshMockP, freshRoom) || (mockDecisionRoleMap && mockDecisionRoleMap.get(mockPlayerId)) || '';
+          // 真人被託管但讀不到其角色：保守行動，不洩漏真偽、不使用技能，避免套錯規則（例如方震看懂真偽）。
+          const roleUnknownHuman = !String(mockPlayerId).startsWith('mock_p_') && !actualRole;
 
           const chosen = BotDeductionEngine.decideInspect(botPOV, beliefs, roundObj.beasts);
           const isUnderAmbush = !!(freshMockP && (freshMockP.isAmbushed || freshMockP.isPermanentlyAmbushed)) || !!botPOV.myInspectWasBlinded;
 
           roundObj.turnLogs[mockPlayerId].inspect = chosen.map(b => {
             let txt = '';
-            if (freshMockP.role === '方震') {
+            if (roleUnknownHuman) {
+              txt = `【${b.name}】（電腦代為傳遞：本局角色資料未同步，未查驗）`;
+            } else if (actualRole === '方震') {
               txt = `【${b.name}】（方震無法辨別真偽。⚠️ 發言時切勿說「看不懂」，請偽裝成看懂報真假，避免被藥不然抓獲！）`;
             } else if (isUnderAmbush) {
               txt = '獸首被偷襲';
@@ -15720,16 +15843,18 @@ function renderOnlinePersonVotingReference(room) {
               txt = `【${b.name}】 無法辨別真偽！`;
             } else {
               let isReal = b.isReal;
-              const immuneToLao = ['姬雲浮', '老朝奉', '藥不然', '鄭國渠'].includes(freshMockP.role);
+              const immuneToLao = ['姬雲浮', '老朝奉', '藥不然', '鄭國渠'].includes(actualRole);
               if (roundObj.laoChaoFengActive && !immuneToLao) isReal = !isReal;
               txt = `【${b.name}】 ${isReal ? '【真品】' : '【贗品】'}`;
             }
             return { beastName: b.name, resultText: txt, actualIsReal: b.isReal };
           });
 
-          let skillResult = BotDeductionEngine.decideSkill(botPOV, beliefs, freshRoom, roundObj);
+          let skillResult = roleUnknownHuman
+            ? { ability: '電腦代為傳遞，角色資料未同步，本回合不發動技能', abilityLocked: true, skipAmbush: true }
+            : BotDeductionEngine.decideSkill(botPOV, beliefs, freshRoom, roundObj);
           // 若線上隱藏角色讀取不完整，不能保證辨識出真人隊友；寧可本回合不偷襲，也不可誤襲老朝奉隊友。
-          if (freshMockP.role === '藥不然' && mockRoleLookupIncomplete) {
+          if (actualRole === '藥不然' && mockRoleLookupIncomplete) {
             skillResult = {
               ability: '角色資料未完整，為避免誤襲隊友，本回合不發動偷襲',
               abilityLocked: true,
@@ -15803,7 +15928,7 @@ function renderOnlinePersonVotingReference(room) {
 
           if (uninspected.length > 0 && passOrder.length < totalPlayers) {
             let candidateList = uninspected;
-            if (freshMockP.role === '藥不然' && roundObj.roundNum === 1 && passOrder.length <= 1 && skillResult && skillResult.ambushedPlayerId) {
+            if (actualRole === '藥不然' && roundObj.roundNum === 1 && passOrder.length <= 1 && skillResult && skillResult.ambushedPlayerId) {
               const safeList = candidateList.filter(p => p.id !== skillResult.ambushedPlayerId);
               if (safeList.length > 0) candidateList = safeList;
             }
@@ -15855,6 +15980,7 @@ function renderOnlinePersonVotingReference(room) {
       window._activeSpeakingMockId = mockSpeakerId;
       _mockActionPending = true;
       _lastMockActionTime = Date.now();
+      await ensureTakeoverRole(room, mockSpeakerId);
 
       // 定期刷新心跳時間，防止發言與思考期間被看門狗超時誤判
       const keepAliveInterval = setInterval(() => {
@@ -15865,19 +15991,18 @@ function renderOnlinePersonVotingReference(room) {
       const speakerBadge = document.getElementById('onlCurrentSpeakerBadge');
 
       // 階段 1：思考中 (Thinking Phase - 延長發言時間五倍)
-      if (mockP && speakerBadge) {
-        speakerBadge.innerHTML = `<span class="text-amber-400 font-bold animate-pulse font-mono">🤖 【${mockP.name}】正在思考發言...</span>`;
-      }
+      const stopSpeechBadge = showBotThinkingBadge(speakerBadge, mockP, 'speech', 'text-amber-400 font-bold animate-pulse font-mono');
 
       let geminiSpeechText = null;
       const thinkingStartTime = Date.now();
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiSpeechText = await GeminiBrain.prepareSpeech(room, mockSpeakerId);
+          geminiSpeechText = await withBotThinkTimeout(GeminiBrain.prepareSpeech(room, mockSpeakerId), 20000, 'Gemini 發言');
         } catch(e) {
           console.warn('[MockSpeech] Gemini 發言生成逾時，改由本地引擎接手:', e);
         }
       }
+      stopSpeechBadge();
 
       // 思考時間延長五倍：至少維持 3.0 ~ 4.0 秒思考
       const thinkingElapsed = Date.now() - thinkingStartTime;
@@ -16011,6 +16136,7 @@ function renderOnlinePersonVotingReference(room) {
     async function executeMockVoteStep(room, mockPlayerId, curRound) {
       _mockActionPending = true;
       _lastMockActionTime = Date.now();
+      await ensureTakeoverRole(room, mockPlayerId);
 
       let geminiVoteMap = null;
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
@@ -16101,11 +16227,12 @@ function renderOnlinePersonVotingReference(room) {
     async function executeMockPersonVoteStep(room, mockPlayerId) {
       _mockActionPending = true;
       _lastMockActionTime = Date.now();
+      await ensureTakeoverRole(room, mockPlayerId);
 
       let geminiChosenId = null;
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiChosenId = await GeminiBrain.preparePersonVote(room, mockPlayerId);
+          geminiChosenId = await withBotThinkTimeout(GeminiBrain.preparePersonVote(room, mockPlayerId), 15000, 'Gemini 鑑人');
         } catch(e) {
           console.warn('[MockPersonVote] Gemini 鑑人指認逾時，改由本地引擎接手:', e);
         }
