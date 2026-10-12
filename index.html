@@ -2147,6 +2147,51 @@ var ONLINE_ROOM_DOC = 'GudongOnlineGame/active_room';
   }
   window.getKnownTeammateForRole = getKnownTeammateForRole;
 
+  // S-1.5: 依本局私有角色文件解析真正角色，專供規則判定使用。
+  // 真人玩家的公開 players[].role 會被刻意清空，不能直接拿來決定姬雲浮／方震等特殊偷襲效果。
+  // 只在本機 Map 中使用，不將解析出的角色寫回公開 room.players。
+  async function getOnlinePlayerRoleMap(room) {
+    const roleMap = new Map();
+    const unresolved = [];
+    const players = (room && Array.isArray(room.players)) ? room.players : [];
+
+    await Promise.all(players.map(async (p) => {
+      if (!p || !p.id) return;
+      // 電腦玩家角色仍公開；相容舊版房間中原本就公開的角色欄位。
+      if (p.role) {
+        roleMap.set(p.id, p.role);
+        return;
+      }
+      // 本人優先使用已驗證且與本局相符的私有角色副本。
+      if (p.id === myOnlinePlayerId) {
+        const me = getOnlineMePlayer(room);
+        if (me && me.role) {
+          roleMap.set(p.id, me.role);
+          return;
+        }
+      }
+      if (!db || !ONLINE_ROOM_DOC) {
+        unresolved.push(p.id);
+        return;
+      }
+      try {
+        const roleSnap = await db.doc(`${ONLINE_ROOM_DOC}/private/${p.id}`).get();
+        const roleData = roleSnap.exists ? roleSnap.data() : null;
+        if (roleData && isFreshRoleDataForRoom(roleData, room)) {
+          roleMap.set(p.id, roleData.role);
+        } else {
+          unresolved.push(p.id);
+        }
+      } catch (err) {
+        unresolved.push(p.id);
+        console.warn('[AmbushRules] 無法讀取本局隱藏角色文件；特殊偷襲規則需確認 Firebase /private 權限。', err && err.code ? err.code : 'unknown');
+      }
+    }));
+
+    return { roleMap, unresolved };
+  }
+  window.getOnlinePlayerRoleMap = getOnlinePlayerRoleMap;
+
   function ensureAnonymousAuth() {
     return new Promise(function(resolve) {
       if (typeof firebase === 'undefined' || !firebase.auth) {
@@ -2431,16 +2476,17 @@ class GameRules {
 
   static evaluateBeastInspection(beast, player, round, roomState) {
     const cfg = ROLE_CONFIG[player.role] || {};
-    const isUnderAmbush = !!(player.isAmbushed || player.isPermanentlyAmbushed);
 
+    // 方震天生無法辨別獸首真假；角色限制優先於一般偷襲提示，與 BOT 及單機流程一致。
+    if (!cfg.canInspectBeasts) {
+      return { beastName: beast.name, resultText: `【${beast.name}】 看不懂???`, actualIsReal: beast.isReal, cannotInspect: true };
+    }
+
+    const isUnderAmbush = !!(player.isAmbushed || player.isPermanentlyAmbushed);
     if (isUnderAmbush) {
       const ambushTexts = ['你眼前一片黑', '獸首被偷襲', '你被偷襲了', '你失血過多，有點暈眩'];
       const txt = ambushTexts[Math.floor(Math.random() * ambushTexts.length)];
       return { beastName: beast.name, resultText: `【${beast.name}】 ${txt}`, actualIsReal: beast.isReal, isAmbushed: true };
-    }
-
-    if (!cfg.canInspectBeasts) {
-      return { beastName: beast.name, resultText: `【${beast.name}】 看不懂???`, actualIsReal: beast.isReal, cannotInspect: true };
     }
 
     if (round && round.blockedBeast === beast.name) {
@@ -2655,7 +2701,14 @@ const ActionEngine = {
         if (!curRound.turnLogs) curRound.turnLogs = {};
         if (!curRound.turnLogs[playerId]) curRound.turnLogs[playerId] = {};
 
-        const p = (room.players || []).find(x => x.id === playerId) || {};
+        const publicPlayer = (room.players || []).find(x => x.id === playerId) || {};
+        const p = playerId === myOnlinePlayerId
+          ? (getOnlineMePlayer(room) || publicPlayer)
+          : publicPlayer;
+        if (playerId === myOnlinePlayerId && !p.role) {
+          showToast('角色資料尚未同步完成，暫時無法提交查驗，請稍候再試。', 'warning', 3000);
+          return;
+        }
         const result = GameRules.evaluateBeastInspection(beast, p, curRound, room);
 
         if (!onlMyInspectedBeastsInTurn) onlMyInspectedBeastsInTurn = [];
@@ -2788,7 +2841,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v3.8.12 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.14 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -4961,8 +5014,21 @@ class BotDeductionEngine {
     return { actionDNA: aDNA, speechDNA: sDNA, personaTitle: pTitle };
   }
 
-  static buildPOV(room, botId) {
-    const me = (room.players || []).find(p => p.id === botId) || {};
+  static buildPOV(room, botId, supplementalRoleMap = null) {
+    const players = (room.players || []);
+    // 線上真人的公開 players[].role 會被清空；偷襲隊友排除必須使用只存在於本次 BOT 決策記憶體的角色 Map。
+    // 此 Map 不會寫回 room.players，也不會直接公開給其他真人玩家。
+    const getActualRoleForDecision = (p) => {
+      if (!p) return '';
+      if (p.role) return p.role;
+      if (supplementalRoleMap && typeof supplementalRoleMap.get === 'function') {
+        const privateRole = supplementalRoleMap.get(p.id);
+        if (privateRole) return privateRole;
+      }
+      return '';
+    };
+    const rawMe = players.find(p => p.id === botId) || {};
+    const me = Object.assign({}, rawMe, { role: getActualRoleForDecision(rawMe) || rawMe.role || '' });
     const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
     const isGood = goodRoles.includes(me.role);
     const curRoundIdx = (room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0;
@@ -4971,27 +5037,25 @@ class BotDeductionEngine {
     const evilRoles = ['老朝奉', '藥不然', '鄭國渠'];
     const isEvil = evilRoles.includes(me.role);
     
-    // 依使用者規則：電腦壞人老朝奉與藥不然互相相認（互認），鄭國渠不認識任何人
+    // 老朝奉與藥不然互相相認；鄭國渠不認識任何人。真人角色要從本次決策的 supplementalRoleMap 解析。
     const teammates = [];
     if (me.role === '老朝奉') {
-      // 依規則：老朝奉看得到藥不然是隊友（互認）
-      const yao = (room.players || []).find(p => p.role === '藥不然');
+      const yao = players.find(p => getActualRoleForDecision(p) === '藥不然');
       if (yao) teammates.push(yao.id);
     } else if (me.role === '藥不然') {
-      // 依規則：藥不然看得到老朝奉是隊友（互認）
-      const lao = (room.players || []).find(p => p.role === '老朝奉');
+      const lao = players.find(p => getActualRoleForDecision(p) === '老朝奉');
       if (lao) teammates.push(lao.id);
     } else if (me.role === '鄭國渠') {
       // 鄭國渠不認識任何人，teammates 為空
     }
 
-    const filteredPlayers = (room.players || []).map(p => ({
+    const filteredPlayers = players.map(p => ({
       id: p.id,
       name: p.name,
       colorId: p.colorId,
       seatIndex: p.seatIndex,
       isKnownTeammate: teammates.includes(p.id),
-      role: (p.id === botId || teammates.includes(p.id)) ? p.role : '未知'
+      role: (p.id === botId || teammates.includes(p.id)) ? getActualRoleForDecision(p) : '未知'
     }));
 
     // 掛載機器人專屬長期學習履歷與經驗記憶
@@ -5271,11 +5335,11 @@ class BotDeductionEngine {
     }
 
     if (pov.myRole === '藥不然') {
-      let candidates = pov.otherPlayers.filter(p => p.id !== pov.myId && !pov.knownTeammateIds.includes(p.id));
+      // 絕不因候選名單為空而重新把已知隊友放回可偷襲名單。
+      const candidates = pov.otherPlayers.filter(p => p.id !== pov.myId && !pov.knownTeammateIds.includes(p.id));
       if (candidates.length === 0) {
-        candidates = pov.otherPlayers.filter(p => p.id !== pov.myId);
+        return { ability: '找不到可偷襲的非隊友目標，本回合不發動偷襲', abilityLocked: true, skipAmbush: true };
       }
-      if (candidates.length === 0) return { ability: '已完成能力行動', abilityLocked: true };
 
       // 認知鄭國渠：老朝奉與藥不然都不知道鄭國渠是誰，但藥不然可以從票型與發言中，
       // 推敲出場上「幾乎沒被任何人懷疑過」的那位最可能就是悶聲不響的第三位隊友，
@@ -12492,7 +12556,22 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
     if (!onlYaoTargetId) return;  
     const targetP = room.players.find(p => p.id === onlYaoTargetId);  
     if (targetP) {  
-      // 精確判定玩家在當前輪次是否已經操作完畢（出現在藥不然之前的傳遞序中，或已有獸首查驗日誌）
+      // 重要：真人角色在公開 room.players 中被清空，必須查本局 private 文件才能判定特殊規則。
+      const onlineRoleLookup = await getOnlinePlayerRoleMap(room);
+      const targetRole = onlineRoleLookup.roleMap.get(targetP.id) || targetP.role || '';
+      if (!targetRole) {
+        showToast('無法確認偷襲目標的本局角色，為避免套錯規則，本次偷襲未送出。請確認 Firebase 的 /private 文件讀取權限。', 'error', 5000);
+        return;
+      }
+      const xuPForSpecial = targetRole === '方震'
+        ? room.players.find(p => (onlineRoleLookup.roleMap.get(p.id) || p.role) === '許願')
+        : null;
+      if (targetRole === '方震' && !xuPForSpecial) {
+        showToast('無法確認許願玩家，方震的連帶偷襲未送出。請確認本局 private 角色資料是否完整。', 'error', 5000);
+        return;
+      }
+
+      // 精確判定玩家在當前輪次是否已經操作完畢
       const hasPlayerActedThisRound = (pid) => {
         if (!pid || pid === myOnlinePlayerId) return false;
         const passOrder = curRound.passOrder || [];
@@ -12507,7 +12586,7 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
       const tc = COLOR_PALETTE.find(c => c.id === targetP.colorId) || COLOR_PALETTE[0];  
 
       // 1. 姬雲浮：永久封閉
-      if (targetP.role === '姬雲浮') {  
+      if (targetRole === '姬雲浮') {  
         targetP.isPermanentlyAmbushed = true;  
         if (targetHasActed) {
           targetP.pendingAmbush = true;
@@ -12522,7 +12601,7 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
         curRound.ambushedPlayerColor = tc.name;  
       } 
       // 2. 方震（自身延宕判定 ＆ 連帶許願時序判定）
-      else if (targetP.role === '方震') {  
+      else if (targetRole === '方震') {  
         if (targetHasActed) {
           // 情境 B：方震已先操作完畢（往前偷襲），延宕至下回合生效！
           targetP.pendingAmbush = true;
@@ -12534,7 +12613,7 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
         }
 
         // 許願連帶偷襲時序判定
-        const xu = room.players.find(p => p.role === '許願');  
+        const xu = xuPForSpecial;  
         if (xu) {  
           const xuHasActed = hasPlayerActedThisRound(xu.id);
           if (xuHasActed) {
@@ -15087,6 +15166,7 @@ function renderOnlineVotingView(room, me) {
             p.isPermanentlyAmbushed = true;
             p.isAmbushed = true;
             p.pendingPermanentAmbush = false;
+            p.pendingAmbush = false;
             if (!nextRoundAmbushedPlayer) nextRoundAmbushedPlayer = p;
           } else if (p.pendingAmbush) {
             p.isAmbushed = true;
@@ -15572,6 +15652,21 @@ function renderOnlinePersonVotingReference(room) {
         await new Promise(r => setTimeout(r, 600 + Math.floor(Math.random() * 400)));
       }
 
+      // 電腦藥不然需要依真實目標角色套用特殊偷襲效果。此 Map 僅存在本次運算記憶體中。
+      let mockDecisionRoleMap = null;
+      let mockRoleLookupIncomplete = false;
+      if (mockP && ['藥不然', '老朝奉'].includes(mockP.role)) {
+        try {
+          const roleLookup = await getOnlinePlayerRoleMap(thinkingRoom || room);
+          mockDecisionRoleMap = roleLookup.roleMap;
+          mockRoleLookupIncomplete = Array.isArray(roleLookup.unresolved) && roleLookup.unresolved.length > 0;
+        } catch (roleErr) {
+          console.warn('[MockAmbush] 解析本局角色失敗，特殊偷襲規則可能無法安全套用。', roleErr && roleErr.message || roleErr);
+          mockDecisionRoleMap = new Map();
+          mockRoleLookupIncomplete = true;
+        }
+      }
+
       try {
         const docRef = db.doc(ONLINE_ROOM_DOC);
         let shouldAdvanceToDiscussion = false;
@@ -15609,7 +15704,7 @@ function renderOnlinePersonVotingReference(room) {
           if (!roundObj.turnLogs) roundObj.turnLogs = {};
           if (!roundObj.turnLogs[mockPlayerId]) roundObj.turnLogs[mockPlayerId] = {};
 
-          const botPOV = BotDeductionEngine.buildPOV(freshRoom, mockPlayerId);
+          const botPOV = BotDeductionEngine.buildPOV(freshRoom, mockPlayerId, mockDecisionRoleMap);
           const beliefs = BotDeductionEngine.evaluateBeliefs(botPOV);
 
           const chosen = BotDeductionEngine.decideInspect(botPOV, beliefs, roundObj.beasts);
@@ -15632,7 +15727,15 @@ function renderOnlinePersonVotingReference(room) {
             return { beastName: b.name, resultText: txt, actualIsReal: b.isReal };
           });
 
-          const skillResult = BotDeductionEngine.decideSkill(botPOV, beliefs, freshRoom, roundObj);
+          let skillResult = BotDeductionEngine.decideSkill(botPOV, beliefs, freshRoom, roundObj);
+          // 若線上隱藏角色讀取不完整，不能保證辨識出真人隊友；寧可本回合不偷襲，也不可誤襲老朝奉隊友。
+          if (freshMockP.role === '藥不然' && mockRoleLookupIncomplete) {
+            skillResult = {
+              ability: '角色資料未完整，為避免誤襲隊友，本回合不發動偷襲',
+              abilityLocked: true,
+              skipAmbush: true
+            };
+          }
           Object.assign(roundObj.turnLogs[mockPlayerId], skillResult);
 
           if (skillResult && skillResult.ambushedPlayerId) {
@@ -15646,12 +15749,13 @@ function renderOnlinePersonVotingReference(room) {
             // 確保電腦藥不然偷襲時，依「誰前誰後」規則同步更新 room 內玩家與許願連帶狀態
             const targetP = (freshRoom.players || []).find(p => p.id === skillResult.ambushedPlayerId);
             if (targetP) {
+              const targetActualRole = (mockDecisionRoleMap && mockDecisionRoleMap.get(targetP.id)) || targetP.role || '';
               const passOrder = roundObj.passOrder || [];
               const myIdx = passOrder.indexOf(mockPlayerId);
               const pIdx = passOrder.indexOf(targetP.id);
               const targetHasActed = pIdx !== -1 && (myIdx === -1 || pIdx < myIdx);
 
-              if (targetP.role === '姬雲浮') {
+              if (targetActualRole === '姬雲浮') {
                 targetP.isPermanentlyAmbushed = true;
                 if (targetHasActed) {
                   targetP.pendingAmbush = true;
@@ -15661,7 +15765,7 @@ function renderOnlinePersonVotingReference(room) {
                   targetP.isAmbushed = true;
                   targetP.pendingAmbush = false;
                 }
-              } else if (targetP.role === '方震') {
+              } else if (targetActualRole === '方震') {
                 if (targetHasActed) {
                   targetP.pendingAmbush = true;
                   targetP.isAmbushed = false;
@@ -15669,7 +15773,7 @@ function renderOnlinePersonVotingReference(room) {
                   targetP.isAmbushed = true;
                   targetP.pendingAmbush = false;
                 }
-                const xu = (freshRoom.players || []).find(p => p.role === '許願');
+                const xu = (freshRoom.players || []).find(p => ((mockDecisionRoleMap && mockDecisionRoleMap.get(p.id)) || p.role) === '許願');
                 if (xu) {
                   const xuIdx = passOrder.indexOf(xu.id);
                   const xuHasActed = xuIdx !== -1 && (myIdx === -1 || xuIdx < myIdx);
@@ -19321,6 +19425,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
             p.isPermanentlyAmbushed = true;
             p.isAmbushed = true;
             p.pendingPermanentAmbush = false;
+            p.pendingAmbush = false;
             if (!locNextAmbushedPlayer) locNextAmbushedPlayer = p;
           } else if (p.pendingAmbush) {
             p.isAmbushed = true;
@@ -22791,6 +22896,7 @@ class BotSimulationEngine {
           p.isPermanentlyAmbushed = true;
           p.isAmbushed = true;
           p.pendingPermanentAmbush = false;
+          p.pendingAmbush = false;
         } else if (p.pendingAmbush) {
           p.isAmbushed = true;
           p.pendingAmbush = false;
@@ -23042,6 +23148,7 @@ class BotSimulationEngine {
           p.isPermanentlyAmbushed = true;
           p.isAmbushed = true;
           p.pendingPermanentAmbush = false;
+          p.pendingAmbush = false;
         } else if (p.pendingAmbush) {
           p.isAmbushed = true;
           p.pendingAmbush = false;
