@@ -23870,8 +23870,9 @@ window.BotSimulationEngine = BotSimulationEngine;
 
   // 限流時停止本次輪詢，交由上層本地決策引擎兜底
   if (r.status === 429) {
-    return null;
-  }
+  console.warn('[Gemini] 收到 429，停止本次模型輪詢');
+  return null;
+}
 
   // 其他 HTTP 錯誤仍可嘗試下一個候選模型
   continue;
