@@ -25817,9 +25817,8 @@ ${roundSpeeches}
   }
 
   function reviewMatch(room, gameOverData) {
-    if (!room||!Array.isArray(room.players)||!gameOverData||reviewed.has(room)) return;
-    reviewed.add(room);
-    const sig=matchSignature(room,gameOverData);
+    if (!room || !Array.isArray(room.players) || !gameOverData || reviewed.has(room)) return;
+    const sig = matchSignature(room, gameOverData);
     let all; try { all=BLE.getAllProfiles(); } catch (_) { return; }
     let changed=false;
     const profilesForCloudSync=[];
@@ -25827,9 +25826,21 @@ ${roundSpeeches}
       const playerId=String(player.id||'');
       const traces=(AI_TRACE[playerId]||[]).filter(t=>t&&t.learningEligible&&t.outcomeStatus==='pending');
       if (!traces.length) continue;
-      const isAI=player.botProfileId||player.isBot||player.isMock||playerId.startsWith('mock_p_')||playerId.startsWith('bot_');
+
+      // 接管玩家的 room player 物件在終局可能已失去 isBot/botProfileId；
+      // 此時以本局 ActionDNA trace 記錄的 botProfileId 作為可靠的 BOT 身分線索。
+      const traceBotProfileId = traces.find(t => t && t.botProfileId)?.botProfileId;
+      const isAI = !!(
+        player.botProfileId ||
+        player.isBot ||
+        player.isMock ||
+        playerId.startsWith('mock_p_') ||
+        playerId.startsWith('bot_') ||
+        traceBotProfileId
+      );
       if (!isAI) continue;
-      const pid=profileIdFor(player.name,player.botProfileId||playerId);
+
+      const pid=profileIdFor(player.name,player.botProfileId||traceBotProfileId||playerId);
       let profile=all[pid];
       try { if (!profile) profile=BLE.getProfile(pid,player.role); } catch (_) {}
       if (!profile) continue;
@@ -25875,6 +25886,10 @@ ${roundSpeeches}
     }
     if (changed) BLE.saveAllProfiles(all);
     if (profilesForCloudSync.length) syncUpdatedProfilesToFirestore(profilesForCloudSync);
+
+    // 只有實際完成至少一筆 profile 處理並進入儲存流程後，才標記此 room 已覆盤。
+    // 若因 profile 暫時不可用而提前 return，之後再次 reflect 時仍可重試。
+    if (changed) reviewed.add(room);
   }
   if (typeof BLE.reflect==='function'&&!BLE.__actionDnaReflectPatched) {
     const oldReflect=BLE.reflect.bind(BLE);
