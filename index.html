@@ -23852,26 +23852,30 @@ window.BotSimulationEngine = BotSimulationEngine;
         });
 
         if (!r.ok) {
-          let errDetail = '';
-          try {
-            const ej = await r.json();
-            errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
-          } catch(e) {
-            errDetail = await r.text().catch(() => '');
-          }
-          const formattedErr = `HTTP ${r.status} (${currentModel})${errDetail ? ': ' + errDetail.slice(0, 80) : ''}`;
-          window.GeminiBrain = window.GeminiBrain || {};
-          window.GeminiBrain.lastError = formattedErr;
-          continue; // 嘗試下一個候選模型降級
-        }
+  let errDetail = '';
 
-        const j = await r.json();
-        if (j.error) {
-          const msg = j.error.message || j.error;
-          window.GeminiBrain = window.GeminiBrain || {};
-          window.GeminiBrain.lastError = `API Error (${currentModel}): ${msg}`;
-          continue;
-        }
+  try {
+    const ej = await r.json();
+    errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
+  } catch (e) {
+    errDetail = '';
+  }
+
+  const formattedErr =
+    `HTTP ${r.status} (${currentModel})` +
+    (errDetail ? ': ' + String(errDetail).slice(0, 80) : '');
+
+  window.GeminiBrain = window.GeminiBrain || {};
+  window.GeminiBrain.lastError = formattedErr;
+
+  // 限流時停止本次輪詢，交由上層本地決策引擎兜底
+  if (r.status === 429) {
+    return null;
+  }
+
+  // 其他 HTTP 錯誤仍可嘗試下一個候選模型
+  continue;
+}
 
         let resultText = '';
         if (j.text) {
