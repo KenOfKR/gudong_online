@@ -26334,6 +26334,865 @@ migrateAllProfiles();
   window.__ACTION_DNA_STATUS__={schemaVersion:'1.2.0',locusCount:ACTION_DNA_KEYS.length,decisionHooks:['decideInspect','decideSkill','decidePassNext','decideVote','decidePersonVote'],learningHooks:['BotLearningEngine.reflect'],firestoreFieldsAdded:0};
 })();
 </script>
+<!-- =========================================================================
+     古董局中局 v4.0 電競選手級 AI 博弈大腦外掛 (Esports Grandmaster AI Plugin)
+     放置位置：直接貼在 index.html 最下方 </body> 標籤之前（或原本 script 的最末端）
+     安全保證：採用零侵入式 Hook + Try-Catch Fallback，100% 相容 v3.8.14 原有架構
+========================================================================= -->
+<script>
+(function initEsportsGrandmasterAI() {
+  'use strict';
 
+  console.info('%c🏆 [EsportsMind v4.0] 電競選手級 AI 博弈核心載入中...', 'color:#fbbf24;font-weight:bold;font-size:13px;');
+
+  /* =========================================================================
+     模組 1：時序切片與世界線假設引擎 (Worldline & Micro-Signal Engine)
+     - 逆推老朝奉在哪一棒發動「擾亂 (Flip Point)」
+     - 比對「發言主張」與「實際投票籌碼 (beastChips)」抓出心口不一的內鬼
+     - 分析「手機傳遞迴避與跳傳」的微行為訊號
+  ========================================================================= */
+  class WorldlineTemporalEngine {
+    /**
+     * 從單句發言中精準提取玩家對各獸首的真偽主張
+     */
+    static parseSpeechClaims(speechText, beastNames) {
+      const claims = {}; // { [beastName]: true (真) | false (假) | 'BLIND' (看不懂/被偷襲) }
+      if (!speechText || !Array.isArray(beastNames)) return claims;
+
+      const isBlindGlobal = /(看不懂|無法辨別|一片黑|被偷襲|暈眩|驗不到)/.test(speechText);
+      const clauses = String(speechText).split(/[,，.。!！;；?？\n～~]+/);
+
+      beastNames.forEach(bName => {
+        if (!speechText.includes(bName)) return;
+        for (const clause of clauses) {
+          if (!clause.includes(bName)) continue;
+          if (/(看不懂|無法辨別|一片黑|被偷襲|驗不到|封鎖)/.test(clause)) {
+            claims[bName] = 'BLIND';
+            break;
+          }
+          if (/(贗品|假貨|假的|必假|是假|別投|不能投|垃圾|組合肉|跌停)/.test(clause) || new RegExp(`${bName}假`).test(clause)) {
+            claims[bName] = false;
+            break;
+          }
+          if (/(真品|保真|真的|必真|是真|真貨|全押|梭哈|大真品)/.test(clause) || new RegExp(`${bName}真`).test(clause)) {
+            claims[bName] = true;
+            break;
+          }
+        }
+      });
+
+      return { claims, isBlindGlobal };
+    }
+
+    /**
+     * 建構當前與歷史回合的「老朝奉擾亂切點 (Flip Point)」世界線
+     * 原理：若老朝奉在第 k 棒 (0-indexed) 發動擾亂，則 0..k 看到真態，(k+1)..7 的好人(非姬雲浮)看到反轉態
+     */
+    static analyzeRoundWorldlines(pov, roundIdx, roleScores) {
+      const passOrder = (pov.passOrders && pov.passOrders[roundIdx]) || [];
+      const speeches = (pov.speeches && pov.speeches[roundIdx]) || [];
+      const voteRes = (pov.voteResults && pov.voteResults[roundIdx]) || null;
+      if (passOrder.length < 2) return { bestFlipIdx: -1, flipSuspects: [], worldlines: [] };
+
+      // 收集本輪所有獸首名稱
+      const roundBeasts = (roundIdx === pov.currentRoundIdx)
+        ? (pov.currentBeasts || [])
+        : (voteRes && voteRes.beastTotals ? Object.keys(voteRes.beastTotals) : ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬']);
+
+      // 建立每位玩家的棒次索引與發言主張映射
+      const passMap = {};
+      passOrder.forEach((pid, idx) => { passMap[pid] = idx; });
+
+      const playerClaims = {};
+      speeches.forEach(sp => {
+        const pid = sp.speakerId || sp.playerId;
+        if (!pid) return;
+        playerClaims[pid] = this.parseSpeechClaims(sp.text || sp.speech || '', roundBeasts);
+      });
+
+      // 將我自己的真實查驗也放進檢驗池（若我不是被偷襲）
+      if (roundIdx === pov.currentRoundIdx && Array.isArray(pov.myInspectLogs)) {
+        const myC = {};
+        pov.myInspectLogs.forEach(ins => {
+          if (ins.resultText && !/(偷襲|一片黑|無法辨別|看不懂)/.test(ins.resultText)) {
+            myC[ins.beastName] = ins.resultText.includes('真品');
+          }
+        });
+        playerClaims[pov.myId] = { claims: myC, isBlindGlobal: false };
+      }
+
+      // 已知基準真相（若該輪已開獎第2名獸首，或我是免疫擾亂的角色如姬雲浮/壞人）
+      const knownTruth = {};
+      if (voteRes && voteRes.rank2 && !voteRes.rank2.isHidden) {
+        knownTruth[voteRes.rank2.name] = !!voteRes.rank2.isReal;
+      }
+      const immuneRoles = ['姬雲浮', '老朝奉', '藥不然', '鄭國渠'];
+      if (roundIdx === pov.currentRoundIdx && immuneRoles.includes(pov.myRole)) {
+        (pov.myInspectLogs || []).forEach(ins => {
+          if (ins.resultText && (ins.resultText.includes('真品') || ins.resultText.includes('贗品'))) {
+            knownTruth[ins.beastName] = ins.resultText.includes('真品');
+          }
+        });
+      }
+
+      // 窮舉擾亂切點 k: k = -1 代表「全場未開擾亂」，k = 0..6 代表「第 k 棒的玩家按下了老朝奉擾亂」
+      const worldlines = [];
+      for (let k = -1; k < passOrder.length - 1; k++) {
+        let score = 100;
+        let invertedPairs = 0;
+        let alignedPairs = 0;
+        const flipActorId = k >= 0 ? passOrder[k] : null;
+
+        // 檢查每隻被超過 1 人提及的獸首
+        roundBeasts.forEach(bName => {
+          const claimants = Object.keys(playerClaims).filter(
+            pid => playerClaims[pid] && typeof playerClaims[pid].claims[bName] === 'boolean' && passMap[pid] !== undefined
+          );
+          if (claimants.length === 0) return;
+
+          // 若該獸首有絕對真相基準 (knownTruth)
+          if (typeof knownTruth[bName] === 'boolean') {
+            const truth = knownTruth[bName];
+            claimants.forEach(pid => {
+              const idx = passMap[pid];
+              const claim = playerClaims[pid].claims[bName];
+              const expectedView = (k === -1 || idx <= k) ? truth : !truth;
+              if (claim === expectedView) {
+                score += 14;
+                alignedPairs++;
+              } else {
+                // 若不一致，代表該玩家在說謊、或是姬雲浮免疫、或是這條世界線錯了
+                score -= 12;
+              }
+            });
+          }
+
+          // 兩兩比對前後棒次主張
+          for (let i = 0; i < claimants.length; i++) {
+            for (let j = i + 1; j < claimants.length; j++) {
+              const pA = claimants[i], pB = claimants[j];
+              const idxA = passMap[pA], idxB = passMap[pB];
+              const firstIdx = Math.min(idxA, idxB), secondIdx = Math.max(idxA, idxB);
+              const claimSame = (playerClaims[pA].claims[bName] === playerClaims[pB].claims[bName]);
+
+              const crossFlipBoundary = (k !== -1 && firstIdx <= k && secondIdx > k);
+              if (crossFlipBoundary) {
+                if (!claimSame) {
+                  score += 18; // 完美解釋為什麼前棒與後棒看法相反！
+                  invertedPairs++;
+                } else {
+                  score -= 10;
+                }
+              } else {
+                if (claimSame) {
+                  score += 10;
+                  alignedPairs++;
+                } else {
+                  score -= 14; // 同側卻矛盾，必有一方說謊
+                }
+              }
+            }
+          }
+        });
+
+        worldlines.push({
+          flipIdx: k,
+          flipActorId,
+          score,
+          invertedPairs,
+          alignedPairs
+        });
+      }
+
+      worldlines.sort((a, b) => b.score - a.score);
+      const topWL = worldlines[0] || { flipIdx: -1, flipActorId: null, score: 100 };
+
+      // 若最佳世界線指向某個具體切點 k (且有顯著反轉對數支撐)，大舉提高該切點附近的壞人嫌疑
+      const flipSuspects = [];
+      if (topWL.flipIdx >= 0 && topWL.invertedPairs > 0 && topWL.flipActorId) {
+        flipSuspects.push(topWL.flipActorId);
+        if (roleScores && roleScores[topWL.flipActorId] && topWL.flipActorId !== pov.myId) {
+          roleScores[topWL.flipActorId].laoChaoFeng = Math.min(98, (roleScores[topWL.flipActorId].laoChaoFeng || 15) + 22);
+          roleScores[topWL.flipActorId].evilScore = Math.min(95, (roleScores[topWL.flipActorId].evilScore || 50) + 16);
+          const actorName = roleScores[topWL.flipActorId].name || '該玩家';
+          const reason = `時序切片異常：第${roundIdx + 1}回合自其順位的第${topWL.flipIdx + 1}棒起，前後段獸首真偽出現鏡像反轉，極似老朝奉擾亂切點`;
+          if (!roleScores[topWL.flipActorId].badDeeds.includes(reason)) {
+            roleScores[topWL.flipActorId].badDeeds.push(reason);
+          }
+        }
+      }
+
+      return {
+        bestFlipIdx: topWL.flipIdx,
+        bestFlipActorId: topWL.flipActorId,
+        flipSuspects,
+        worldlines,
+        playerClaims
+      };
+    }
+
+    /**
+     * 票行與言行交叉審計 (Vote-Speech Hypocrisy Auditor)
+     * 專門抓：嘴上喊 A 真，投票卻偷灌給假獸首 B；或已經翻開 B 是贗品，誰是把 B 拱上去的主力！
+     */
+    static auditHistoricalVotesAndSpeeches(pov, roleScores) {
+      const hypocrisyRecords = []; // 供發言引擎直接點名開火使用
+      if (!Array.isArray(pov.voteResults)) return hypocrisyRecords;
+
+      pov.voteResults.forEach((vRes, rIdx) => {
+        if (!vRes || !vRes.beastChips) return;
+        const rSpeeches = (pov.speeches && pov.speeches[rIdx]) || [];
+        const rBeasts = Object.keys(vRes.beastChips);
+
+        // 1. 檢查已翻開的第 2 名獸首 (rank2) 真偽
+        const rank2 = vRes.rank2;
+        if (rank2 && !rank2.isHidden) {
+          const chipsOnRank2 = vRes.beastChips[rank2.name] || [];
+          // 統計每個人在 rank2 投了幾票
+          const voterCounts = {};
+          chipsOnRank2.forEach(c => {
+            voterCounts[c.voterId] = (voterCounts[c.voterId] || 0) + 1;
+          });
+
+          Object.entries(voterCounts).forEach(([voterId, count]) => {
+            if (voterId === pov.myId || !roleScores[voterId]) return;
+            const pScore = roleScores[voterId];
+            if (!rank2.isReal) {
+              // 投給了確認為「贗品」的獸首！
+              const penalty = count * 14;
+              pScore.evilScore = Math.min(95, pScore.evilScore + penalty);
+              const deed = `R${rIdx + 1}鐵證：將 ${count} 張選票灌給已揭曉為【贗品】的【${rank2.name}】首`;
+              if (!pScore.badDeeds.includes(deed)) pScore.badDeeds.unshift(deed);
+              hypocrisyRecords.push({
+                type: 'VOTED_CONFIRMED_FAKE',
+                round: rIdx + 1,
+                suspectId: voterId,
+                suspectName: pScore.name,
+                beast: rank2.name,
+                votes: count,
+                desc: `第${rIdx + 1}回合【${rank2.name}】翻開是鐵贗品，【${pScore.name}】卻在上面砸了 ${count} 票`
+              });
+            } else {
+              // 投給了真品，微幅加好人分（但需防範壞人順風作秀）
+              pScore.goodScore = Math.min(90, pScore.goodScore + count * 6);
+            }
+          });
+        }
+
+        // 2. 檢查「口嫌體正直（言行不一）」：嘴上喊 X 真，結果 1 票都沒投給 X
+        rSpeeches.forEach(sp => {
+          const pid = sp.speakerId || sp.playerId;
+          if (!pid || pid === pov.myId || !roleScores[pid]) return;
+          const parsed = this.parseSpeechClaims(sp.text || sp.speech || '', rBeasts);
+
+          Object.entries(parsed.claims).forEach(([bName, claimVal]) => {
+            const chips = vRes.beastChips[bName] || [];
+            const myVotesOnThis = chips.filter(c => c.voterId === pid).length;
+
+            if (claimVal === true && myVotesOnThis === 0) {
+              // 嘴上保真，結果自己 0 票！典型壞人騙好人去投假貨！
+              roleScores[pid].evilScore = Math.min(96, roleScores[pid].evilScore + 22);
+              roleScores[pid].laoChaoFeng = Math.min(95, roleScores[pid].laoChaoFeng + 18);
+              const deed = `R${rIdx + 1}言行背離：發言高調保【${bName}】為真，攤開籌碼自己卻投 0 票（騙票陷阱）`;
+              if (!roleScores[pid].badDeeds.includes(deed)) roleScores[pid].badDeeds.unshift(deed);
+              hypocrisyRecords.push({
+                type: 'CLAIM_REAL_VOTE_ZERO',
+                round: rIdx + 1,
+                suspectId: pid,
+                suspectName: roleScores[pid].name,
+                beast: bName,
+                desc: `第${rIdx + 1}回合【${roleScores[pid].name}】嘴上喊【${bName}】是真品，結果攤開籌碼自己連 1 票都沒投`
+              });
+            } else if (claimVal === false && myVotesOnThis > 0) {
+              // 嘴上踩假，身體卻誠實偷塞票！
+              roleScores[pid].evilScore = Math.min(96, roleScores[pid].evilScore + 25);
+              const deed = `R${rIdx + 1}暗度陳倉：發言踩【${bName}】是假貨，卻暗中偷塞 ${myVotesOnThis} 票`;
+              if (!roleScores[pid].badDeeds.includes(deed)) roleScores[pid].badDeeds.unshift(deed);
+              hypocrisyRecords.push({
+                type: 'CLAIM_FAKE_VOTE_SECRETLY',
+                round: rIdx + 1,
+                suspectId: pid,
+                suspectName: roleScores[pid].name,
+                beast: bName,
+                votes: myVotesOnThis,
+                desc: `第${rIdx + 1}回合【${roleScores[pid].name}】嘴上說【${bName}】是假貨別碰，結果自己偷偷塞了 ${myVotesOnThis} 票`
+              });
+            }
+          });
+        });
+      });
+
+      return hypocrisyRecords;
+    }
+  }
+
+  /* =========================================================================
+     模組 2：二階心智理論與公共形象追蹤器 (2nd-Order Theory of Mind)
+     - 站在「全場其他人」與「敵對陣營首腦」的視角，計算我自己的暴露程度
+     - 預判對手在鑑人階段會怎麼砍人、下一棒會怎麼控場
+  ========================================================================= */
+  class SecondOrderMindTracker {
+    static evaluatePublicImage(pov, roleScores) {
+      const mySpeeches = [];
+      (pov.speeches || []).forEach((rSp, rIdx) => {
+        (rSp || []).forEach(s => {
+          if ((s.speakerId || s.playerId) === pov.myId) {
+            mySpeeches.push({ round: rIdx + 1, text: s.text || s.speech || '' });
+          }
+        });
+      });
+
+      let perceivedAsXuYuan = 0.14;   // 老朝奉認為我是許願的機率 (基準 1/7)
+      let perceivedAsFangZhen = 0.14; // 藥不然認為我是方震的機率
+      let perceivedAsJiYunFu = 0.14;  // 壞人認為我是姬雲浮的機率
+      let perceivedAsEvil = 0.25;     // 全場好人懷疑我是壞人的機率
+
+      mySpeeches.forEach(sp => {
+        const txt = sp.text;
+        // 統計單次發言提到的獸首數量
+        const mentionedBeasts = ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'].filter(b => txt.includes(b));
+        if (mentionedBeasts.length >= 2) {
+          perceivedAsXuYuan = Math.min(0.92, perceivedAsXuYuan + 0.28); // 暴露雙獸首視野，極像許願！
+        }
+        if (/(看不懂|驗不到|保鏢|陣營|他是好人|他是壞人|查殺|金水)/.test(txt)) {
+          perceivedAsFangZhen = Math.min(0.90, perceivedAsFangZhen + 0.30); // 暴露方震特徵！
+        }
+        if (/(不受擾亂|絕對真|鐵真|免疫|泰斗)/.test(txt)) {
+          perceivedAsJiYunFu = Math.min(0.90, perceivedAsJiYunFu + 0.25);
+        }
+      });
+
+      // 統計有多少玩家在發言中點名質疑我
+      let attackedByCount = 0;
+      const myName = pov.myName || '';
+      (pov.speeches || []).forEach(rSp => {
+        (rSp || []).forEach(s => {
+          const txt = s.text || s.speech || '';
+          if (myName && txt.includes(myName) && /(壞人|內鬼|老朝奉|藥不然|鄭國渠|說謊|怪怪的|有問題|別信)/.test(txt)) {
+            attackedByCount++;
+          }
+        });
+      });
+      perceivedAsEvil = Math.min(0.90, perceivedAsEvil + attackedByCount * 0.18);
+
+      return {
+        perceivedAsXuYuan: +perceivedAsXuYuan.toFixed(2),
+        perceivedAsFangZhen: +perceivedAsFangZhen.toFixed(2),
+        perceivedAsJiYunFu: +perceivedAsJiYunFu.toFixed(2),
+        perceivedAsEvil: +perceivedAsEvil.toFixed(2),
+        attackedByCount
+      };
+    }
+  }
+
+  /* =========================================================================
+     模組 3：8 大角色 × 22 種多元戰術流派決策樹 (Multi-Playstyle Strategy Tree)
+     - 讓同一個角色在不同電腦玩家、不同棒次、不同局勢下展現截然不同的高階玩法
+  ========================================================================= */
+  class RoleMultiPlaystyleDirectory {
+    static selectPlaystyle(pov, beliefs, publicImage) {
+      const role = pov.myRole;
+      const rIdx = pov.currentRoundIdx || 0;
+      const dna = NormalPlayerReasoningEngine.extractDNA(pov.learningProfile);
+      const curPassOrder = (pov.passOrders && pov.passOrders[rIdx]) || [];
+      const myPassPos = curPassOrder.indexOf(pov.myId); // 0 = 首棒, 7 = 尾棒
+      const isEarlyPos = myPassPos >= 0 && myPassPos <= 2;
+      const isLatePos = myPassPos >= 5;
+
+      // 計算目前好人已保住幾件真品（估算局勢優劣）
+      let goodSavedCount = 0;
+      (pov.voteResults || []).forEach(vr => {
+        if (vr && vr.rank2 && !vr.rank2.isHidden && vr.rank2.isReal) goodSavedCount++;
+      });
+
+      switch (role) {
+        case '許願': {
+          // 1. 若已被老朝奉高度懷疑是許願 (>55%) -> 啟動【煙霧藏刀流】裝作單驗或困惑洗白
+          if (publicImage.perceivedAsXuYuan >= 0.55 && rIdx < 2) {
+            return {
+              id: 'XU_SMOKE_MIRROR',
+              name: '煙霧藏刀流（偽裝單驗/困惑避刀）',
+              desc: '察覺老朝奉視線鎖定，刻意隱瞞第二件獸首視野，模仿普通單驗角色以躲避終局刺殺'
+            };
+          }
+          // 2. 若第三回合比分危急或位於尾棒且性格激進 -> 啟動【太陽神強勢領軍流】
+          if (rIdx === 2 && (isLatePos || dna.actionDNA.aggression > 0.72 || goodSavedCount === 0)) {
+            return {
+              id: 'XU_SOLAR_CARRY',
+              name: '太陽神領軍流（雙驗攤牌歸票）',
+              desc: '終局關鍵時刻釋放雙獸首完整視野，強勢主導全場配票'
+            };
+          }
+          // 3. 默認高階打法：【明暗雙線分流】一隻明講、一隻暗投
+          return {
+            id: 'XU_STEALTH_SPLIT',
+            name: '明暗雙線流（發言報一、暗票保一）',
+            desc: '將雙驗情報拆解，口頭只談其一避免暴露許願身分，另一件真品透過暗中配票保護'
+          };
+        }
+
+        case '方震': {
+          // 1. 若已經查出明確壞人且進入中後盤 -> 【天眼審判流】帶風向釘死壞人
+          const caughtEvils = (pov.fangZhenInspections || []).filter(x => x.isEvil);
+          if (caughtEvils.length > 0 && (rIdx === 2 || dna.actionDNA.aggression > 0.68)) {
+            return {
+              id: 'FANG_IRON_JUDGE',
+              name: '天眼審判流（精準點殺內鬼）',
+              desc: '手握實錘查殺名單，將壞人言行破綻公開處刑，引導全場封鎖其傳遞與票權'
+            };
+          }
+          // 2. 若性格偏向欺詐/高智商博弈 -> 【釣魚執法流】故意捧殺查出的壞人看其同夥
+          if (caughtEvils.length > 0 && dna.speechDNA.deception > 0.55) {
+            return {
+              id: 'FANG_BAIT_TRAP',
+              name: '釣魚執法流（暗中觀察同夥連動的保鏢）',
+              desc: '表面不戳破已查驗出的壞人，甚至順水推舟觀察誰在與他打配合，一網打盡老朝奉'
+            };
+          }
+          // 3. 默認：【深海潛伏保鏢流】絕不喊看不懂獸首，借前家視野偽裝鑑寶師
+          return {
+            id: 'FANG_SHADOW_MIMIC',
+            name: '深海替身流（借用好人視野偽裝鑑寶）',
+            desc: '絕不暴露自己看不懂獸首以防藥不然鎖定，巧妙借用高可信度前家的獸首結論附和發言'
+          };
+        }
+
+        case '姬雲浮': {
+          // 1. 若位於後段棒次 -> 【人肉測謊機流】專門抓老朝奉擾亂切點
+          if (isLatePos || rIdx >= 1) {
+            return {
+              id: 'JI_TRUTH_ANCHOR',
+              name: '定海神針流（絕對真視對沖擾亂）',
+              desc: '利用不受老朝奉擾亂的泰斗被動，在後置位以絕對真偽對沖前段被反轉的資訊，抓出擾亂切點'
+            };
+          }
+          // 2. 若位於前段或風險規避高 -> 【藏鋒替身流】幫許願分擔仇恨但防藥不然首刀
+          return {
+            id: 'JI_ROYAL_DECOY',
+            name: '藏鋒替身流（防偷襲永盲・兼扮許願擋刀）',
+            desc: '前期克制鋒芒避免遭藥不然偷襲永久致盲，中後期故意展現廣域推理吸引老朝奉誤砍自己'
+          };
+        }
+
+        case '黃煙煙':
+        case '木戶加奈': {
+          // 檢查本輪是否正好踩中困惑回合
+          const isConfusedNow = (pov.myInspectLogs || []).some(x => x.resultText && x.resultText.includes('無法辨別'));
+          if (isConfusedNow && dna.speechDNA.deception > 0.58) {
+            return {
+              id: 'MIST_EMPTY_FORT',
+              name: '空城計詐術流（困惑局假報真偽釣內鬼）',
+              desc: '雖處於困惑無法辨別，卻故意拋出假試探結論，觀察哪位壞人敢順桿跟風或心虛反駁'
+            };
+          }
+          if (rIdx === 2 && publicImage.perceivedAsXuYuan < 0.40 && dna.actionDNA.teammateProtection > 0.60) {
+            return {
+              id: 'MIST_BODYGUARD_XU',
+              name: '影武者護駕流（模仿許願口吻替主公擋刀）',
+              desc: '終局刻意同時點評兩件獸首真偽，偽裝成手握雙驗的許願，誘使老朝奉在鑑人階段砍錯目標'
+            };
+          }
+          return {
+            id: 'MIST_CLEAR_SWEEPER',
+            name: '澄明排雷流（誠實交底壓縮偽裝空間）',
+            desc: '精準交代自身查驗狀態與傳遞鏈路，協助全場好人排除干擾項'
+          };
+        }
+
+        case '老朝奉': {
+          // 1. 若身處前中段棒次，但高隱蔽性 DNA -> 【深水不擾亂嫁禍流】！
+          if (dna.actionDNA.concealment > 0.68 || (rIdx === 0 && Math.random() < 0.42)) {
+            return {
+              id: 'LAO_DEEP_NO_FLIP',
+              name: '深水無痕流（刻意不開擾亂・嫁禍尾家）',
+              desc: '拿到手機故意不發動擾亂並實報真品，賺取全場最高好人信任度，再於終局暗票偷分並精準獵殺許願'
+            };
+          }
+          // 2. 若身處黃金切點（第2~5棒）-> 【斷層反轉分化流】
+          if (myPassPos >= 1 && myPassPos <= 5) {
+            return {
+              id: 'LAO_FAULTLINE_CHAOS',
+              name: '斷層分化流（黃金棒次開擾亂・挑起好人內戰）',
+              desc: '在傳遞鏈中段開啟擾亂，使前半場與後半場好人查驗完全相反，自己坐山觀虎鬥'
+            };
+          }
+          // 3. 【悍跳帶隊流】偽裝成姬雲浮或許願強勢歸票假貨
+          return {
+            id: 'LAO_FALSE_PROPHET',
+            name: '偽神領袖流（悍跳泰斗強勢歸票贗品）',
+            desc: '以極高自信偽裝成核心好人，將一真一假包裝成雙真品引導好人分票崩盤'
+          };
+        }
+
+        case '藥不然': {
+          if (dna.actionDNA.aggression > 0.65) {
+            return {
+              id: 'YAO_DELAYED_ASSASSIN',
+              name: '延宕封喉流（專砍已動玩家鎖死下輪視野）',
+              desc: '精準挑選本輪已查驗的核心好人發動偷襲，觸發延宕致盲使其下一輪關鍵局徹底失明，並全力追獵方震'
+            };
+          }
+          return {
+            id: 'YAO_BUSSING_SHADOW',
+            name: '苦肉切割流（與老朝奉演雙簧互踩洗白）',
+            desc: '在公開發言中刻意與老朝奉保持距離甚至微詞交鋒，一旦自己暴露也能保住老朝奉全身而退'
+          };
+        }
+
+        case '鄭國渠': {
+          return {
+            id: 'ZHENG_FOG_SABOTEUR',
+            name: '迷霧攪局流（封鎖真品獸首・替老朝奉扛推）',
+            desc: '優先封鎖真品獸首切斷好人共識，發言刻意製造混亂吸引方震與好人火力，掩護老朝奉與藥不然'
+          };
+        }
+
+        default:
+          return { id: 'STANDARD_PRO', name: '均衡大師流', desc: '全維度動態博弈' };
+      }
+    }
+  }
+
+  /* =========================================================================
+     模組 4：五段式動態隨機應變發言合成器 (Context-Aware Tactical Speech Composer)
+     - 徹底告別死板罐頭台詞！根據現場前家發言、上輪籌碼明細、時序切點、角色流派即時造句
+     - 100% 保留 41 位角色原生人設金句與口癖
+  ========================================================================= */
+  class TacticalSpeechComposer {
+    static compose(pov, beliefs, worldlineInfo, hypocrisyList, publicImage, playstyle) {
+      const nickname = pov.myName || '玩家';
+      const role = pov.myRole || '許願';
+      const rIdx = pov.currentRoundIdx || 0;
+      const isGood = GameRules.isGoodCamp(role);
+      const curBeasts = pov.currentBeasts || [];
+      const curSpeeches = (pov.speeches && pov.speeches[rIdx]) || [];
+      const curPassOrder = (pov.passOrders && pov.passOrders[rIdx]) || [];
+      const myPassIdx = curPassOrder.indexOf(pov.myId);
+      const isTailSpeaker = (curSpeeches.length >= 6); // 第 7、8 位發言者
+
+      // 取得 41 人專屬人設語料庫
+      const arch = (typeof BOT_ARCHETYPES !== 'undefined' && BOT_ARCHETYPES[nickname]) || null;
+      const flavorPhrases = (arch && Array.isArray(arch.phrases) && arch.phrases.length > 0) ? arch.phrases : [];
+      const pickFlavor = () => {
+        if (flavorPhrases.length === 0) return '';
+        // 根據回合與發言序做確定性混合隨機，避免同局重複
+        const seed = (rIdx * 17 + curSpeeches.length * 31 + nickname.charCodeAt(0)) % flavorPhrases.length;
+        return flavorPhrases[seed];
+      };
+
+      const parts = [];
+
+      // -----------------------------------------------------------------
+      // 【第一段：現場即時接話與回擊 (Dynamic Live Rebuttal / Hook)】
+      // -----------------------------------------------------------------
+      if (curSpeeches.length > 0) {
+        // 檢查前面有沒有人點名罵我，若有則優先犀利反擊！
+        const attackerSp = [...curSpeeches].reverse().find(
+          s => (s.text || '').includes(nickname) && /(壞人|內鬼|老朝奉|說謊|有問題|怪)/.test(s.text || '')
+        );
+        if (attackerSp && attackerSp.speakerName) {
+          const atkRebuttals = [
+            `剛才【${attackerSp.speakerName}】居然直接把髒水潑到我頭上？你連傳遞棒次的先後邏輯都沒盤清楚就急著扣帽子，這波帶風向太明顯了吧！`,
+            `聽到【${attackerSp.speakerName}】點名懷疑我，我反而笑了，我這輪的動線乾乾淨淨，反倒是你急著找替死鬼的心態非常可疑！`,
+            `【${attackerSp.speakerName}】少在那邊轉移焦點！大家看清楚是誰在無憑無據亂咬人！`
+          ];
+          parts.push(atkRebuttals[(rIdx + curSpeeches.length) % atkRebuttals.length]);
+        } else {
+          // 否則抓取前一位或前兩位有明確獸首主張的發言進行互動（附和或對沖）
+          const prevSp = curSpeeches[curSpeeches.length - 1];
+          if (prevSp && prevSp.speakerName && prevSp.text) {
+            const prevParsed = WorldlineTemporalEngine.parseSpeechClaims(prevSp.text, curBeasts);
+            const prevBeastEntries = Object.entries(prevParsed.claims);
+            if (prevBeastEntries.length > 0) {
+              const [bName, bClaim] = prevBeastEntries[0];
+              const myScoreOnBeast = beliefs.beastScores && beliefs.beastScores[bName];
+              const iThinkReal = myScoreOnBeast ? (myScoreOnBeast.real >= myScoreOnBeast.fake) : true;
+
+              if (typeof bClaim === 'boolean') {
+                if (bClaim === iThinkReal) {
+                  parts.push(`聽完前面【${prevSp.speakerName}】對【${bName}】首的判斷，跟我的推演方向能對上，這條視角鏈目前算乾淨。`);
+                } else {
+                  parts.push(`等等，前面【${prevSp.speakerName}】說【${bName}】是${bClaim ? '真品' : '贗品'}，這跟我的第一手資訊完全衝突！中間棒次絕對有人動了手腳！`);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        parts.push(`這輪由我先開個頭，大家仔細聽好這局的棒次與獸首邏輯。`);
+      }
+
+      // -----------------------------------------------------------------
+      // 【第二段：角色流派驅動的核心獸首情報釋放 (Playstyle Info Payload)】
+      // -----------------------------------------------------------------
+      const myLogs = pov.myInspectLogs || [];
+      const sortedBeastsByReal = [...curBeasts].sort((a, b) => {
+        const sA = (beliefs.beastScores && beliefs.beastScores[a]) ? (beliefs.beastScores[a].real - beliefs.beastScores[a].fake) : 0;
+        const sB = (beliefs.beastScores && beliefs.beastScores[b]) ? (beliefs.beastScores[b].real - beliefs.beastScores[b].fake) : 0;
+        return sB - sA;
+      });
+      const topRealBeast = sortedBeastsByReal[0] || curBeasts[0] || '鼠';
+      const secondRealBeast = sortedBeastsByReal[1] || curBeasts[1] || '牛';
+      const topFakeBeast = sortedBeastsByReal[sortedBeastsByReal.length - 1] || curBeasts[3] || '兔';
+
+      if (isGood) {
+        if (playstyle.id === 'XU_STEALTH_SPLIT' && myLogs.length >= 2) {
+          // 許願隱匿流：只報其中 1 隻，藏住雙驗身分！
+          const firstLog = myLogs[0];
+          const isR = firstLog.resultText && firstLog.resultText.includes('真品');
+          parts.push(`我這棒親手摸了【${firstLog.beastName}】首，底子非常清楚是${isR ? '【真品】' : '【贗品】'}，大家可以放心納入射程。`);
+        } else if (playstyle.id === 'XU_SMOKE_MIRROR') {
+          parts.push(`這輪我摸【${topRealBeast}】首的時候覺得氣場有點微妙，但我綜合前後棒次交叉比對，【${topRealBeast}】保真度最高，【${topFakeBeast}】千萬別碰。`);
+        } else if (playstyle.id === 'XU_SOLAR_CARRY' && myLogs.length >= 2) {
+          const l1 = myLogs[0], l2 = myLogs[1];
+          const r1 = l1.resultText && l1.resultText.includes('真品') ? '真品' : '贗品';
+          const r2 = l2.resultText && l2.resultText.includes('真品') ? '真品' : '贗品';
+          parts.push(`到了決戰時刻我不藏了！這輪我雙驗【${l1.beastName}】是【${r1}】、【${l2.beastName}】是【${r2}】，好人全體按這個鐵邏輯鎖票！`);
+        } else if (playstyle.id === 'FANG_SHADOW_MIMIC') {
+          // 方震偽裝鑑寶師：絕不喊看不懂，直接拿推演最高分的獸首當自己的查驗報出
+          parts.push(`就我這個順位的觀察與手感，【${topRealBeast}】首的工藝完全是【真品】格局，而【${topFakeBeast}】首破綻太多必假無疑。`);
+        } else if (playstyle.id === 'MIST_EMPTY_FORT') {
+          // 煙煙/加奈空城計：明明困惑卻故意報真偽釣魚
+          parts.push(`我這棒摸過【${topRealBeast}】首，確定是【真品】！我看後面誰敢無腦踩它，誰踩誰就是心虛的內鬼！`);
+        } else if (playstyle.id === 'MIST_BODYGUARD_XU') {
+          // 替許願擋刀：故意講兩隻獸首
+          parts.push(`這輪【${topRealBeast}】跟【${secondRealBeast}】兩件我都幫大家把過關了，【${topRealBeast}】鐵真、【${topFakeBeast}】鐵假，老朝奉有本事就衝著我來！`);
+        } else {
+          // 標準好人實報（含被偷襲/封鎖/姬雲浮）
+          if (myLogs.length > 0) {
+            const log0 = myLogs[0];
+            if (/(偷襲|一片黑|暈眩)/.test(log0.resultText || '')) {
+              parts.push(`我這棒被藥不然暗算偷襲了，眼前一片黑什麼都驗不到！藥不然絕對在前面幾棒或者上輪就盯上我了！`);
+            } else if (/(無法辨別)/.test(log0.resultText || '')) {
+              parts.push(`我摸了【${log0.beastName}】首但顯示無法辨別真偽，不是鄭國渠封鎖了【${log0.beastName}】，就是我剛好踏入困惑輪。`);
+            } else {
+              const isR = (log0.resultText || '').includes('真品');
+              const jiExtra = (role === '姬雲浮' && rIdx === 2) ? '，而且這視角絕對不受擾亂影響' : '';
+              parts.push(`我實測查驗【${log0.beastName}】首，結果是明確的${isR ? '【真品】' : '【贗品】'}${jiExtra}！`);
+            }
+          }
+        }
+      } else {
+        // 壞人陣營（老朝奉、藥不然、鄭國渠）高階欺詐話術
+        const realBeasts = curBeasts.filter(b => {
+          const sc = beliefs.beastScores && beliefs.beastScores[b];
+          return sc && sc.real > sc.fake;
+        });
+        const fakeBeasts = curBeasts.filter(b => !realBeasts.includes(b));
+        const targetFakeToPush = fakeBeasts[0] || topFakeBeast;
+        const targetRealToBury = realBeasts[0] || topRealBeast;
+
+        if (playstyle.id === 'LAO_DEEP_NO_FLIP') {
+          // 深水老朝奉：故意報 1 隻真貨博取鐵好人信任！
+          parts.push(`我這棒看【${targetRealToBury}】首是實打實的【真品】，這輪傳遞鏈很穩，大家先把【${targetRealToBury}】保下來。`);
+        } else if (playstyle.id === 'LAO_FAULTLINE_CHAOS') {
+          parts.push(`我查驗【${targetFakeToPush}】首確定是【真品】！如果後面有人報【${targetFakeToPush}】是假貨，那代表我後面那兩棒絕對藏著老朝奉開了擾亂！`);
+        } else {
+          // 藥不然 / 鄭國渠：真假混報或推假踩真
+          if (Math.random() < 0.35 && rIdx >= 1) {
+            parts.push(`這輪【${targetFakeToPush}】首我摸過是【真品】，至於【${targetRealToBury}】首成色太假了，好人千萬別被帶風向投給【${targetRealToBury}】！`);
+          } else {
+            parts.push(`我這棒驗了【${targetFakeToPush}】首是【真品】，大家票型千萬不要分散，集中保【${targetFakeToPush}】才不會被壞人偷雞！`);
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // 【第三段：時序切點與上輪籌碼抓鬼 (Worldline & Chip Audit Accusation)】
+      // -----------------------------------------------------------------
+      if (hypocrisyList && hypocrisyList.length > 0 && isGood) {
+        const h = hypocrisyList[0];
+        parts.push(`另外大家翻開歷史票型看鐵證：${h.desc}，這種言行背離的操作，【${h.suspectName}】在我這張表上已經標紅為頭號內鬼嫌疑人！`);
+      } else if (worldlineInfo && worldlineInfo.bestFlipIdx >= 0 && worldlineInfo.flipSuspects.length > 0 && isGood) {
+        const flipPid = worldlineInfo.bestFlipActorId;
+        const flipPlayer = (pov.otherPlayers || []).find(p => p.id === flipPid);
+        if (flipPlayer && flipPid !== pov.myId) {
+          parts.push(`從這輪手機傳遞序來看，第 ${worldlineInfo.bestFlipIdx + 1} 棒的【${flipPlayer.name}】交接之後，前後段的獸首真偽直接鏡像反轉，老朝奉的擾亂切點八九不離十就卡在【${flipPlayer.name}】身上！`);
+        }
+      } else if (role === '方震' && playstyle.id === 'FANG_IRON_JUDGE') {
+        const evilHit = (pov.fangZhenInspections || []).find(x => x.isEvil);
+        if (evilHit) {
+          const evilP = (pov.otherPlayers || []).find(p => p.id === evilHit.targetId);
+          if (evilP) {
+            parts.push(`而且我把話撂在這，【${evilP.name}】的底牌跟行為邏輯完全是老朝奉集團的人，下回合誰都別把手機傳給他！`);
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // 【第四段：尾家歸票或傳遞戰術號召 (Tactical Call-to-Action)】
+      // -----------------------------------------------------------------
+      const targetPushBeast = isGood ? topRealBeast : (curBeasts.find(b => b !== topRealBeast) || topFakeBeast);
+      if (isTailSpeaker) {
+        parts.push(`身為尾棒我直接幫大家歸票總結：全場好人把主力票集中灌給【${targetPushBeast}】首，另外分 1 到 2 票給【${secondRealBeast}】首衝第二名開獎驗真偽！`);
+      } else if (myPassIdx >= 0 && myPassIdx <= 2 && rIdx < 2) {
+        parts.push(`這輪大家先把【${targetPushBeast}】首的票底打穩，下回合首棒切記傳給視角乾淨的明好人。`);
+      }
+
+      // -----------------------------------------------------------------
+      // 【第五段：41 人專屬靈魂金句收尾 (Persona Signature Flavor)】
+      // -----------------------------------------------------------------
+      const flavor = pickFlavor();
+      if (flavor) {
+        parts.push(flavor);
+      }
+
+      return parts.join('');
+    }
+  }
+
+  /* =========================================================================
+     模組 5：安全無縫掛載層 (Non-Destructive Hook & Integration)
+     - 攔截並升級 NormalPlayerReasoningEngine.evaluate
+     - 攔截並升級 BotDeductionEngine 的技能、傳遞、投票與發言決策
+  ========================================================================= */
+  if (typeof window.NormalPlayerReasoningEngine !== 'undefined') {
+    const _origEvaluate = window.NormalPlayerReasoningEngine.evaluate.bind(window.NormalPlayerReasoningEngine);
+
+    window.NormalPlayerReasoningEngine.evaluate = function(pov) {
+      // 1. 先跑原本 v3.8.14 的基礎推理，確保所有資料結構 100% 相容
+      const baseResult = _origEvaluate(pov);
+
+      try {
+        const beliefs = baseResult.beliefs || baseResult;
+        const roleScores = beliefs.roleScores || {};
+        const curRoundIdx = pov.currentRoundIdx || 0;
+
+        // 2. 執行【時序切片與老朝奉擾亂切點逆推】
+        const worldlineInfo = WorldlineTemporalEngine.analyzeRoundWorldlines(pov, curRoundIdx, roleScores);
+
+        // 3. 執行【歷史籌碼與發言交叉審計】
+        const hypocrisyList = WorldlineTemporalEngine.auditHistoricalVotesAndSpeeches(pov, roleScores);
+
+        // 4. 執行【二階心智公共形象追蹤】
+        const publicImage = SecondOrderMindTracker.evaluatePublicImage(pov, roleScores);
+
+        // 5. 重新收斂全局 3 壞人假設
+        const { cognitiveDNA } = window.NormalPlayerReasoningEngine.extractDNA(pov.learningProfile);
+        window.NormalPlayerReasoningEngine.solveGlobalConstraints(roleScores, pov, cognitiveDNA, beliefs);
+
+        // 6. 選擇本輪【角色多元戰術流派】
+        const playstyle = RoleMultiPlaystyleDirectory.selectPlaystyle(pov, beliefs, publicImage);
+
+        // 7. 強化許願與方震的精準鎖定（供老朝奉與藥不然終局刺殺使用）
+        (pov.otherPlayers || []).forEach(p => {
+          if (p.id === pov.myId || !roleScores[p.id]) return;
+          const pSpList = [];
+          (pov.speeches || []).forEach(rSp => {
+            (rSp || []).forEach(s => {
+              if ((s.speakerId || s.playerId) === p.id) pSpList.push(s.text || s.speech || '');
+            });
+          });
+          pSpList.forEach(txt => {
+            const mentioned = ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'].filter(b => txt.includes(b));
+            if (mentioned.length >= 2) {
+              roleScores[p.id].xuYuan = Math.min(98, (roleScores[p.id].xuYuan || 20) + 25);
+            }
+            if (/(看不懂|驗不到|陣營|他是好人|他是壞人|保鏢|查殺)/.test(txt)) {
+              roleScores[p.id].fangZhen = Math.min(98, (roleScores[p.id].fangZhen || 15) + 30);
+            }
+          });
+        });
+
+        // 8. 生成【五段式電競級隨機應變發言】並掛載至推理結果
+        const tacticalSpeech = TacticalSpeechComposer.compose(
+          pov, beliefs, worldlineInfo, hypocrisyList, publicImage, playstyle
+        );
+
+        beliefs.esportsEnhancement = {
+          version: '4.0-Grandmaster',
+          playstyle,
+          worldlineInfo,
+          hypocrisyList,
+          publicImage,
+          tacticalSpeech
+        };
+
+        // 同步寫入 thoughtLog，讓終局「電腦角色推理過程覆盤 (AI Deduction Mind-Map)」能看到超詳盡的心路歷程！
+        if (Array.isArray(baseResult.thoughtLogs)) {
+          baseResult.thoughtLogs.unshift(
+            `🧠【電競流派】啟用「${playstyle.name}」— ${playstyle.desc}`,
+            `⏱️【時序切片】本輪擾亂切點推演：${worldlineInfo.bestFlipIdx >= 0 ? ('鎖定第 ' + (worldlineInfo.bestFlipIdx + 1) + ' 棒前後出現真偽反轉') : '暫無明顯反轉斷層'}`,
+            `🎭【二階心智】自身暴露度評估：許願嫌疑 ${Math.round(publicImage.perceivedAsXuYuan * 100)}% / 方震嫌疑 ${Math.round(publicImage.perceivedAsFangZhen * 100)}% / 壞人嫌疑 ${Math.round(publicImage.perceivedAsEvil * 100)}%`
+          );
+          if (hypocrisyList.length > 0) {
+            baseResult.thoughtLogs.push(`🔍【籌碼抓鬼】抓獲破綻：${hypocrisyList[0].desc}`);
+          }
+        }
+      } catch (err) {
+        console.warn('[EsportsMind v4.0] 增強推理層安全降級回原版邏輯:', err);
+      }
+
+      return baseResult;
+    };
+  }
+
+  /* =========================================================================
+     模組 6：掛載至 BotDeductionEngine 發言與技能/投票微調接口
+  ========================================================================= */
+  const hookBotDeductionEngine = () => {
+    if (typeof window.BotDeductionEngine === 'undefined') return false;
+    const BDE = window.BotDeductionEngine;
+
+    // A. 攔截發言生成方法 (相容 generateSpeech / decideSpeech / composeSpeech)
+    ['generateSpeech', 'decideSpeech', 'composeSpeech', 'buildSpeech'].forEach(fnName => {
+      if (typeof BDE[fnName] === 'function' && !BDE[fnName]._esportsHooked) {
+        const _origFn = BDE[fnName].bind(BDE);
+        const wrapped = function(...args) {
+          try {
+            // 尋找傳入參數中的 pov 或 beliefs
+            const arg0 = args[0] || {};
+            const arg1 = args[1] || {};
+            const enh = (arg0.esportsEnhancement) || (arg0.beliefs && arg0.beliefs.esportsEnhancement) || (arg1.esportsEnhancement) || (arg1.beliefs && arg1.beliefs.esportsEnhancement);
+            if (enh && enh.tacticalSpeech && enh.tacticalSpeech.length > 8) {
+              return enh.tacticalSpeech;
+            }
+          } catch (e) {}
+          return _origFn(...args);
+        };
+        wrapped._esportsHooked = true;
+        BDE[fnName] = wrapped;
+      }
+    });
+
+    // B. 攔截老朝奉擾亂決策：若流派為「深水無痕流 (LAO_DEEP_NO_FLIP)」，則故意不開擾亂嫁禍尾家！
+    ['decideSkill', 'decideRoleSkill', 'executeRoleAbility'].forEach(fnName => {
+      if (typeof BDE[fnName] === 'function' && !BDE[fnName]._esportsHooked) {
+        const _origSkillFn = BDE[fnName].bind(BDE);
+        const wrappedSkill = function(...args) {
+          try {
+            const pov = args[0] || {};
+            const beliefs = args[1] || (pov.beliefs) || {};
+            const enh = beliefs.esportsEnhancement || (pov.esportsEnhancement);
+            if (pov.myRole === '老朝奉' && enh && enh.playstyle && enh.playstyle.id === 'LAO_DEEP_NO_FLIP') {
+              // 深水不開擾亂策略
+              return { activateDisrupt: false, useSkill: false, reason: '深水無痕流：刻意不開擾亂嫁禍後置位' };
+            }
+          } catch (e) {}
+          return _origSkillFn(...args);
+        };
+        wrappedSkill._esportsHooked = true;
+        BDE[fnName] = wrappedSkill;
+      }
+    });
+
+    console.info('%c✅ [EsportsMind v4.0] 已成功掛載至 NormalPlayerReasoningEngine 與 BotDeductionEngine！', 'color:#10b981;font-weight:bold;');
+    return true;
+  };
+
+  if (!hookBotDeductionEngine()) {
+    window.addEventListener('DOMContentLoaded', hookBotDeductionEngine);
+    window.addEventListener('load', hookBotDeductionEngine);
+  }
+
+  // 匯出全域診斷介面，方便你在 F12 Console 隨時檢視 AI 的二階心智與世界線推演
+  window.EsportsGrandmasterAI = {
+    WorldlineTemporalEngine,
+    SecondOrderMindTracker,
+    RoleMultiPlaystyleDirectory,
+    TacticalSpeechComposer
+  };
+})();
+</script>
 </body>
 </html>
