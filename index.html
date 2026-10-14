@@ -25449,22 +25449,59 @@ ${roundSpeeches}
     BLE.__actionDnaEvolvePatched = true;
   }
   function migrateAllProfiles() {
-    if (!BLE || typeof BLE.getAllProfiles !== 'function') return;
-    try {
-      const all=BLE.getAllProfiles(); let changed=false;
-      Object.entries(all||{}).forEach(([pid,p])=>{
-        if (!p) return;
-        const before=(p.personality&&p.personality.actionDNA)||p.actionDNA||'';
-        const after=cleanActionDNA(before,pid,p);
-        if (!p.personality) p.personality={traits:p.weights||{}};
-        p.personality.actionDNA=after; p.actionDNA=after;
-        if (before!==after) changed=true;
-      });
-      if (changed) BLE.saveAllProfiles(all);
-    } catch(e) { console.warn('[ActionDNA] profile migration deferred:',e&&e.message); }
-  }
-  migrateAllProfiles();
+  if (!BLE || typeof BLE.getAllProfiles !== 'function') return;
 
+  try {
+    const all = BLE.getAllProfiles();
+    let changed = false;
+
+    Object.entries(all || {}).forEach(([pid, p]) => {
+      if (!p) return;
+
+      const innerDNA = p.personality?.actionDNA;
+      const rootDNA = p.actionDNA;
+
+      // 只接受有效的 120 碼 ActionDNA
+      const isValid120 = dna =>
+        typeof dna === 'string' &&
+        dna.length === 120 &&
+        /^[0-9H]{120}$/.test(dna);
+
+      // 內層無效時，優先保留根層已確認有效的 DNA
+      const validDNA = isValid120(innerDNA)
+        ? innerDNA
+        : (isValid120(rootDNA) ? rootDNA : null);
+
+      // 沒有有效的 120 碼 DNA，就不做任何修改
+      if (!validDNA) return;
+
+      if (!p.personality) {
+        p.personality = { traits: p.weights || {} };
+      }
+
+      if (
+        p.personality.actionDNA !== validDNA ||
+        p.actionDNA !== validDNA
+      ) {
+        p.personality.actionDNA = validDNA;
+        p.actionDNA = validDNA;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      BLE.saveAllProfiles(all);
+      console.info('[ActionDNA] Profile DNA synchronization completed.');
+    }
+  } catch (e) {
+    console.warn(
+      '[ActionDNA] Profile DNA synchronization deferred:',
+      e && e.message
+    );
+  }
+}
+
+migrateAllProfiles();
   // wrap buildPOV so each action call sees a stable 120-char DNA string, even after cloud profile load.
   if (typeof BDE.buildPOV === 'function' && !BDE.__actionDnaBuildPovPatched) {
     const origBuildPOV=BDE.buildPOV.bind(BDE);
