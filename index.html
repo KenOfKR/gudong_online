@@ -24552,7 +24552,19 @@ ${roundSpeeches}
             }
             if (typeof d.level === 'number') targetProf.level = Math.max(1, Math.min(50, Math.floor(d.level)));
             if (typeof d.experience === 'number') targetProf.experience = Math.max(0, Math.floor(d.experience));
-            if (d.actionDNA && targetProf.personality) targetProf.personality.actionDNA = d.actionDNA;
+            if (targetProf.personality) {
+  const cloudDNA = d.actionDNA;
+
+  // 只接受有效的 120 碼 ActionDNA
+  if (
+    typeof cloudDNA === 'string' &&
+    cloudDNA.length === 120 &&
+    /^[0-9H]{120}$/.test(cloudDNA)
+  ) {
+    targetProf.personality.actionDNA = cloudDNA;
+    targetProf.actionDNA = cloudDNA;
+  }
+}
             if (d.speechDNA && targetProf.personality) targetProf.personality.speechDNA = d.speechDNA;
           }
         });
