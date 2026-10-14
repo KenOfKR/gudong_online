@@ -13245,7 +13245,7 @@ function executeOnlineAdvanceToDiscussion(rParam) {
 
         logSyncEvent('✓ ADVANCE', `Rev #${nextRev}: 第 ${curRIdx + 1} 回合查驗完畢，推進至順時針發言階段 (首位發言者: ${firstSpeakerId})`, 'highlight');
       }).then(() => {
-        if (firstSpeakerId && isComputerControlledPlayer((room.players || []).find(p => p.id === firstSpeakerId))) {
+        if (firstSpeakerId && isComputerControlledPlayer(((onlineRoomData && onlineRoomData.players) || []).find(p => p.id === firstSpeakerId))) {
           setTimeout(() => {
             if (onlineRoomData) triggerMockPlayerSpeech(onlineRoomData, firstSpeakerId);
           }, 400);
