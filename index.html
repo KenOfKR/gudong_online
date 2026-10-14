@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 3.8.9)</title>  
+ <title>古董局中局 (版本 3.8.14)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1598,7 +1598,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 3.8.9</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.8.14</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -3698,11 +3698,13 @@ static get STORAGE_KEY() {
  
 // 戰後閉環 DNA 演化器
 // 支援 120 碼 actionDNA 與 50 碼 speechDNA
-static evolveDNA(dnaStr, traits, isWin) {
+static evolveDNA(dnaStr, traits, isWin, expectedLength = null) {
+  // 呼叫端可明確指定 DNA 規格：actionDNA 固定 120 碼，speechDNA 固定 50 碼。
+  // 未指定時才依既有字串長度相容舊資料。
   const dnaLength =
-    typeof dnaStr === 'string' && dnaStr.length === 120
-      ? 120
-      : 50;
+    expectedLength === 120 || expectedLength === 50
+      ? expectedLength
+      : (typeof dnaStr === 'string' && dnaStr.length === 120 ? 120 : 50);
 
   if (
     typeof dnaStr !== 'string' ||
@@ -3774,6 +3776,30 @@ static evolveDNA(dnaStr, traits, isWin) {
     if (!p.identity) p.identity = { botProfileId: p.botProfileId || p.id || 'bot_001', name: p.nickname || 'AI', archetypeId: p.style || 'sarcastic', generation: 1 };
     if (!p.personality) p.personality = { title: '推演者', style: p.style || 'sarcastic', traits: p.weights || {} };
     if (!p.personality.traits) p.personality.traits = p.weights || {};
+
+    // 舊版曾把 actionDNA 也生成为 50 碼；載入時統一升級為 120 碼，並優先保留有效根層 DNA。
+    const isValidActionDNA120 = dna => typeof dna === 'string' && dna.length === 120 && /^[0-9H]{120}$/.test(dna);
+    const isValidSpeechDNA50 = dna => typeof dna === 'string' && dna.length === 50 && /^[0-9H]{50}$/.test(dna);
+    const legacyRootActionDNA = p.actionDNA;
+    let generatedDNA = null;
+    if ((!isValidActionDNA120(p.personality.actionDNA) && !isValidActionDNA120(legacyRootActionDNA)) || !isValidSpeechDNA50(p.personality.speechDNA)) {
+      try {
+        if (typeof BotDeductionEngine !== 'undefined' && typeof BotDeductionEngine.generateBotDNA === 'function') {
+          generatedDNA = BotDeductionEngine.generateBotDNA(p.identity.botProfileId, '');
+        }
+      } catch (e) {}
+    }
+    if (!isValidActionDNA120(p.personality.actionDNA)) {
+      p.personality.actionDNA = isValidActionDNA120(legacyRootActionDNA)
+        ? legacyRootActionDNA
+        : (generatedDNA && isValidActionDNA120(generatedDNA.actionDNA) ? generatedDNA.actionDNA : '5'.repeat(120));
+    }
+    if (!isValidSpeechDNA50(p.personality.speechDNA)) {
+      p.personality.speechDNA = generatedDNA && isValidSpeechDNA50(generatedDNA.speechDNA)
+        ? generatedDNA.speechDNA
+        : '5'.repeat(50);
+    }
+
     if (!p.positionMemory) p.positionMemory = { first: { games: 0, wins: 0, successRate: 0.5 }, middle: { games: 0, wins: 0, successRate: 0.5 }, tail: { games: 0, wins: 0, successRate: 0.5 }, roundHistory: [] };
     if (!p.inspectionMemory) p.inspectionMemory = { ownInspections: [], ambushHistory: [], reliabilityCalibration: 0.85 };
     if (!p.beliefPolicy) p.beliefPolicy = { speechWeight: 1.0, voteWeight: 1.0, positionWeight: 1.0, passWeight: 1.0, consensusWeight: 1.0 };
@@ -3812,6 +3838,8 @@ static evolveDNA(dnaStr, traits, isWin) {
     def('nickname', () => p.identity.name, v => { p.identity.name = v; });
     def('style', () => p.personality.style, v => { p.personality.style = v; });
     def('weights', () => p.personality.traits, v => { p.personality.traits = v; });
+    // 根層 actionDNA 改為代理屬性，避免根層與 personality 內層再次分歧。
+    def('actionDNA', () => p.personality.actionDNA, v => { if (isValidActionDNA120(v)) p.personality.actionDNA = v; });
     def('level', () => p.evolution.level, v => { p.evolution.level = v; });
     def('levelTitle', () => p.evolution.levelTitle, v => { p.evolution.levelTitle = v; });
     def('gamesPlayed', () => p.evolution.gamesPlayed, v => { p.evolution.gamesPlayed = v; });
@@ -4156,7 +4184,8 @@ if (prof.personality) {
   const evolvedActionDNA = this.evolveDNA(
     currentActionDNA,
     w,
-    isWin
+    isWin,
+    120
   );
 
   // 同步寫回兩個欄位
@@ -4167,7 +4196,8 @@ if (prof.personality) {
   prof.personality.speechDNA = this.evolveDNA(
     prof.personality.speechDNA,
     w,
-    isWin
+    isWin,
+    50
   );
 }
 
@@ -5075,8 +5105,11 @@ class BotDeductionEngine {
     const chars = '0123456789H';
     let aDNA = '';
     let sDNA = '';
-    for (let i = 0; i < 50; i++) {
+    // ActionDNA 固定 120 碼；SpeechDNA 維持 50 碼。
+    for (let i = 0; i < 120; i++) {
       aDNA += chars[Math.floor(Math.random() * chars.length)];
+    }
+    for (let i = 0; i < 50; i++) {
       sDNA += chars[Math.floor(Math.random() * chars.length)];
     }
     const titles = ['【慎思者】', '【疾風派】', '【密謀家】', '【鐵壁型】', '【博弈者】', '【洞察者】', '【反串狂】', '【跟票王】'];
@@ -9024,13 +9057,13 @@ window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;
  startOnlinePresenceHeartbeat();
  startOnlineTakeoverWatchdog();
  onlineRoomUnsubscribe = docRef.onSnapshot(docSnap => {  
- if (!docSnap.exists) {  
- // 初始化空房間  
- initEmptyRoomDoc(docRef);  
- return;  
- }  
+ if (!docSnap.exists) {
+  // 多位玩家可能同時看到不存在；僅在交易確認仍不存在時建立，避免覆寫已建立的房間。
+  ensureEmptyRoomDocIfMissing(docRef);
+  return;
+  }
   
- onlineRoomData = docSnap.data();
+  onlineRoomData = docSnap.data();
  const desiredPrivatePath = ONLINE_ROOM_DOC + '/private/' + myOnlinePlayerId;
  if (window._roleListenerPlayerId !== myOnlinePlayerId || window._roleListenerDocPath !== desiredPrivatePath) {
    listenToMyPrivateRole();
@@ -9058,6 +9091,42 @@ window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;
  await docRef.set(initData);  
  }  
   
+  // 只供「快照發現房間不存在」時使用；不可覆寫已被其他玩家建立的房間。
+  async function ensureEmptyRoomDocIfMissing(docRef) {
+    if (!docRef || !db || !isFirebaseReady) return false;
+    const initData = {
+      roomId: currentOnlineRoomCode || '8888',
+      status: 'waiting',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastActivityTime: Date.now(),
+      startTimestamp: null,
+      players: [],
+      rounds: [],
+      currentRoundIdx: 0,
+      currentTurnPlayerId: null,
+      currentSpeakerId: null,
+      lastCalculatedResult: null
+    };
+    try {
+      return await db.runTransaction(async transaction => {
+        const snap = await transaction.get(docRef);
+        if (snap.exists) return false;
+        transaction.set(docRef, initData);
+        return true;
+      });
+    } catch (err) {
+      // 多位玩家同時初始化時，另一方可能已先建立房間；這時不應清空或覆寫它。
+      try {
+        const latest = await docRef.get();
+        if (latest.exists) return false;
+      } catch (readErr) {
+        console.warn('[RoomInit] 初始化後確認房間狀態失敗:', readErr);
+      }
+      console.error('[RoomInit] 建立空房間失敗:', err);
+      return false;
+    }
+  }
+
  // 實時狀態總調度器  
   
 // ============================================================  
