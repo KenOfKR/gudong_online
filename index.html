@@ -24632,6 +24632,35 @@ ${roundSpeeches}
             if (d.speechDNA && targetProf.personality) targetProf.personality.speechDNA = d.speechDNA;
           }
         });
+               // 載入雲端資料後，再統一修復所有 BOT 的 ActionDNA
+        const isValidActionDNA120 = dna =>
+          typeof dna === 'string' &&
+          dna.length === 120 &&
+          /^[0-9H]{120}$/.test(dna);
+
+        for (const [pid, profile] of Object.entries(allProfiles || {})) {
+          if (!pid.startsWith('bot_') || !profile) continue;
+
+          const innerDNA = profile.personality?.actionDNA;
+          const rootDNA = profile.actionDNA;
+
+          // 優先保留有效的內層 DNA，否則使用有效的根層 DNA
+          const validDNA = isValidActionDNA120(innerDNA)
+            ? innerDNA
+            : isValidActionDNA120(rootDNA)
+              ? rootDNA
+              : null;
+
+          // 沒有有效 DNA 就不覆寫，避免憑空重設既有資料
+          if (!validDNA) continue;
+
+          if (!profile.personality) {
+            profile.personality = { traits: profile.weights || {} };
+          }
+
+          profile.personality.actionDNA = validDNA;
+          profile.actionDNA = validDNA;
+        }
         saveMem(m);
         BotLearningEngine.saveAllProfiles(allProfiles);
         console.log('☁️ [GeminiBrain] 已成功自 Firestore 依 botProfileId 精準同步 41 位 BOT 雲端記憶與演化數據！');
