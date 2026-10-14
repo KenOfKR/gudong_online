@@ -3695,38 +3695,78 @@ static get STORAGE_KEY() {
     return this.wrapProfile(prof);
   }
 
-  // 封裝雙向存取相容層，確保既有程式碼讀寫 prof.weights / prof.level 依然100%流暢
-    // 戰後閉環 DNA 演化器 (DNA -> Traits -> Action -> Result -> DNA Evolution)
-  static evolveDNA(dnaStr, traits, isWin) {
-    if (!dnaStr || dnaStr.length !== 50) {
-      dnaStr = '5'.repeat(50);
-    }
-    const chars = '0123456789H';
-    const arr = dnaStr.split('');
-    const traitKeys = ['aggression', 'skepticism', 'riskTolerance', 'voteIndependence', 'trustPlayers', 'deception', 'speechConfidence', 'balancedReasoning'];
-    
-    traitKeys.forEach((k, tIdx) => {
-      const targetVal = traits[k] !== undefined ? traits[k] : 0.5;
-      const targetNum = Math.round(targetVal * 10);
-      const startLocus = tIdx * 5;
-      for (let offset = 0; offset < 5; offset++) {
-        if (Math.random() < 0.35) {
-          const currentCh = arr[startLocus + offset];
-          let currentVal = currentCh === 'H' ? 10 : (parseInt(currentCh, 10) || 5);
-          if (currentVal < targetNum) currentVal += 1;
-          else if (currentVal > targetNum) currentVal -= 1;
-          arr[startLocus + offset] = currentVal >= 10 ? 'H' : String(currentVal);
-        }
-      }
-    });
-    // 突變位點微幅演化 (40~49)
-    for (let i = 40; i < 50; i++) {
-      if (Math.random() < (isWin ? 0.08 : 0.18)) {
-        arr[i] = chars[Math.floor(Math.random() * chars.length)];
-      }
-    }
-    return arr.join('');
+ ```js
+// 戰後閉環 DNA 演化器
+// 支援 120 碼 actionDNA 與 50 碼 speechDNA
+static evolveDNA(dnaStr, traits, isWin) {
+  const dnaLength =
+    typeof dnaStr === 'string' && dnaStr.length === 120
+      ? 120
+      : 50;
+
+  if (
+    typeof dnaStr !== 'string' ||
+    dnaStr.length !== dnaLength ||
+    !/^[0-9H]+$/.test(dnaStr)
+  ) {
+    dnaStr = '5'.repeat(dnaLength);
   }
+
+  const chars = '0123456789H';
+  const arr = dnaStr.split('');
+  const traitKeys = [
+    'aggression',
+    'skepticism',
+    'riskTolerance',
+    'voteIndependence',
+    'trustPlayers',
+    'deception',
+    'speechConfidence',
+    'balancedReasoning'
+  ];
+
+  traitKeys.forEach((k, tIdx) => {
+    const targetVal =
+      traits && traits[k] !== undefined
+        ? traits[k]
+        : 0.5;
+
+    const targetNum = Math.max(
+      0,
+      Math.min(10, Math.round(targetVal * 10))
+    );
+
+    const startLocus = tIdx * 5;
+
+    for (let offset = 0; offset < 5; offset++) {
+      if (Math.random() < 0.35) {
+        const currentCh = arr[startLocus + offset];
+        let currentVal =
+          currentCh === 'H'
+            ? 10
+            : (parseInt(currentCh, 10) || 5);
+
+        if (currentVal < targetNum) currentVal += 1;
+        else if (currentVal > targetNum) currentVal -= 1;
+
+        arr[startLocus + offset] =
+          currentVal >= 10 ? 'H' : String(currentVal);
+      }
+    }
+  });
+
+  // 突變最後 10 個位點，依 DNA 長度自動選擇區段
+  const mutationStart = dnaLength - 10;
+
+  for (let i = mutationStart; i < dnaLength; i++) {
+    if (Math.random() < (isWin ? 0.08 : 0.18)) {
+      arr[i] = chars[Math.floor(Math.random() * chars.length)];
+    }
+  }
+
+  return arr.join('');
+}
+```
 
   static wrapProfile(p) {
     if (!p) return p;
