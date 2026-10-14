@@ -4142,11 +4142,35 @@ static evolveDNA(dnaStr, traits, isWin) {
           prof.evolution.specialization = this.calculateSpecialization(w, pStyle);
           prof.evolution.lastUpdated = Date.now();
 
-          // 閉環 DNA 演化：將本局最新學習數值回寫入 50 碼 DNA
-          if (prof.personality) {
-            prof.personality.actionDNA = this.evolveDNA(prof.personality.actionDNA, w, isWin);
-            prof.personality.speechDNA = this.evolveDNA(prof.personality.speechDNA, w, isWin);
-          }
+          ```js
+// 閉環 DNA 演化：同步更新 120 碼 actionDNA 與 50 碼 speechDNA
+if (prof.personality) {
+  // 優先使用有效的 120 碼根目錄 DNA，避免沿用舊版 50 碼資料
+  const currentActionDNA =
+    typeof prof.actionDNA === 'string' &&
+    prof.actionDNA.length === 120 &&
+    /^[0-9H]{120}$/.test(prof.actionDNA)
+      ? prof.actionDNA
+      : prof.personality.actionDNA;
+
+  const evolvedActionDNA = this.evolveDNA(
+    currentActionDNA,
+    w,
+    isWin
+  );
+
+  // 同步寫回兩個欄位
+  prof.personality.actionDNA = evolvedActionDNA;
+  prof.actionDNA = evolvedActionDNA;
+
+  // speechDNA 繼續使用原本的 50 碼格式
+  prof.personality.speechDNA = this.evolveDNA(
+    prof.personality.speechDNA,
+    w,
+    isWin
+  );
+}
+```
 
           // 保持歷史精簡
           prof.lessons.mistakes = mistakes.slice(0, 10);
