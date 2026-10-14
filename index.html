@@ -26157,7 +26157,7 @@ migrateAllProfiles();
   window.__ACTION_DNA_STATUS__={schemaVersion:'1.2.0',locusCount:ACTION_DNA_KEYS.length,decisionHooks:['decideInspect','decideSkill','decidePassNext','decideVote','decidePersonVote'],learningHooks:['BotLearningEngine.reflect'],firestoreFieldsAdded:0};
 })();
  /* ============================================================
-   管理員專屬：消除「玩家與角色」中特定玩家戰績功能模組
+   管理員專屬：消除「玩家與角色」中特定玩家戰績功能模組 (v2 強制掛鉤版)
    ============================================================ */
 const PURGED_PLAYERS_STORAGE_KEY = 'gudong_purged_players_v1';
 const PURGED_PLAYERS_CLOUD_DOC = 'GudongOnlineGame/_admin_purged_players';
@@ -26204,30 +26204,93 @@ async function syncPurgedPlayersFromCloud() {
 }
 syncPurgedPlayersFromCloud();
 
-// 4. 判斷目前是否處於戰績網管理員解鎖狀態
+// 4. 判斷目前是否處於戰績網管理員解鎖狀態 (多重檢測確保100%準確)
 function isStatsAdminUnlocked() {
+  if (typeof isStatsAdmin !== 'undefined' && isStatsAdmin === true) return true;
+  if (window.isStatsAdmin === true) return true;
   const wrapper = document.getElementById('statsAdminToolsWrapper');
-  return !!(wrapper && !wrapper.classList.contains('hidden'));
+  if (wrapper && !wrapper.classList.contains('hidden')) return true;
+  const badge = document.getElementById('txtStatsAdminBadge');
+  if (badge && (badge.innerText.includes('管理') || badge.innerText.includes('🔓'))) return true;
+  return false;
 }
 
-// 5. 自動掛鉤管理員面板與玩家排行榜列表渲染
+// 5. 確保 HTML 面板存在（就算第一步沒貼到 HTML 也會自動插入！）
+function ensureAdminPurgeBarExists() {
+  let bar = document.getElementById('adminPlayerPurgeBar');
+  if (bar) return bar;
+
+  const tabLeaderboard = document.getElementById('tabContentLeaderboard');
+  const listEl = document.getElementById('leaderboardList');
+  if (!tabLeaderboard || !listEl) return null;
+
+  bar = document.createElement('div');
+  bar.id = 'adminPlayerPurgeBar';
+  bar.className = 'hidden p-2.5 bg-rose-950/40 border border-rose-700/70 rounded-xl space-y-2 text-xs mb-2.5';
+  bar.innerHTML = `
+    <div class="flex items-center justify-between text-rose-300 font-bold">
+      <span>🛡️ 管理員權限：消除特定玩家戰績</span>
+      <button type="button" onclick="restoreAllPurgedPlayers()" id="btnRestorePurgedPlayers" class="hidden text-[10px] text-amber-300 hover:underline font-normal">復原已隱藏玩家</button>
+    </div>
+    <div class="flex items-center space-x-2">
+      <select id="adminSelectPlayerToDelete" class="flex-1 p-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-neutral-100 font-bold outline-none focus:border-rose-500">
+        <option value="">-- 請選擇要消除戰績的玩家 --</option>
+      </select>
+      <button type="button" onclick="adminPurgeSelectedPlayer()" class="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-black transition shadow active:scale-95 whitespace-nowrap cursor-pointer">
+        🗑️ 消除戰績
+      </button>
+    </div>
+  `;
+  tabLeaderboard.insertBefore(bar, listEl);
+  return bar;
+}
+
+// 6. 從玩家卡片中智慧提取玩家名稱
+function extractPlayerNameFromCard(card) {
+  if (!card) return '';
+  const saved = card.getAttribute('data-player-name');
+  if (saved) return saved;
+
+  // 排除只有一個「載入中...」或「尚無數據」的提示框
+  const rawText = (card.innerText || '').trim();
+  if (!rawText || rawText.includes('載入中') || rawText.includes('尚無')) return '';
+
+  // 嘗試從常見標題元素抓取
+  const candidates = card.querySelectorAll('span, div, h4, b, strong');
+  for (let i = 0; i < candidates.length; i++) {
+    const el = candidates[i];
+    if (el.children.length > 0) continue; // 只看最底層純文字節點
+    const t = (el.textContent || '').trim();
+    if (!t) continue;
+    // 略過排名數字 (如 #1, 1, 👑, 🥇) 與統計字眼
+    if (/^(#?\d+|👑|🥇|🥈|🥉|🏆)$/.test(t)) continue;
+    if (/(場|勝率|%|勝|敗|點擊|展開|詳情|角色|總計|🗑️)/.test(t)) continue;
+    if (t.length >= 1 && t.length <= 16) {
+      card.setAttribute('data-player-name', t);
+      return t;
+    }
+  }
+  return '';
+}
+
+// 7. 更新管理員消除面板與卡片旁的「🗑️ 消除」按鈕
 function updateAdminPlayerPurgeUI() {
-  const bar = document.getElementById('adminPlayerPurgeBar');
-  const restoreBtn = document.getElementById('btnRestorePurgedPlayers');
-  const selectEl = document.getElementById('adminSelectPlayerToDelete');
+  const bar = ensureAdminPurgeBarExists();
   const listEl = document.getElementById('leaderboardList');
   if (!bar || !listEl) return;
 
+  const restoreBtn = document.getElementById('btnRestorePurgedPlayers');
+  const selectEl = document.getElementById('adminSelectPlayerToDelete');
   const isAdmin = isStatsAdminUnlocked();
   const purgedList = getPurgedPlayersList();
 
-  // 切換管理員消除列顯示狀態
+  // A. 顯示或隱藏頂部紅色管理員工具列
   if (isAdmin) {
     bar.classList.remove('hidden');
     if (restoreBtn) {
       if (purgedList.length > 0) {
         restoreBtn.classList.remove('hidden');
-        restoreBtn.innerText = `復原已消除玩家 (${purgedList.length})`;
+        restoreBtn.innerText = `復原已隱藏玩家 (${purgedList.length})`;
       } else {
         restoreBtn.classList.add('hidden');
       }
@@ -26236,26 +26299,15 @@ function updateAdminPlayerPurgeUI() {
     bar.classList.add('hidden');
   }
 
-  // 掃描排行榜 DOM 卡片，過濾已消除的玩家，並為管理員加上單獨消除按鈕與下拉選單
+  // B. 掃描排行榜所有玩家卡片
   const playerNamesInBoard = [];
   const cards = Array.from(listEl.children);
 
   cards.forEach(card => {
-    // 略過「載入中」提示列
-    if (!card || card.children.length === 0) return;
-
-    // 從卡片中抓取玩家名稱
-    let pName = card.getAttribute('data-player-name');
-    if (!pName) {
-      const nameNode = card.querySelector('.text-sm.font-black, .text-base.font-black, span.font-black.text-neutral-100');
-      if (nameNode) {
-        pName = nameNode.textContent.replace(/🗑️.*$/, '').trim();
-        card.setAttribute('data-player-name', pName);
-      }
-    }
+    const pName = extractPlayerNameFromCard(card);
     if (!pName) return;
 
-    // 若該玩家在消除名單內，直接從排行榜移除顯示
+    // 若該玩家已被消除，直接隱藏整張卡片
     if (purgedList.includes(pName)) {
       card.style.display = 'none';
       return;
@@ -26267,21 +26319,22 @@ function updateAdminPlayerPurgeUI() {
       playerNamesInBoard.push(pName);
     }
 
-    // 在玩家卡片右側注入管理員專屬「🗑️ 消除」小按鈕
+    // 在每張玩家卡片的第一列右側加上「🗑️ 消除」按鈕
     let delBtn = card.querySelector('.btn-inline-purge-player');
     if (isAdmin) {
       if (!delBtn) {
         delBtn = document.createElement('button');
         delBtn.type = 'button';
-        delBtn.className = 'btn-inline-purge-player ml-2 px-2 py-0.5 rounded bg-rose-950/90 hover:bg-rose-800 text-rose-300 border border-rose-700/80 text-[10px] font-bold transition shadow-sm';
+        delBtn.className = 'btn-inline-purge-player ml-2 px-2 py-1 rounded-lg bg-rose-900/90 hover:bg-rose-700 text-rose-200 border border-rose-500 text-[11px] font-black transition shadow cursor-pointer flex-shrink-0';
         delBtn.innerHTML = '🗑️ 消除';
         delBtn.title = `消除【${pName}】的戰績`;
         delBtn.onclick = function(ev) {
           ev.stopPropagation();
+          ev.preventDefault();
           executePurgePlayerStats(pName);
         };
-        const headerRow = card.querySelector('.flex.justify-between.items-center') || card.firstElementChild;
-        if (headerRow) headerRow.appendChild(delBtn);
+        const headerRow = card.firstElementChild || card;
+        headerRow.appendChild(delBtn);
       }
       delBtn.classList.remove('hidden');
     } else if (delBtn) {
@@ -26289,26 +26342,30 @@ function updateAdminPlayerPurgeUI() {
     }
   });
 
-  // 更新下拉選單名單
+  // C. 同步下拉選單選項
   if (selectEl) {
     const prevVal = selectEl.value;
-    selectEl.innerHTML = '<option value="">-- 請選擇要消除戰績的玩家 --</option>' +
-      playerNamesInBoard.map(name => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join('');
-    if (playerNamesInBoard.includes(prevVal)) {
-      selectEl.value = prevVal;
+    const currentOptionsSig = playerNamesInBoard.join('|');
+    if (selectEl.getAttribute('data-sig') !== currentOptionsSig) {
+      selectEl.setAttribute('data-sig', currentOptionsSig);
+      selectEl.innerHTML = '<option value="">-- 請選擇要消除戰績的玩家 --</option>' +
+        playerNamesInBoard.map(name => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join('');
+      if (playerNamesInBoard.includes(prevVal)) {
+        selectEl.value = prevVal;
+      }
     }
   }
 }
 
-// 6. 執行消除指定玩家戰績（支援「僅從玩家榜單移除」或「連同參賽對局紀錄一併刪除」）
+// 8. 執行消除指定玩家戰績
 async function executePurgePlayerStats(targetName) {
   const name = String(targetName || '').trim();
   if (!name) {
-    if (typeof showToast === 'function') showToast('請先選擇一位要消除戰績的玩家！', 'warning');
+    if (typeof showToast === 'function') showToast('請先在下拉選單選擇一位要消除戰績的玩家！', 'warning');
     return;
   }
   if (!isStatsAdminUnlocked()) {
-    if (typeof showToast === 'function') showToast('請先點擊下方「🔒 訪客唯讀」解鎖管理員權限！', 'warning');
+    if (typeof showToast === 'function') showToast('請先點擊彈窗左下角「🔒 訪客唯讀」解鎖管理員權限！', 'warning');
     return;
   }
 
@@ -26332,7 +26389,6 @@ async function executePurgePlayerStats(targetName) {
     if (!window.confirm(`確定要徹底刪除所有包含【${name}】的雲端與本機歷史對局嗎？此操作無法復原！`)) return;
 
     let deletedCloudCount = 0;
-    // A. 清除本機快取中的相關對局
     try {
       const rawLocal = localStorage.getItem(OFFLINE_STORAGE_KEY);
       if (rawLocal) {
@@ -26347,7 +26403,6 @@ async function executePurgePlayerStats(targetName) {
       }
     } catch (e) {}
 
-    // B. 清除 Firebase 雲端資料庫中包含該玩家的對局
     if (typeof db !== 'undefined' && db && isFirebaseReady) {
       try {
         const snap = await db.collection(FIRESTORE_COLLECTION).get();
@@ -26391,22 +26446,29 @@ async function restoreAllPurgedPlayers() {
   if (typeof showToast === 'function') showToast('✅ 已復原所有隱藏玩家的戰績顯示！', 'success');
 }
 
-// 7. 監聽戰績榜 DOM 變化與管理員按鈕切換，自動保持同步
-(function initAdminPlayerPurgeObserver() {
-  const listEl = document.getElementById('leaderboardList');
-  if (listEl && typeof MutationObserver !== 'undefined') {
-    const obs = new MutationObserver(() => {
+// 9. 主動攔截戰績網所有開關與管理員切換函式，加上定時巡檢確保 100% 即時顯示
+(function hookStatsAdminFunctions() {
+  const fnNames = ['openStatsModal', 'toggleStatsAdminMode', 'switchStatsTab', 'refreshStatsData', 'renderLeaderboard'];
+  fnNames.forEach(fnName => {
+    if (typeof window[fnName] === 'function') {
+      const orig = window[fnName];
+      window[fnName] = function(...args) {
+        const res = orig.apply(this, args);
+        setTimeout(updateAdminPlayerPurgeUI, 50);
+        setTimeout(updateAdminPlayerPurgeUI, 300);
+        setTimeout(updateAdminPlayerPurgeUI, 800);
+        return res;
+      };
+    }
+  });
+
+  // 當戰績彈窗開啟時，每 500ms 自動同步一次狀態，確保非同步雲端資料載入完也能立刻長出按鈕
+  setInterval(() => {
+    const modal = document.getElementById('modalStats');
+    if (modal && !modal.classList.contains('hidden')) {
       updateAdminPlayerPurgeUI();
-    });
-    obs.observe(listEl, { childList: true });
-  }
-  const adminWrapper = document.getElementById('statsAdminToolsWrapper');
-  if (adminWrapper && typeof MutationObserver !== 'undefined') {
-    const obsAdmin = new MutationObserver(() => {
-      updateAdminPlayerPurgeUI();
-    });
-    obsAdmin.observe(adminWrapper, { attributes: true, attributeFilter: ['class'] });
-  }
+    }
+  }, 500);
 })();
 </script>
 
