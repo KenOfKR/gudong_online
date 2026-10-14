@@ -3695,7 +3695,7 @@ static get STORAGE_KEY() {
     return this.wrapProfile(prof);
   }
 
- ```js
+ 
 // 戰後閉環 DNA 演化器
 // 支援 120 碼 actionDNA 與 50 碼 speechDNA
 static evolveDNA(dnaStr, traits, isWin) {
@@ -3766,7 +3766,7 @@ static evolveDNA(dnaStr, traits, isWin) {
 
   return arr.join('');
 }
-```
+
 
   static wrapProfile(p) {
     if (!p) return p;
@@ -4142,7 +4142,7 @@ static evolveDNA(dnaStr, traits, isWin) {
           prof.evolution.specialization = this.calculateSpecialization(w, pStyle);
           prof.evolution.lastUpdated = Date.now();
 
-          ```js
+          
 // 閉環 DNA 演化：同步更新 120 碼 actionDNA 與 50 碼 speechDNA
 if (prof.personality) {
   // 優先使用有效的 120 碼根目錄 DNA，避免沿用舊版 50 碼資料
@@ -4170,7 +4170,7 @@ if (prof.personality) {
     isWin
   );
 }
-```
+
 
           // 保持歷史精簡
           prof.lessons.mistakes = mistakes.slice(0, 10);
