@@ -13175,14 +13175,14 @@ if (window.isOnlineSpectator && allDoneBanner) {
   }
   window.getSpeechOrderForRound = getSpeechOrderForRound;
 
-function executeOnlineAdvanceToDiscussion(rParam) {
+async function executeOnlineAdvanceToDiscussion(rParam) {
     if (window.isOnlineSpectator || !(onlineRoomData.players || []).some(p => p.id === myOnlinePlayerId)) return;
     if (!isFirebaseReady || !db) return;
     const docRef = db.doc(ONLINE_ROOM_DOC);
 
     try {
       let firstSpeakerId = null;
-      db.runTransaction(async (transaction) => {
+      await db.runTransaction(async (transaction) => {
         const snap = await transaction.get(docRef);
         if (!snap.exists) return;
         const data = snap.data();
