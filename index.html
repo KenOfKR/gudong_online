@@ -490,17 +490,8 @@
       </div>
     </div>
   
- <!-- 已知資訊按鈕與展開面板（全角色統一位置） -->  
- <div id="onlTurnCampInfoBanner" class="bg-neutral-950 border border-amber-600/60 rounded-xl text-xs text-neutral-200 font-bold shadow-md overflow-hidden">
-   <button type="button" id="btnOnlToggleKnownInfo" onclick="toggleOnlineKnownInfo()" class="w-full p-2.5 px-3 bg-neutral-950 hover:bg-neutral-900 text-amber-400 font-black text-xs sm:text-sm flex items-center justify-between transition active:scale-[0.99] cursor-pointer">
-     <span class="flex items-center space-x-1.5">
-       <span>📋</span>
-       <span>已知資訊</span>
-     </span>
-     <span id="onlKnownInfoArrow" class="text-[10px] font-mono text-amber-300 bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 rounded-lg flex-shrink-0">▼ 點擊展開</span>
-   </button>
-   <div id="onlTurnCampInfoText" class="hidden p-3 pt-2.5 border-t border-neutral-800 space-y-2.5 text-xs font-normal bg-neutral-950/90 text-left"></div>
- </div>
+ <!-- 壞人陣營同伴提示 -->  
+ <div id="onlTurnCampInfoBanner" class="hidden p-2.5 bg-neutral-950 border border-rose-800/80 rounded-xl text-xs text-neutral-200 font-bold shadow-md"></div>
 
  <!-- 單螢幕緊湊步驟指示條 (Stepper Tabs) -->  
  <div class="flex items-center justify-between border-b border-neutral-800 pb-2 text-xs select-none">  
@@ -1647,7 +1638,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.3.0 </div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.3.0 (小幫手防呆投票確認 + 藥不然隊友防偷襲版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -9853,11 +9844,8 @@ window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;
  if (sn) sn.classList.add('hidden');  
  const vf = document.getElementById('onlVotingFormSection');  
  if (vf) vf.classList.remove('hidden');  
- window._onlKnownInfoOpen = false;
- const onlKnownText = document.getElementById('onlTurnCampInfoText');
- if (onlKnownText) onlKnownText.classList.add('hidden');
- const onlKnownArrow = document.getElementById('onlKnownInfoArrow');
- if (onlKnownArrow) onlKnownArrow.innerText = '▼ 點擊展開';  
+ const banner = document.getElementById('onlTurnCampInfoBanner');  
+ if (banner) banner.classList.add('hidden');  
  }  
   
  
@@ -12168,8 +12156,39 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
     renderWaitingTurnBeastsChips(room, me, curRound, `onlActiveTurnBeastsChipsContainer${suffix}`);
   });
 
-  // 全角色統一位置：已知資訊按鈕與展開面板
-  renderOnlineKnownInfoBanner(room, me);  
+  // 壞人陣營同伴互認：老朝奉與藥不然互相相認
+ const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');  
+ if (me.role === '老朝奉' && turnCampBanner) {  
+   turnCampBanner.classList.remove('hidden');  
+   const yaoP = getKnownTeammateForRole(room, me.role);  
+   const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;  
+   const yaoNameTag = yaoP && yaoC 
+     ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${yaoC.hex}; color: ${yaoC.id === 'white' || yaoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${yaoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友藥不然</span>` 
+     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
+  
+   turnCampBanner.innerHTML = `  
+     <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
+       <span class="text-rose-400 font-black">壞人陣營同伴：</span>  
+       <span class="font-bold text-neutral-200 inline-flex items-center flex-wrap gap-1">${yaoNameTag}</span>  
+     </div>  
+   `;  
+ } else if (me.role === '藥不然' && turnCampBanner) {  
+   turnCampBanner.classList.remove('hidden');  
+   const laoP = getKnownTeammateForRole(room, me.role);  
+   const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;  
+   const laoNameTag = laoP && laoC 
+     ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${laoC.hex}; color: ${laoC.id === 'white' || laoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${laoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友老朝奉</span>` 
+     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
+  
+   turnCampBanner.innerHTML = `  
+     <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
+       <span class="text-rose-400 font-black">壞人陣營同伴：</span>  
+       <span class="font-bold text-neutral-200 inline-flex items-center flex-wrap gap-1">${laoNameTag}</span>  
+     </div>  
+   `;  
+ } else if (turnCampBanner) {  
+   turnCampBanner.classList.add('hidden');  
+ }  
   
  // 角色標籤字體與顏色與「請點擊選擇想查驗的獸首」完全一致 (text-sm font-bold text-amber-400)  
  const stepARoleLabel = document.getElementById('onlStepARoleLabel');  
@@ -12431,8 +12450,7 @@ else {
   
    
   
-function renderOnlineRoleAbilitySection(room, me, curRound, myLog) {
-  if (typeof renderOnlineKnownInfoBanner === "function") renderOnlineKnownInfoBanner(room, me);  
+function renderOnlineRoleAbilitySection(room, me, curRound, myLog) {  
  const container = document.getElementById('onlRoleAbilityContainer');  
  if (!container) return;  
  // room.players 對真人角色已脫敏；事件重繪時要由本人私有角色快取還原本機副本。
@@ -19174,126 +19192,6 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     }
     window.renderPvKnownInfoBanner = renderPvKnownInfoBanner;
 
-    function toggleOnlineKnownInfo() {
-      window._onlKnownInfoOpen = !window._onlKnownInfoOpen;
-      if (onlineRoomData) {
-        const me = getOnlineMePlayer(onlineRoomData) || (onlineRoomData.players || []).find(p => p.id === myOnlinePlayerId);
-        renderOnlineKnownInfoBanner(onlineRoomData, me);
-      }
-    }
-    window.toggleOnlineKnownInfo = toggleOnlineKnownInfo;
-
-    function renderOnlineKnownInfoBanner(room, me) {
-      const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');
-      const infoTextEl = document.getElementById('onlTurnCampInfoText');
-      const arrowEl = document.getElementById('onlKnownInfoArrow');
-      if (!turnCampBanner || !infoTextEl) return;
-
-      turnCampBanner.classList.remove('hidden');
-      if (!me) {
-        me = getOnlineMePlayer(room) || (room && room.players ? room.players.find(p => p.id === myOnlinePlayerId) : null);
-      }
-      if (!me) return;
-
-      const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
-      const isGood = goodRoles.includes(me.role);
-      const roleCampBadge = isGood
-        ? '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-blue-950 text-blue-300 border border-blue-700">許願陣營 (好人)</span>'
-        : '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-700">老朝奉陣營 (壞人)</span>';
-
-      // 1. 隊友資訊
-      let teammateHtml = '';
-      if (me.role === '老朝奉') {
-        const yaoP = getKnownTeammateForRole(room, me.role);
-        const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;
-        const yaoTag = yaoP && yaoC
-          ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs">${yaoC.name}色 ${yaoP.name}</span><span class="ml-1 text-amber-300 font-black">是你的隊友藥不然</span>`
-          : '<span class="text-neutral-400">（隊友身分同步中…）</span>';
-        teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-1.5 flex-wrap">
-          <span class="text-rose-400 font-black">🤝 隊友資訊：</span>${yaoTag}
-        </div>`;
-      } else if (me.role === '藥不然') {
-        const laoP = getKnownTeammateForRole(room, me.role);
-        const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;
-        const laoTag = laoP && laoC
-          ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs">${laoC.name}色 ${laoP.name}</span><span class="ml-1 text-amber-300 font-black">是你的隊友老朝奉</span>`
-          : '<span class="text-neutral-400">（隊友身分同步中…）</span>';
-        teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-1.5 flex-wrap">
-          <span class="text-rose-400 font-black">🤝 隊友資訊：</span>${laoTag}
-        </div>`;
-      }
-
-      // 2. 各回合查驗與能力紀錄
-      const maxR = Math.min(3, ((room && room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0) + 1);
-      let roundsHtml = '';
-      for (let rIdx = 0; rIdx < maxR; rIdx++) {
-        const rObj = (room && room.rounds && room.rounds[rIdx]) ? room.rounds[rIdx] : null;
-        const rNum = rIdx + 1;
-        const myLog = (rObj && rObj.turnLogs && rObj.turnLogs[me.id]) ? rObj.turnLogs[me.id] : {};
-        const isStarter = Boolean(rObj && rObj.starterPlayerId === me.id);
-        const isCurRound = (rIdx === (room.currentRoundIdx || 0));
-
-        const insList = Array.isArray(myLog.inspect) ? myLog.inspect : [];
-        const insHtml = insList.length > 0
-          ? insList.map(item => {
-              const txt = item.resultText || item.beastName || '';
-              let cls = 'text-amber-300 font-bold';
-              if (txt.includes('【真品】')) cls = 'text-emerald-400 font-black';
-              else if (txt.includes('【贗品】')) cls = 'text-rose-400 font-black';
-              else if (txt.includes('偷襲') || txt.includes('一片黑')) cls = 'text-rose-300 font-bold';
-              return `<span class="${cls}">${txt}</span>`;
-            }).join(' 、 ')
-          : '<span class="text-neutral-500">（尚未查驗獸首）</span>';
-
-        const abText = myLog.ability
-          ? `<span class="text-amber-300 font-bold">${myLog.ability}</span>`
-          : (['許願', '姬雲浮', '黃煙煙', '木戶加奈'].includes(me.role)
-              ? '<span class="text-neutral-400">無主動能力（被動角色）</span>'
-              : '<span class="text-neutral-500">（尚未執行能力）</span>');
-
-        const passOrder = (rObj && Array.isArray(rObj.passOrder)) ? rObj.passOrder : [];
-        const myPassPos = passOrder.indexOf(me.id);
-        let nextHtml = '<span class="text-neutral-500">（尚未指定下家）</span>';
-        if (myPassPos !== -1 && myPassPos < passOrder.length - 1) {
-          const nextId = passOrder[myPassPos + 1];
-          const nextP = (room.players || []).find(x => x.id === nextId);
-          if (nextP) {
-            const npc = COLOR_PALETTE.find(c => c.id === nextP.colorId) || COLOR_PALETTE[0];
-            nextHtml = `<span class="text-amber-300 font-bold">指定下家：${npc.name}色 ${nextP.name}</span>`;
-          }
-        } else if (myPassPos === 7) {
-          nextHtml = '<span class="text-amber-300 font-bold">最後一位（尾家・前往鑑寶）</span>';
-        }
-
-        roundsHtml += `
-          <div class="p-2.5 rounded-xl bg-neutral-900/90 border ${isCurRound ? 'border-amber-500/50' : 'border-neutral-800'} space-y-1">
-            <div class="flex items-center space-x-1.5 border-b border-neutral-800 pb-1">
-              ${isStarter ? '<span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-neutral-950">⭐首家</span>' : ''}
-              <span class="font-black text-amber-400 text-xs">第 ${rNum} 回合行動紀錄</span>
-            </div>
-            <div class="text-xs leading-relaxed"><span class="text-neutral-400 font-bold">• 查驗結果：</span>${insHtml}</div>
-            <div class="text-xs leading-relaxed"><span class="text-neutral-400 font-bold">• 能力使用：</span>${abText}</div>
-          </div>
-        `;
-      }
-
-      infoTextEl.innerHTML = `
-        ${teammateHtml}
-        <div class="space-y-1.5">
-          <div class="text-xs font-black text-amber-400">📜 歷回查驗結果與能力使用紀錄：</div>
-          ${roundsHtml}
-        </div>
-      `;
-
-      if (window._onlKnownInfoOpen) {
-        infoTextEl.classList.remove('hidden');
-        if (arrowEl) arrowEl.innerText = '▲ 點擊收合';
-      } else {
-        infoTextEl.classList.add('hidden');
-        if (arrowEl) arrowEl.innerText = '▼ 點擊展開';
-      }
-    }
-    window.renderOnlineKnownInfoBanner = renderOnlineKnownInfoBanner;
 
     function renderTurnView() {
       const curP = G.players.find(p => p.id === G.activePlayerId);
@@ -19712,7 +19610,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
         const selectedTarget = G.players.find(p => p.id === G.yaoSelectedTargetId);
         const isTargetLao = Boolean(selectedTarget && selectedTarget.role === '老朝奉');
-        const yaoConfirmText = isTargetLao ? '確認偷襲隊友 ➔' : '確認偷襲 ➔';
+        const yaoConfirmText = isTargetLao ? '確認偷襲（你忍心偷隊友?） ➔' : '確認偷襲 ➔';
 
         container.innerHTML = `
           <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-3">
