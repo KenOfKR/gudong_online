@@ -490,8 +490,17 @@
       </div>
     </div>
   
- <!-- 壞人陣營同伴提示 -->  
- <div id="onlTurnCampInfoBanner" class="hidden p-2.5 bg-neutral-950 border border-rose-800/80 rounded-xl text-xs text-neutral-200 font-bold shadow-md"></div>
+ <!-- 已知資訊按鈕與展開面板（全角色統一位置） -->  
+ <div id="onlTurnCampInfoBanner" class="bg-neutral-950 border border-amber-600/60 rounded-xl text-xs text-neutral-200 font-bold shadow-md overflow-hidden">
+   <button type="button" id="btnOnlToggleKnownInfo" onclick="toggleOnlineKnownInfo()" class="w-full p-2.5 px-3 bg-neutral-950 hover:bg-neutral-900 text-amber-400 font-black text-xs sm:text-sm flex items-center justify-between transition active:scale-[0.99] cursor-pointer">
+     <span class="flex items-center space-x-1.5">
+       <span>📋</span>
+       <span>已知資訊</span>
+     </span>
+     <span id="onlKnownInfoArrow" class="text-[10px] font-mono text-amber-300 bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 rounded-lg flex-shrink-0">▼ 點擊展開</span>
+   </button>
+   <div id="onlTurnCampInfoText" class="hidden p-3 pt-2.5 border-t border-neutral-800 space-y-2.5 text-xs font-normal bg-neutral-950/90 text-left"></div>
+ </div>
 
  <!-- 單螢幕緊湊步驟指示條 (Stepper Tabs) -->  
  <div class="flex items-center justify-between border-b border-neutral-800 pb-2 text-xs select-none">  
@@ -1422,9 +1431,15 @@
 
  </div>  
   
- <div id="turnCampInfoBanner" class="hidden my-3.5 p-4 bg-neutral-950 border border-neutral-700 rounded-2xl text-base text-neutral-100 font-bold shadow-lg">  
- <span class="text-amber-400 font-black text-base mr-1">陣營資訊：</span>  
- <span id="turnCampInfoText" class="font-bold text-neutral-200"></span>  
+ <div id="turnCampInfoBanner" class="my-3.5 bg-neutral-950 border border-amber-600/60 rounded-2xl text-base text-neutral-100 font-bold shadow-lg overflow-hidden">  
+   <button type="button" id="btnToggleKnownInfo" onclick="toggleLocalKnownInfo()" class="w-full p-4 bg-neutral-950 hover:bg-neutral-900 text-amber-400 font-black text-base flex items-center justify-between transition active:scale-[0.99] cursor-pointer">
+     <span class="flex items-center space-x-2">
+       <span>📋</span>
+       <span>已知資訊</span>
+     </span>
+     <span id="localKnownInfoArrow" class="text-xs font-mono text-amber-300 bg-amber-950/80 border border-amber-700/60 px-2.5 py-1 rounded-lg flex-shrink-0">▼ 點擊展開</span>
+   </button>
+   <div id="turnCampInfoText" class="hidden p-4 pt-3 border-t border-neutral-800 space-y-3 text-xs sm:text-sm font-normal bg-neutral-950/90 text-left"></div>  
  </div>  
   
  <div id="stepB" class="hidden space-y-3 pt-3 border-t border-neutral-800 mt-3">  
@@ -1566,7 +1581,17 @@
  <section id="secPersonVoting" class="hidden space-y-4 pb-[55vh]">  
  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl">  
  <h2 id="pvBigTitle" class="text-xl font-black text-neutral-100 mb-2 flex items-center flex-wrap"></h2>  
- <p class="text-xs text-neutral-400 mb-4 pb-3 border-b border-neutral-800">鄭國渠也能投票，但不會有效果</p>  
+ <p class="text-xs text-neutral-400 mb-3 pb-3 border-b border-neutral-800">鄭國渠也能投票，但不會有效果</p>
+ <div id="pvKnownInfoBanner" class="mb-4 bg-neutral-950 border border-amber-600/60 rounded-2xl text-base text-neutral-100 font-bold shadow-lg overflow-hidden">
+   <button type="button" id="btnTogglePvKnownInfo" onclick="togglePvKnownInfo()" class="w-full p-3.5 bg-neutral-950 hover:bg-neutral-900 text-amber-400 font-black text-sm flex items-center justify-between transition active:scale-[0.99] cursor-pointer">
+     <span class="flex items-center space-x-2">
+       <span>📋</span>
+       <span>已知資訊</span>
+     </span>
+     <span id="pvKnownInfoArrow" class="text-xs font-mono text-amber-300 bg-amber-950/80 border border-amber-700/60 px-2.5 py-1 rounded-lg flex-shrink-0">▼ 點擊展開</span>
+   </button>
+   <div id="pvKnownInfoText" class="hidden p-3.5 pt-3 border-t border-neutral-800 space-y-3 text-xs sm:text-sm font-normal bg-neutral-950/90 text-left"></div>
+ </div>  
  <div class="text-sm font-bold text-neutral-200 mb-2.5">請點擊選擇您要指認的人選：</div>  
  <div id="pvCandidatesList" class="grid grid-cols-2 gap-2.5 mb-5"></div>  
  <div id="pvConfirmWrapper" class="hidden text-center pt-2">  
@@ -9828,8 +9853,11 @@ window.executeAutoTakeoverForCurrentTurn = executeAutoTakeoverForCurrentTurn;
  if (sn) sn.classList.add('hidden');  
  const vf = document.getElementById('onlVotingFormSection');  
  if (vf) vf.classList.remove('hidden');  
- const banner = document.getElementById('onlTurnCampInfoBanner');  
- if (banner) banner.classList.add('hidden');  
+ window._onlKnownInfoOpen = false;
+ const onlKnownText = document.getElementById('onlTurnCampInfoText');
+ if (onlKnownText) onlKnownText.classList.add('hidden');
+ const onlKnownArrow = document.getElementById('onlKnownInfoArrow');
+ if (onlKnownArrow) onlKnownArrow.innerText = '▼ 點擊展開';  
  }  
   
  
@@ -12140,39 +12168,8 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
     renderWaitingTurnBeastsChips(room, me, curRound, `onlActiveTurnBeastsChipsContainer${suffix}`);
   });
 
-  // 壞人陣營同伴互認：老朝奉與藥不然互相相認
- const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');  
- if (me.role === '老朝奉' && turnCampBanner) {  
-   turnCampBanner.classList.remove('hidden');  
-   const yaoP = getKnownTeammateForRole(room, me.role);  
-   const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;  
-   const yaoNameTag = yaoP && yaoC 
-     ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${yaoC.hex}; color: ${yaoC.id === 'white' || yaoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${yaoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友藥不然</span>` 
-     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
-  
-   turnCampBanner.innerHTML = `  
-     <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
-       <span class="text-rose-400 font-black">壞人陣營同伴：</span>  
-       <span class="font-bold text-neutral-200 inline-flex items-center flex-wrap gap-1">${yaoNameTag}</span>  
-     </div>  
-   `;  
- } else if (me.role === '藥不然' && turnCampBanner) {  
-   turnCampBanner.classList.remove('hidden');  
-   const laoP = getKnownTeammateForRole(room, me.role);  
-   const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;  
-   const laoNameTag = laoP && laoC 
-     ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs" style="background-color: ${laoC.hex}; color: ${laoC.id === 'white' || laoC.id === 'yellow' ? '#0a0a0a' : '#ffffff'};">${laoP.name}</span><span class="ml-1 text-neutral-300 font-bold">是你的隊友老朝奉</span>` 
-     : '<span class="text-neutral-400">（隊友身分同步中…）</span>';  
-  
-   turnCampBanner.innerHTML = `  
-     <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">  
-       <span class="text-rose-400 font-black">壞人陣營同伴：</span>  
-       <span class="font-bold text-neutral-200 inline-flex items-center flex-wrap gap-1">${laoNameTag}</span>  
-     </div>  
-   `;  
- } else if (turnCampBanner) {  
-   turnCampBanner.classList.add('hidden');  
- }  
+  // 全角色統一位置：已知資訊按鈕與展開面板
+  renderOnlineKnownInfoBanner(room, me);  
   
  // 角色標籤字體與顏色與「請點擊選擇想查驗的獸首」完全一致 (text-sm font-bold text-amber-400)  
  const stepARoleLabel = document.getElementById('onlStepARoleLabel');  
@@ -12434,7 +12431,8 @@ else {
   
    
   
-function renderOnlineRoleAbilitySection(room, me, curRound, myLog) {  
+function renderOnlineRoleAbilitySection(room, me, curRound, myLog) {
+  if (typeof renderOnlineKnownInfoBanner === "function") renderOnlineKnownInfoBanner(room, me);  
  const container = document.getElementById('onlRoleAbilityContainer');  
  if (!container) return;  
  // room.players 對真人角色已脫敏；事件重繪時要由本人私有角色快取還原本機副本。
@@ -18892,6 +18890,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     function enterPlayerTurn() {
       G.step = 'turn';
       G.turnSubStep = 'a';
+      G.knownInfoOpen = false;
       G.inspectedBeastsInTurn = [];
       G.pendingNextPlayerId = null;
       G.yaoSelectedTargetId = null;
@@ -18927,6 +18926,375 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       }, 100);
     }
 
+
+    /* ============================================================
+       全角色「已知資訊」按鈕與歷回行動總覽面板 (Local & Online)
+       ============================================================ */
+    function toggleLocalKnownInfo() {
+      G.knownInfoOpen = !G.knownInfoOpen;
+      const curP = G.players.find(p => p.id === G.activePlayerId);
+      if (curP) renderLocalKnownInfoBanner(curP);
+    }
+    window.toggleLocalKnownInfo = toggleLocalKnownInfo;
+
+    function togglePvKnownInfo() {
+      G.pvKnownInfoOpen = !G.pvKnownInfoOpen;
+      const voterId = (G.personVoteQueue && G.personVoteQueue.length > 0) ? G.personVoteQueue[G.personVoteIdx] : (G.players[G.personVoteIdx] ? G.players[G.personVoteIdx].id : null);
+      const curVoter = G.players.find(p => p.id === voterId);
+      if (curVoter) renderPvKnownInfoBanner(curVoter);
+    }
+    window.togglePvKnownInfo = togglePvKnownInfo;
+
+    function buildLocalKnownInfoHtml(curP, maxRoundNum) {
+      if (!curP) return '';
+      const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
+      const isGood = goodRoles.includes(curP.role);
+      const roleCampBadge = isGood
+        ? '<span class="px-2 py-0.5 rounded text-[11px] font-black bg-blue-950 text-blue-300 border border-blue-700">許願陣營 (好人)</span>'
+        : '<span class="px-2 py-0.5 rounded text-[11px] font-black bg-rose-950 text-rose-300 border border-rose-700">老朝奉陣營 (壞人)</span>';
+
+      const roleDescs = {
+        '許願': '每回合查驗 2 件獸首，無主動技能。',
+        '方震': '無法辨別獸首真偽，每回合可強制查驗 1 名玩家陣營。',
+        '姬雲浮': '查驗不受老朝奉擾亂反轉影響；若遭藥不然偷襲則整場封閉。',
+        '黃煙煙': '有 1 個隨機回合受到困惑顯示「無法辨別真偽！」。',
+        '木戶加奈': '有 1 個隨機回合受到困惑顯示「無法辨別真偽！」。',
+        '老朝奉': '每回合可選擇開啟「擾亂」，反轉後續好人（除姬雲浮外）的查驗結果。',
+        '藥不然': '每回合可選擇偷襲 1 名玩家，使其致盲且無法使用角色能力。',
+        '鄭國渠': '每回合可選擇封鎖 1 件獸首，使後續查驗者顯示「無法辨別真偽！」；終局鑑人票無效。'
+      };
+
+      // 1. 隊友與陣營固定情報
+      let teammateHtml = '';
+      if (curP.role === '老朝奉') {
+        const yaoP = G.players.find(x => x.role === '藥不然');
+        if (yaoP) {
+          const yc = COLOR_PALETTE.find(x => x.id === yaoP.colorId) || COLOR_PALETTE[0];
+          teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-2">
+            <span class="text-rose-400 font-black">🤝 隊友資訊：</span>
+            <span class="${yc.bgClass} px-2 py-0.5 rounded text-xs font-black">${getColorDisplayName(yaoP.colorId)}</span>
+            <span class="text-amber-300 font-black">${yaoP.name} 是你的隊友藥不然</span>
+          </div>`;
+        } else {
+          teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 text-neutral-300">🤝 隊友資訊：（本局無藥不然）</div>`;
+        }
+      } else if (curP.role === '藥不然') {
+        const laoP = G.players.find(x => x.role === '老朝奉');
+        if (laoP) {
+          const lc = COLOR_PALETTE.find(x => x.id === laoP.colorId) || COLOR_PALETTE[0];
+          teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-2">
+            <span class="text-rose-400 font-black">🤝 隊友資訊：</span>
+            <span class="${lc.bgClass} px-2 py-0.5 rounded text-xs font-black">${getColorDisplayName(laoP.colorId)}</span>
+            <span class="text-amber-300 font-black">${laoP.name} 是你的隊友老朝奉</span>
+          </div>`;
+        } else {
+          teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 text-neutral-300">🤝 隊友資訊：（本局無老朝奉）</div>`;
+        }
+      }
+
+      // 2. 各回合行動明細 (第 1 回合 ～ maxRoundNum)
+      const pLogs = (G.actionLogs && G.actionLogs[curP.id]) || {};
+      const insHist = Array.isArray(curP.inspectHistory) ? curP.inspectHistory : [];
+      const abHist = Array.isArray(curP.abilityHistory) ? curP.abilityHistory : [];
+
+      let roundsHtml = '';
+      for (let rNum = 1; rNum <= maxRoundNum; rNum++) {
+        const rKey = `r${rNum}`;
+        const rData = pLogs[rKey] || { inspect: [], ability: '無操作', next: '' };
+        const rObj = G.rounds ? G.rounds.find(r => r.roundNum === rNum) : null;
+        const isStarter = Boolean(rData.isStarter || (rObj && rObj.starterPlayerId === curP.id));
+        const isCurRound = (G.step === 'turn' && rNum === G.currentRoundIdx + 1);
+
+        // (A) 獸首查驗結果整理
+        const roundInsObjs = insHist.filter(item => item.round === rNum);
+        let inspectDisplayList = [];
+        if (roundInsObjs.length > 0) {
+          const seenBeasts = new Set();
+          roundInsObjs.forEach(item => {
+            const key = `${item.beastName}_${item.displayText}`;
+            if (curP.role === '方震' && seenBeasts.has(item.beastName)) return;
+            seenBeasts.add(item.beastName);
+            seenBeasts.add(key);
+            const rawTxt = String(item.displayText || '').trim();
+            if (rawTxt.includes(`【${item.beastName}】`)) {
+              inspectDisplayList.push(rawTxt);
+            } else {
+              inspectDisplayList.push(`【${item.beastName}】 ${rawTxt}`);
+            }
+          });
+        } else if (Array.isArray(rData.inspect) && rData.inspect.length > 0) {
+          inspectDisplayList = [...new Set(rData.inspect)];
+        }
+
+        const inspectTextHtml = inspectDisplayList.length > 0
+          ? inspectDisplayList.map(txt => {
+              let colorCls = 'text-amber-300 font-bold';
+              if (txt.includes('【真品】')) colorCls = 'text-emerald-400 font-black';
+              else if (txt.includes('【贗品】')) colorCls = 'text-rose-400 font-black';
+              else if (txt.includes('偷襲') || txt.includes('一片黑') || txt.includes('被幹')) colorCls = 'text-rose-300 font-bold';
+              return `<span class="${colorCls}">${txt}</span>`;
+            }).join(' 、 ')
+          : '<span class="text-neutral-500">（尚未查驗獸首）</span>';
+
+        // (B) 能力使用對象（人或獸首）與結果整理
+        let abilityTextHtml = '';
+        const roundAbObj = abHist.find(a => a.round === rNum);
+        const rawAbLog = rData.ability || '無操作';
+        const wasAmbushedInRound = roundInsObjs.some(x => x.sawAmbush) || rawAbLog.includes('遭藥不然偷襲') || (isCurRound && (curP.isAmbushed || curP.isPermanentlyAmbushed));
+
+        if (wasAmbushedInRound && (!roundAbObj)) {
+          abilityTextHtml = '<span class="text-rose-400 font-bold">💥 遭藥不然偷襲（角色能力被鎖定封鎖）</span>';
+        } else if (curP.role === '方震') {
+          if (roundAbObj) {
+            const targetP = G.players.find(x => x.id === roundAbObj.targetId);
+            const tc = targetP ? COLOR_PALETTE.find(x => x.id === targetP.colorId) : null;
+            const cBadge = tc ? `<span class="${tc.bgClass} px-1.5 py-0.5 rounded text-[10px] font-black mr-1">${getColorDisplayName(targetP.colorId)}</span>` : '';
+            const campCls = roundAbObj.isEvil ? 'text-rose-400 font-black' : 'text-blue-400 font-black';
+            abilityTextHtml = `查驗玩家：${cBadge}<b class="text-neutral-100">${roundAbObj.targetName}</b> ➔ <span class="${campCls}">【${roundAbObj.revealedCamp}】</span>`;
+          } else if (rawAbLog && rawAbLog !== '無操作') {
+            abilityTextHtml = `<span class="text-amber-300 font-bold">${rawAbLog}</span>`;
+          } else {
+            abilityTextHtml = '<span class="text-neutral-500">（尚未發動陣營查驗）</span>';
+          }
+        } else if (curP.role === '藥不然') {
+          if (roundAbObj) {
+            if (roundAbObj.isSkipped) {
+              abilityTextHtml = '<span class="text-neutral-300 font-bold">跳過不偷襲（本回合未偷襲任何玩家）</span>';
+            } else {
+              const targetP = G.players.find(x => x.id === roundAbObj.targetId);
+              const tc = targetP ? COLOR_PALETTE.find(x => x.id === targetP.colorId) : null;
+              const cBadge = tc ? `<span class="${tc.bgClass} px-1.5 py-0.5 rounded text-[10px] font-black mr-1">${getColorDisplayName(targetP.colorId)}</span>` : '';
+              abilityTextHtml = `偷襲對象：${cBadge}<b class="text-rose-300 font-black">${roundAbObj.targetName}</b>`;
+            }
+          } else if (rawAbLog && rawAbLog !== '無操作') {
+            abilityTextHtml = `<span class="text-rose-300 font-bold">${rawAbLog}</span>`;
+          } else {
+            abilityTextHtml = '<span class="text-neutral-500">（尚未選擇偷襲對象）</span>';
+          }
+        } else if (curP.role === '鄭國渠') {
+          if (roundAbObj) {
+            if (roundAbObj.blockedBeast) {
+              abilityTextHtml = `封鎖獸首：<span class="text-amber-300 font-black">【${roundAbObj.blockedBeast}】</span><span class="text-neutral-400 text-[11px] ml-1">(第 ${roundAbObj.position || '?'} 位)</span>`;
+            } else {
+              abilityTextHtml = '<span class="text-neutral-300 font-bold">不想封鎖（本回合未封鎖任何獸首）</span>';
+            }
+          } else if (rawAbLog && rawAbLog !== '無操作') {
+            abilityTextHtml = `<span class="text-amber-300 font-bold">${rawAbLog}</span>`;
+          } else {
+            abilityTextHtml = '<span class="text-neutral-500">（尚未選擇封鎖獸首）</span>';
+          }
+        } else if (curP.role === '老朝奉') {
+          if (roundAbObj) {
+            abilityTextHtml = roundAbObj.isActive
+              ? '<span class="text-rose-400 font-black">🔴 開啟擾亂（反轉本回合後續好人查驗真偽）</span>'
+              : '<span class="text-neutral-300 font-bold">⚪ 未發動擾亂（關閉）</span>';
+          } else if (rawAbLog && rawAbLog !== '無操作') {
+            abilityTextHtml = `<span class="text-amber-300 font-bold">${rawAbLog}</span>`;
+          } else {
+            abilityTextHtml = '<span class="text-neutral-500">（尚未確認擾亂設定）</span>';
+          }
+        } else {
+          abilityTextHtml = '<span class="text-neutral-400">無主動能力（被動角色）</span>';
+        }
+
+        // (C) 手機傳遞下家
+        const nextTextHtml = rData.next
+          ? `<span class="text-amber-300 font-bold">${rData.next}</span>`
+          : '<span class="text-neutral-500">（尚未指定下家）</span>';
+
+        roundsHtml += `
+          <div class="p-3 rounded-xl bg-neutral-900/90 border ${isCurRound ? 'border-amber-500/50' : 'border-neutral-800'} space-y-1.5">
+            <div class="flex items-center justify-between border-b border-neutral-800 pb-1">
+              <div class="flex items-center space-x-1.5">
+                ${isStarter ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500 text-neutral-950">⭐首家</span>' : ''}
+                <span class="font-black text-amber-400 text-xs sm:text-sm">第 ${rNum} 回合行動紀錄</span>
+                ${isCurRound ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700/60 font-bold">本回合</span>' : ''}
+              </div>
+            </div>
+            <div class="text-xs leading-relaxed">
+              <span class="text-neutral-400 font-bold">• 查驗結果：</span>${inspectTextHtml}
+            </div>
+            <div class="text-xs leading-relaxed">
+              <span class="text-neutral-400 font-bold">• 能力使用：</span>${abilityTextHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        ${teammateHtml}
+        <div class="space-y-2">
+          <div class="text-xs font-black text-amber-400 flex items-center space-x-1">
+            <span>📜</span>
+            <span>歷回查驗結果與能力使用紀錄：</span>
+          </div>
+          ${roundsHtml}
+        </div>
+      `;
+    }
+    window.buildLocalKnownInfoHtml = buildLocalKnownInfoHtml;
+
+    function renderLocalKnownInfoBanner(curP) {
+      const banner = document.getElementById('turnCampInfoBanner');
+      const bannerText = document.getElementById('turnCampInfoText');
+      const arrow = document.getElementById('localKnownInfoArrow');
+      if (!banner || !bannerText || !curP) return;
+
+      // 每個角色都顯示在完全相同的位置
+      banner.classList.remove('hidden');
+      const maxRound = Math.min(3, (G.currentRoundIdx || 0) + 1);
+      bannerText.innerHTML = buildLocalKnownInfoHtml(curP, maxRound);
+
+      if (G.knownInfoOpen) {
+        bannerText.classList.remove('hidden');
+        if (arrow) arrow.innerText = '▲ 點擊收合';
+      } else {
+        bannerText.classList.add('hidden');
+        if (arrow) arrow.innerText = '▼ 點擊展開';
+      }
+    }
+    window.renderLocalKnownInfoBanner = renderLocalKnownInfoBanner;
+
+    function renderPvKnownInfoBanner(curVoter) {
+      const banner = document.getElementById('pvKnownInfoBanner');
+      const bannerText = document.getElementById('pvKnownInfoText');
+      const arrow = document.getElementById('pvKnownInfoArrow');
+      if (!banner || !bannerText || !curVoter) return;
+
+      banner.classList.remove('hidden');
+      bannerText.innerHTML = buildLocalKnownInfoHtml(curVoter, 3);
+
+      if (G.pvKnownInfoOpen) {
+        bannerText.classList.remove('hidden');
+        if (arrow) arrow.innerText = '▲ 點擊收合';
+      } else {
+        bannerText.classList.add('hidden');
+        if (arrow) arrow.innerText = '▼ 點擊展開';
+      }
+    }
+    window.renderPvKnownInfoBanner = renderPvKnownInfoBanner;
+
+    function toggleOnlineKnownInfo() {
+      window._onlKnownInfoOpen = !window._onlKnownInfoOpen;
+      if (onlineRoomData) {
+        const me = getOnlineMePlayer(onlineRoomData) || (onlineRoomData.players || []).find(p => p.id === myOnlinePlayerId);
+        renderOnlineKnownInfoBanner(onlineRoomData, me);
+      }
+    }
+    window.toggleOnlineKnownInfo = toggleOnlineKnownInfo;
+
+    function renderOnlineKnownInfoBanner(room, me) {
+      const turnCampBanner = document.getElementById('onlTurnCampInfoBanner');
+      const infoTextEl = document.getElementById('onlTurnCampInfoText');
+      const arrowEl = document.getElementById('onlKnownInfoArrow');
+      if (!turnCampBanner || !infoTextEl) return;
+
+      turnCampBanner.classList.remove('hidden');
+      if (!me) {
+        me = getOnlineMePlayer(room) || (room && room.players ? room.players.find(p => p.id === myOnlinePlayerId) : null);
+      }
+      if (!me) return;
+
+      const goodRoles = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'];
+      const isGood = goodRoles.includes(me.role);
+      const roleCampBadge = isGood
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-blue-950 text-blue-300 border border-blue-700">許願陣營 (好人)</span>'
+        : '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-700">老朝奉陣營 (壞人)</span>';
+
+      // 1. 隊友資訊
+      let teammateHtml = '';
+      if (me.role === '老朝奉') {
+        const yaoP = getKnownTeammateForRole(room, me.role);
+        const yaoC = yaoP ? (COLOR_PALETTE.find(c => c.id === yaoP.colorId) || COLOR_PALETTE[0]) : null;
+        const yaoTag = yaoP && yaoC
+          ? `<span class="${yaoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs">${yaoC.name}色 ${yaoP.name}</span><span class="ml-1 text-amber-300 font-black">是你的隊友藥不然</span>`
+          : '<span class="text-neutral-400">（隊友身分同步中…）</span>';
+        teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-1.5 flex-wrap">
+          <span class="text-rose-400 font-black">🤝 隊友資訊：</span>${yaoTag}
+        </div>`;
+      } else if (me.role === '藥不然') {
+        const laoP = getKnownTeammateForRole(room, me.role);
+        const laoC = laoP ? (COLOR_PALETTE.find(c => c.id === laoP.colorId) || COLOR_PALETTE[0]) : null;
+        const laoTag = laoP && laoC
+          ? `<span class="${laoC.bgClass} px-2 py-0.5 rounded font-black text-xs inline-flex items-center shadow-xs">${laoC.name}色 ${laoP.name}</span><span class="ml-1 text-amber-300 font-black">是你的隊友老朝奉</span>`
+          : '<span class="text-neutral-400">（隊友身分同步中…）</span>';
+        teammateHtml = `<div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-700/70 flex items-center space-x-1.5 flex-wrap">
+          <span class="text-rose-400 font-black">🤝 隊友資訊：</span>${laoTag}
+        </div>`;
+      }
+
+      // 2. 各回合查驗與能力紀錄
+      const maxR = Math.min(3, ((room && room.currentRoundIdx !== undefined) ? room.currentRoundIdx : 0) + 1);
+      let roundsHtml = '';
+      for (let rIdx = 0; rIdx < maxR; rIdx++) {
+        const rObj = (room && room.rounds && room.rounds[rIdx]) ? room.rounds[rIdx] : null;
+        const rNum = rIdx + 1;
+        const myLog = (rObj && rObj.turnLogs && rObj.turnLogs[me.id]) ? rObj.turnLogs[me.id] : {};
+        const isStarter = Boolean(rObj && rObj.starterPlayerId === me.id);
+        const isCurRound = (rIdx === (room.currentRoundIdx || 0));
+
+        const insList = Array.isArray(myLog.inspect) ? myLog.inspect : [];
+        const insHtml = insList.length > 0
+          ? insList.map(item => {
+              const txt = item.resultText || item.beastName || '';
+              let cls = 'text-amber-300 font-bold';
+              if (txt.includes('【真品】')) cls = 'text-emerald-400 font-black';
+              else if (txt.includes('【贗品】')) cls = 'text-rose-400 font-black';
+              else if (txt.includes('偷襲') || txt.includes('一片黑')) cls = 'text-rose-300 font-bold';
+              return `<span class="${cls}">${txt}</span>`;
+            }).join(' 、 ')
+          : '<span class="text-neutral-500">（尚未查驗獸首）</span>';
+
+        const abText = myLog.ability
+          ? `<span class="text-amber-300 font-bold">${myLog.ability}</span>`
+          : (['許願', '姬雲浮', '黃煙煙', '木戶加奈'].includes(me.role)
+              ? '<span class="text-neutral-400">無主動能力（被動角色）</span>'
+              : '<span class="text-neutral-500">（尚未執行能力）</span>');
+
+        const passOrder = (rObj && Array.isArray(rObj.passOrder)) ? rObj.passOrder : [];
+        const myPassPos = passOrder.indexOf(me.id);
+        let nextHtml = '<span class="text-neutral-500">（尚未指定下家）</span>';
+        if (myPassPos !== -1 && myPassPos < passOrder.length - 1) {
+          const nextId = passOrder[myPassPos + 1];
+          const nextP = (room.players || []).find(x => x.id === nextId);
+          if (nextP) {
+            const npc = COLOR_PALETTE.find(c => c.id === nextP.colorId) || COLOR_PALETTE[0];
+            nextHtml = `<span class="text-amber-300 font-bold">指定下家：${npc.name}色 ${nextP.name}</span>`;
+          }
+        } else if (myPassPos === 7) {
+          nextHtml = '<span class="text-amber-300 font-bold">最後一位（尾家・前往鑑寶）</span>';
+        }
+
+        roundsHtml += `
+          <div class="p-2.5 rounded-xl bg-neutral-900/90 border ${isCurRound ? 'border-amber-500/50' : 'border-neutral-800'} space-y-1">
+            <div class="flex items-center space-x-1.5 border-b border-neutral-800 pb-1">
+              ${isStarter ? '<span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-neutral-950">⭐首家</span>' : ''}
+              <span class="font-black text-amber-400 text-xs">第 ${rNum} 回合行動紀錄</span>
+            </div>
+            <div class="text-xs leading-relaxed"><span class="text-neutral-400 font-bold">• 查驗結果：</span>${insHtml}</div>
+            <div class="text-xs leading-relaxed"><span class="text-neutral-400 font-bold">• 能力使用：</span>${abText}</div>
+          </div>
+        `;
+      }
+
+      infoTextEl.innerHTML = `
+        ${teammateHtml}
+        <div class="space-y-1.5">
+          <div class="text-xs font-black text-amber-400">📜 歷回查驗結果與能力使用紀錄：</div>
+          ${roundsHtml}
+        </div>
+      `;
+
+      if (window._onlKnownInfoOpen) {
+        infoTextEl.classList.remove('hidden');
+        if (arrowEl) arrowEl.innerText = '▲ 點擊收合';
+      } else {
+        infoTextEl.classList.add('hidden');
+        if (arrowEl) arrowEl.innerText = '▼ 點擊展開';
+      }
+    }
+    window.renderOnlineKnownInfoBanner = renderOnlineKnownInfoBanner;
+
     function renderTurnView() {
       const curP = G.players.find(p => p.id === G.activePlayerId);
       if (!curP) return;
@@ -18938,28 +19306,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
       // 桌遊助手版已依要求移除座位順序圓圖與手機傳遞順序
 
-      const banner = document.getElementById('turnCampInfoBanner');
-      const bannerText = document.getElementById('turnCampInfoText');
-      // 壞人陣營同伴互認：老朝奉與藥不然互相相認
-      if (curP.role === '老朝奉') {
-        banner.classList.remove('hidden');
-        const yaoP = G.players.find(x => x.role === '藥不然');
-        if (yaoP) {
-          bannerText.innerHTML = `<span class="text-amber-300 font-bold">${getColorDisplayName(yaoP.colorId)} ${yaoP.name}是你的隊友藥不然</span>`;
-        } else {
-          bannerText.innerText = '（本局無藥不然）';
-        }
-      } else if (curP.role === '藥不然') {
-        banner.classList.remove('hidden');
-        const laoP = G.players.find(x => x.role === '老朝奉');
-        if (laoP) {
-          bannerText.innerHTML = `<span class="text-amber-300 font-bold">${getColorDisplayName(laoP.colorId)} ${laoP.name}是你的隊友老朝奉</span>`;
-        } else {
-          bannerText.innerText = '（本局無老朝奉）';
-        }
-      } else {
-        banner.classList.add('hidden');
-      }
+      renderLocalKnownInfoBanner(curP);
 
       renderStepABeasts(curP);
 
@@ -19143,6 +19490,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       if (resBox) resBox.classList.remove('hidden');
       saveState();
       renderStepABeasts(curP);
+      renderLocalKnownInfoBanner(curP);
 
       // 許願專屬貼心優化：在能查驗 2 個獸首時，只點選第 1 個獸首絕不往下滑動（方便點選第 2 個）；選滿 2 個後才自動往下滑動！
       // 其他角色在點完獸首後，維持既有貼心設計：自動平滑往下滑動至結果區
@@ -19160,13 +19508,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       G.turnSubStep = 'b';
       saveState();
       renderTurnView();
-      const curP = G.players.find(p => p.id === G.activePlayerId);
-      const isEvilInformed = ['老朝奉', '藥不然'].includes(curP.role);
-      if (isEvilInformed) {
-        smoothScrollTo('turnCampInfoBanner', 'start', 68);
-      } else {
-        smoothScrollTo('stepB', 'start', 68);
-      }
+      smoothScrollTo('turnCampInfoBanner', 'start', 68);
     }
 
     function renderStepBRoleAbility(curP) {
@@ -19444,6 +19786,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
       saveState();
       renderStepBRoleAbility(curP);
+      renderLocalKnownInfoBanner(curP);
     }
 
     function toggleLaoChaoFengAbility() {
@@ -19471,6 +19814,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       G.actionLogs[curP.id][rKey].ability = G.laoChaoFengActiveThisRound ? '發動擾亂（反轉好人真偽）' : '未發動擾亂';
       saveState();
       renderStepBRoleAbility(curP);
+      renderLocalKnownInfoBanner(curP);
     }
 
     function zhengBlockBeast(beastName, positionOrder) {
@@ -19502,6 +19846,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       G.actionLogs[curP.id][rKey].ability = G.blockedBeastThisRound ? `封鎖【${G.blockedBeastThisRound}】(第${G.blockedBeastPositionThisRound}位)` : '不想封鎖';
       saveState();
       renderStepBRoleAbility(curP);
+      renderLocalKnownInfoBanner(curP);
     }
 
     function yaoSelectTarget(targetId) {
@@ -19536,6 +19881,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       G.actionLogs[curP.id][rKey].ability = '跳過不偷襲';
       saveState();
       renderStepBRoleAbility(curP);
+      renderLocalKnownInfoBanner(curP);
     }
 
     function yaoConfirmAmbush() {
@@ -19603,12 +19949,27 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
       saveState();
       renderStepBRoleAbility(curP);
+      renderLocalKnownInfoBanner(curP);
     }
 
     function finishStepB() {
       const curP = G.players.find(p => p.id === G.activePlayerId);
-      if (curP.isAmbushed) {
-        curP.isAmbushed = false;
+      const rKey = `r${G.currentRoundIdx + 1}`;
+      if (curP) {
+        if (!G.actionLogs[curP.id]) G.actionLogs[curP.id] = {};
+        if (!G.actionLogs[curP.id][rKey]) G.actionLogs[curP.id][rKey] = { inspect: [], ability: '無操作', next: '' };
+        if (curP.isAmbushed || curP.isPermanentlyAmbushed) {
+          if (!G.actionLogs[curP.id][rKey].ability || G.actionLogs[curP.id][rKey].ability === '無操作') {
+            G.actionLogs[curP.id][rKey].ability = '遭藥不然偷襲（能力封鎖）';
+          }
+        } else if (['許願', '姬雲浮', '黃煙煙', '木戶加奈'].includes(curP.role)) {
+          if (!G.actionLogs[curP.id][rKey].ability || G.actionLogs[curP.id][rKey].ability === '無操作') {
+            G.actionLogs[curP.id][rKey].ability = '無主動技能';
+          }
+        }
+        if (curP.isAmbushed) {
+          curP.isAmbushed = false;
+        }
       }
 
       G.turnSubStep = 'c';
@@ -20068,6 +20429,7 @@ function cancelLocalVoteConfirm() {
 
     function enterPersonVoteTurn() {
       G.step = 'person_voting';
+      G.pvKnownInfoOpen = false;
       G.pendingCandidateId = null;
       saveState();
       renderAll();
@@ -20098,9 +20460,10 @@ function cancelLocalVoteConfirm() {
 
       document.getElementById('pvBigTitle').innerHTML = `
         <span>玩家</span>
-        <span class="${c.bgClass} px-2.5 py-0.5 rounded font-black mx-1.5 inline-block text-sm sm:text-base">${getColorDisplayName(curVoter.colorId)}</span>
+        <span class="${c.bgClass} px-2.5 py-0.5 rounded font-black mx-1.5 inline-block text-sm sm:text-base">${getColorDisplayName(curVoter.colorId)} ${curVoter.name}</span>
         <span>，請投出您心目中的人選</span>
       `;
+      renderPvKnownInfoBanner(curVoter);
 
       const listContainer = document.getElementById('pvCandidatesList');
       listContainer.innerHTML = '';
