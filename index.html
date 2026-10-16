@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.2.0 - Gemini抗斷線與電競擬真強化版)</title>  
+ <title>古董局中局 (版本 4.1.0 (深度心理博弈強化版)深度心理博弈強化版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1598,7 +1598,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.2.0 (Gemini 雙向容錯抗斷線 + 全真人電競大腦)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 3.8.14</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -16009,7 +16009,7 @@ function renderOnlinePersonVotingReference(room) {
       const thinkingRoom = await getFreshMockThinkingRoom('playing', 'currentTurnPlayerId', mockPlayerId, room);
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiNextId = await withBotThinkTimeout(GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId), 4500, 'Gemini 傳位');
+          geminiNextId = await withBotThinkTimeout(GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId), 20000, 'Gemini 傳位');
         } catch(e) {
           console.warn('[MockTurn] Gemini 思考傳遞逾時，改由本地引擎接手:', e);
         }
@@ -16245,7 +16245,7 @@ function renderOnlinePersonVotingReference(room) {
       const thinkingStartTime = Date.now();
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiSpeechText = await withBotThinkTimeout(GeminiBrain.prepareSpeech(room, mockSpeakerId), 7000, 'Gemini 發言');
+          geminiSpeechText = await withBotThinkTimeout(GeminiBrain.prepareSpeech(room, mockSpeakerId), 20000, 'Gemini 發言');
         } catch(e) {
           console.warn('[MockSpeech] Gemini 發言生成逾時，改由本地引擎接手:', e);
         }
@@ -16480,7 +16480,7 @@ function renderOnlinePersonVotingReference(room) {
       let geminiChosenId = null;
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiChosenId = await withBotThinkTimeout(GeminiBrain.preparePersonVote(room, mockPlayerId), 4500, 'Gemini 鑑人');
+          geminiChosenId = await withBotThinkTimeout(GeminiBrain.preparePersonVote(room, mockPlayerId), 15000, 'Gemini 鑑人');
         } catch(e) {
           console.warn('[MockPersonVote] Gemini 鑑人指認逾時，改由本地引擎接手:', e);
         }
@@ -24149,8 +24149,8 @@ window.BotSimulationEngine = BotSimulationEngine;
   let geminiRequestInFlight = false;
   let geminiBlockedUntil = 0;
   try { geminiBlockedUntil = Number(sessionStorage.getItem('gudong_gemini_429_blocked_until') || 0) || 0; } catch (e) {}
-  const GEMINI_429_COOLDOWN_MS = 15 * 1000; // 429 限流自適應短暫退避 15 秒（原本 30 分鐘太長容易造成永久斷線）
-  let lastGeminiCallTimestamp = 0;
+  const GEMINI_429_COOLDOWN_MS = 30 * 60 * 1000;
+
 
   function decisionContextSignature(room, kind, botId) {
     const rIdx = Number.isInteger(room?.currentRoundIdx) ? room.currentRoundIdx : 0;
@@ -24171,38 +24171,15 @@ window.BotSimulationEngine = BotSimulationEngine;
     return !decisionContexts[k] || decisionContexts[k] === decisionContextSignature(room, kind, botId);
   }
 
-  // 取得當前 Gemini 連線與運作狀態（供 UI 顯示與診斷）
-  function getGeminiConnectionStatus() {
-    const now = Date.now();
-    const c = cfg();
-    if (!c.on) return { status: 'disabled', label: 'AI 未啟用 (純本地引擎)', color: '#a8a29e' };
-    if (geminiBlockedUntil > now) {
-      const remainSec = Math.ceil((geminiBlockedUntil - now) / 1000);
-      return { status: 'cooling', label: `暫態降級中 (${remainSec}s 後自動重連，本地大腦代管)`, color: '#f59e0b', remainSec };
-    }
-    if (window.GeminiBrain && window.GeminiBrain.lastError) {
-      return { status: 'degraded', label: `連線異常 (${window.GeminiBrain.lastError})`, color: '#f87171' };
-    }
-    return { status: 'online', label: `連線就緒 (${window.GeminiBrain?.currentActiveModel || c.model || 'gemini-3.8-flash'})`, color: '#34d399' };
-  }
-
-  // 重設連線鎖定（提供手動一鍵重連）
-  function resetGeminiCooldown() {
-    geminiBlockedUntil = 0;
-    try { sessionStorage.removeItem('gudong_gemini_429_blocked_until'); } catch (e) {}
-    if (window.GeminiBrain) window.GeminiBrain.lastError = null;
-    console.info('🔄 [GeminiBrain] 已重設 Gemini 冷卻鎖定，恢復連線探測！');
-  }
-
-  // 具備雙向容錯 (Proxy ↔ Direct)、智慧模型輪詢與斷路器保護之 Google Gemini 核心呼叫器
+  // 純粹 Google Gemini API 呼叫器（支援智慧多模型輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 2.5 Flash）
   async function ask(system, user, max, timeout) {
     const now = Date.now();
     if (geminiBlockedUntil > now) {
-      const remainSec = Math.ceil((geminiBlockedUntil - now) / 1000);
       window.GeminiBrain = window.GeminiBrain || {};
-      window.GeminiBrain.lastError = `Gemini 連線冷卻中（剩餘 ${remainSec} 秒），本動作由本地電競神經大腦代管`;
+      window.GeminiBrain.lastError = 'Gemini 回報 429 配額/速率限制，暫停呼叫至 ' + new Date(geminiBlockedUntil).toLocaleTimeString() + '；目前改用本地 BOT 引擎';
       return null;
     }
+    // 同一頁面一次只允許一個 Gemini 請求，避免房間快照連續觸發時同時打爆配額。
     if (geminiRequestInFlight) return null;
     const c = cfg();
     if (!c.on) return null;
@@ -24218,14 +24195,7 @@ window.BotSimulationEngine = BotSimulationEngine;
       return null;
     }
 
-    // 請求微型節流：相鄰請求保持至少 350ms 間隔，防止瞬間併發觸發 429
-    const timeSinceLast = now - lastGeminiCallTimestamp;
-    if (timeSinceLast < 350) {
-      await new Promise(r => setTimeout(r, 350 - timeSinceLast));
-    }
-    lastGeminiCallTimestamp = Date.now();
-
-    // 依序嘗試模型：優先使用設定模型，接著依序輪詢降級
+    // 依序嘗試模型：優先使用使用者設定模型，接著依序輪詢降級
     const modelsToTry = [userModel];
     for (const m of CANDIDATE_MODELS) {
       if (!modelsToTry.includes(m)) {
@@ -24233,127 +24203,123 @@ window.BotSimulationEngine = BotSimulationEngine;
       }
     }
 
-    const overallTimeout = timeout || 12000;
+    const overallTimeout = timeout || 25000;
     const startTime = Date.now();
     geminiRequestInFlight = true;
 
     try {
-      for (let i = 0; i < modelsToTry.length; i++) {
-        const currentModel = modelsToTry[i];
-        const elapsed = Date.now() - startTime;
-        const remainingTime = overallTimeout - elapsed;
-        if (remainingTime <= 1000 && i > 0) break;
-
-        const attemptTimeout = Math.min(remainingTime, i === 0 ? 6000 : 3800);
-
-        // 雙向端點容錯：優先使用設定的端點；若端點失敗且有備用端點，自動雙向切換！
-        const endpoints = [];
-        if (proxyUrl) {
-          endpoints.push({ type: 'proxy', url: proxyUrl });
-          if (effectiveKey) {
-            endpoints.push({ type: 'direct', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent` });
-          }
-        } else if (effectiveKey) {
-          endpoints.push({ type: 'direct', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent` });
-          if (DEFAULT_PROXY_URL) {
-            endpoints.push({ type: 'proxy', url: DEFAULT_PROXY_URL });
-          }
-        }
-
-        let modelSuccess = false;
-        for (const ep of endpoints) {
-          const epElapsed = Date.now() - startTime;
-          if (overallTimeout - epElapsed <= 800) break;
-
-          const ctl = new AbortController();
-          const t = setTimeout(() => ctl.abort(), attemptTimeout);
-
-          try {
-            const reqHeaders = { 'Content-Type': 'application/json' };
-            const reqBody = {
-              contents: [{ role: 'user', parts: [{ text: user }] }],
-              systemInstruction: { parts: [{ text: system }] },
-              generationConfig: {
-                temperature: 0.85,
-                maxOutputTokens: max || 220,
-                ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
-              }
-            };
-            if (ep.type === 'proxy') {
-              reqBody.model = currentModel;
-              if (effectiveKey) reqHeaders['x-goog-api-key'] = effectiveKey;
-            } else {
-              reqHeaders['x-goog-api-key'] = effectiveKey;
-            }
-
-            const r = await fetch(ep.url, {
-              method: 'POST',
-              signal: ctl.signal,
-              headers: reqHeaders,
-              body: JSON.stringify(reqBody)
-            });
-
-            if (!r.ok) {
-              let errDetail = '';
-              try {
-                const ej = await r.json();
-                errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
-              } catch (e) {
-                errDetail = '';
-              }
-              const formattedErr = `HTTP ${r.status} (${currentModel})` + (errDetail ? ': ' + String(errDetail).slice(0, 80) : '');
-              window.GeminiBrain = window.GeminiBrain || {};
-              window.GeminiBrain.lastError = formattedErr;
-
-              if (r.status === 429) {
-                console.warn(`[Gemini] 模型 ${currentModel} 限流 (429)，自動切換至備用模型...`);
-                // 不直接鎖死 30 分鐘！若所有模型都 429，才冷卻 15 秒
-                if (i === modelsToTry.length - 1) {
-                  geminiBlockedUntil = Date.now() + 15000;
-                  try { sessionStorage.setItem('gudong_gemini_429_blocked_until', String(geminiBlockedUntil)); } catch (e) {}
-                  window.GeminiBrain.lastError = 'Gemini 達到每分鐘頻率限制 (429)，15 秒後自動恢復連線';
-                  return null;
-                }
-                break; // 換下一個模型
-              }
-              continue; // 嘗試備用 endpoint 或下個模型
-            }
-
-            const j = await r.json();
-            let resultText = '';
-            if (j.text) {
-              resultText = j.text.trim();
-            } else if (j.candidates?.[0]?.content?.parts) {
-              resultText = j.candidates[0].content.parts.map(p => p.text || '').join('').trim();
-            }
-
-            if (resultText) {
-              window.GeminiBrain = window.GeminiBrain || {};
-              window.GeminiBrain.currentActiveModel = j.model || j.modelVersion || currentModel;
-              window.GeminiBrain.lastError = null;
-              modelSuccess = true;
-              return resultText;
-            }
-          } catch(err) {
-            window.GeminiBrain = window.GeminiBrain || {};
-            if (err.name === 'AbortError') {
-              window.GeminiBrain.lastError = `模型 ${currentModel} 逾時`;
-            } else {
-              window.GeminiBrain.lastError = `連線異常: ${err.message || err}`;
-              if (/failed to fetch|networkerror|load failed/i.test(String(err.message || err))) {
-                // 網路中斷快速斷路保護：12 秒內不讓全桌 BOT 重複耗費逾時，由本地電競大腦流暢代管
-                geminiBlockedUntil = Date.now() + 12000;
-                window.GeminiBrain.lastError = '網路連線受阻，電腦玩家由本地電競神經大腦代管（12秒後自動重連）';
-                return null;
-              }
-            }
-          } finally {
-            clearTimeout(t);
-          }
-        }
-        if (modelSuccess) break;
+    for (let i = 0; i < modelsToTry.length; i++) {
+      const currentModel = modelsToTry[i];
+      const elapsed = Date.now() - startTime;
+      const remainingTime = overallTimeout - elapsed;
+      if (remainingTime <= 1000 && i > 0) {
+        break; // 剩餘時間不足以嘗試下一個模型
       }
-      return null;
+
+      const attemptTimeout = Math.min(remainingTime, i === 0 ? 15000 : 8000);
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), attemptTimeout);
+
+      try {
+        let reqUrl = '';
+        const reqHeaders = { 'Content-Type': 'application/json' };
+        let reqBody = {};
+
+        if (proxyUrl) {
+          reqUrl = proxyUrl;
+          reqBody = {
+            model: currentModel,
+            contents: [{ role: 'user', parts: [{ text: user }] }],
+            systemInstruction: { parts: [{ text: system }] },
+            generationConfig: {
+              temperature: 0.85,
+              maxOutputTokens: max || 220,
+              ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
+            }
+          };
+          if (effectiveKey) {
+            reqHeaders['x-goog-api-key'] = effectiveKey;
+          }
+        } else {
+          reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
+          reqHeaders['x-goog-api-key'] = effectiveKey;
+          reqBody = {
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [{ text: user }] }],
+            generationConfig: {
+              temperature: 0.85,
+              maxOutputTokens: max || 220,
+              ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
+            }
+          };
+        }
+
+        const r = await fetch(reqUrl, {
+          method: 'POST',
+          signal: ctl.signal,
+          headers: reqHeaders,
+          body: JSON.stringify(reqBody)
+        });
+
+        if (!r.ok) {
+  let errDetail = '';
+
+  try {
+    const ej = await r.json();
+    errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
+  } catch (e) {
+    errDetail = '';
+  }
+
+  const formattedErr =
+    `HTTP ${r.status} (${currentModel})` +
+    (errDetail ? ': ' + String(errDetail).slice(0, 80) : '');
+
+  window.GeminiBrain = window.GeminiBrain || {};
+  window.GeminiBrain.lastError = formattedErr;
+
+  // 限流時停止本次輪詢，交由上層本地決策引擎兜底
+  if (r.status === 429) {
+  geminiBlockedUntil = Date.now() + GEMINI_429_COOLDOWN_MS;
+  try { sessionStorage.setItem('gudong_gemini_429_blocked_until', String(geminiBlockedUntil)); } catch (e) {}
+  console.warn('[Gemini] 收到 429，停止模型輪詢並暫停 30 分鐘，後續 BOT 改走本地引擎。', errDetail);
+  window.GeminiBrain.lastError = 'HTTP 429：' + String(errDetail).slice(0, 120) + '；已暫停 Gemini 30 分鐘';
+  return null;
+}
+
+  // 其他 HTTP 錯誤仍可嘗試下一個候選模型
+  continue;
+}
+
+        // 成功回應也必須解析 JSON；舊版漏掉這一步，會讓 j 未定義。
+        const j = await r.json();
+        let resultText = '';
+        if (j.text) {
+          resultText = j.text.trim();
+        } else if (j.candidates?.[0]?.content?.parts) {
+          resultText = j.candidates[0].content.parts.map(p => p.text || '').join('').trim();
+        }
+
+        if (resultText) {
+          window.GeminiBrain = window.GeminiBrain || {};
+          window.GeminiBrain.currentActiveModel = j.model || j.modelVersion || currentModel;
+          window.GeminiBrain.lastError = null;
+          return resultText;
+        }
+      } catch(err) {
+        window.GeminiBrain = window.GeminiBrain || {};
+        if (err.name === 'AbortError') {
+          window.GeminiBrain.lastError = `模型 ${currentModel} 逾時`;
+        } else {
+          window.GeminiBrain.lastError = `模型 ${currentModel} 異常: ${err.message || err}`;
+        }
+        continue;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
+    return null;
     } finally {
       geminiRequestInFlight = false;
     }
@@ -24575,10 +24541,8 @@ ${ctx.voteCall ? `- 號票：你是後面發言者且手上有資訊，請自然
         const cl = BotDeductionEngine.parseOwnClaims(clause, beasts);
         for (const c of cl) {
           const f = reliable.find(x => x.beast === c.beast);
-          // 修正：只有當該獸首確實在自己親驗名單中，且宣稱結論與實際相反時才攔截！
-          // 若玩家未親自查驗該獸首，在發言中做出斷言或推論定調（如「我確認【牛】是真品」），屬於正常桌遊推論，絕不攔截！
-          if (f && f.status !== c.status) {
-            console.warn('[GeminiBrain] 攔截到與實際查驗相反的情報:', clause);
+          if (!f || f.status !== c.status) {
+            console.warn('[GeminiBrain] 攔截到捏造或與查驗不符的第一人稱情報:', clause);
             return false;
           }
         }
@@ -24606,7 +24570,7 @@ ${ctx.voteCall ? `- 號票：你是後面發言者且手上有資訊，請自然
     const beliefs = BotDeductionEngine.evaluateBeliefs(pov);
     const draft = BotDeductionEngine._origGenerateSpeech(pov, beliefs);
     const [s, u] = buildSpeechPrompt(pov, beliefs, draft);
-    const out = await ask(s, u, 140, 5500);
+    const out = await ask(s, u, 140, 14000);
     if (out) {
       let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
       if (window.stripSelfDoubt) cleaned = window.stripSelfDoubt(cleaned);
@@ -25177,15 +25141,9 @@ ${roundSpeeches}
       <input id="gbModelInput" placeholder="如 gemini-3.8-flash" value="${c.model || 'gemini-3.8-flash'}" style="width:100%;padding:6px;background:#0c0a09;color:#38bdf8;border:1px solid #57534e;border-radius:6px;margin-bottom:10px;font-size:12px;font-family:monospace">
 
       <button id="gbSave" style="width:100%;padding:10px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;margin-bottom:6px">儲存並測試 Gemini 連線</button>
-      <div style="display:flex;gap:4px;margin-bottom:6px">
-        <button id="gbResetCooldown" type="button" style="flex:1;padding:8px;background:#1e1b4b;color:#38bdf8;border:1px solid #0284c7;border-radius:6px;font-weight:bold;cursor:pointer;font-size:11px">🔄 重設冷卻立即重連</button>
-        <button id="gbTrainNeural" type="button" style="flex:1;padding:8px;background:#065f46;color:#a7f3d0;border:1px solid #059669;border-radius:6px;font-weight:bold;cursor:pointer;font-size:11px">⚡ 本地神經訓練(100局)</button>
-      </div>
+      <button id="gbTrainNeural" type="button" style="width:100%;padding:8px;background:#065f46;color:#a7f3d0;border:1px solid #059669;border-radius:6px;font-weight:bold;cursor:pointer;font-size:12px">⚡ 離線神經網路自對局強化訓練 (100局)</button>
 
-      <div id="gbStatusIndicator" style="margin-top:4px;padding:6px 8px;border-radius:6px;background:#0c0a09;border:1px solid #44403c;font-size:11px;color:#34d399;font-weight:bold">
-        🟢 連線就緒 (Gemini 正常運行，斷線時本地電競大腦秒級無縫代管)
-      </div>
-      <div id="gbMsg" style="margin-top:6px;font-size:11px;color:#a8a29e;line-height:1.4"></div>
+      <div id="gbMsg" style="margin-top:8px;font-size:11px;color:#a8a29e;line-height:1.4"></div>
       <div style="margin-top:8px;font-size:10px;color:#78716c;border-top:1px solid #292524;padding-top:6px;line-height:1.3">
         ※ 專注串聯 Google Gemini 系列模型。內建開箱即用之安全代理伺服器，亦支援填入個人 API Key 直連官方 API！
       </div>
@@ -25222,15 +25180,6 @@ ${roundSpeeches}
       m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-2.5-flash（穩定推薦）。</span>';
     };
 
-    const resetCooldownBtn = d.querySelector('#gbResetCooldown');
-    if (resetCooldownBtn) {
-      resetCooldownBtn.onclick = () => {
-        resetGeminiCooldown();
-        const m = d.querySelector('#gbMsg');
-        m.innerHTML = '<span style="color:#34d399">🔄 已清除 429 冷卻鎖定！立即恢復 Gemini 連線探測。</span>';
-        d.querySelector('#gbSave').click();
-      };
-    }
     const trainBtn = d.querySelector('#gbTrainNeural');
     if (trainBtn) {
       trainBtn.onclick = () => {
@@ -25284,8 +25233,6 @@ ${roundSpeeches}
     syncBotMemoriesToFirestore,
     ask,
     cfg,
-    resetGeminiCooldown,
-    getGeminiConnectionStatus,
     decisionContextSignature,
     isFreshDecisionContext
   };
