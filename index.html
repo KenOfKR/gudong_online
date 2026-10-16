@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.1.0 (深度心理博弈強化版)深度心理博弈強化版)</title>  
+ <title>古董局中局 (版本 4.3.0 - 防呆投票確認與隊友防偷襲版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1493,6 +1493,30 @@
  <button onclick="calculateVoteResults()" class="w-full py-3.5 bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-base rounded-xl shadow-xl transition">  
  結算本輪投票結果 🗳️  
  </button>  
+ <!-- 小幫手版：送出投票前防呆確認視窗 -->  
+ <div id="localVoteConfirmModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">  
+   <div class="bg-neutral-900 border-2 border-amber-500/80 rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-4 text-center">  
+     <div class="w-12 h-12 mx-auto rounded-full bg-amber-950 border border-amber-500 flex items-center justify-center text-2xl shadow-inner">  
+       🗳️  
+     </div>  
+     <div class="space-y-1">  
+       <h3 class="text-base font-black text-amber-300">確認送出本輪投票結果？</h3>  
+       <p class="text-xs text-neutral-400">請再次確認所輸入的票數，避免誤觸揭曉：</p>  
+       <button type="button" id="localVoteConfirmVoiceBadge" onclick="playLocalVoteVoiceReminder()" class="inline-block mt-1.5 px-3 py-1 rounded-full bg-amber-950/90 border border-amber-500/70 text-amber-300 font-black text-sm tracking-widest shadow cursor-pointer hover:bg-amber-900 transition" title="點擊再次朗讀語音提醒">  
+         🔊 語音提醒：--  
+       </button>  
+     </div>  
+     <div id="localVoteConfirmList" class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-left text-xs"></div>  
+     <div class="grid grid-cols-2 gap-2.5 pt-1">  
+       <button type="button" onclick="cancelLocalVoteConfirm()" class="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-sm rounded-xl border border-neutral-700 transition active:scale-95 cursor-pointer">  
+         取消  
+       </button>  
+       <button type="button" onclick="confirmAndExecuteVoteResults()" class="py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-neutral-950 font-black text-sm rounded-xl shadow-lg transition active:scale-95 cursor-pointer">  
+         確認  
+       </button>  
+     </div>  
+   </div>  
+ </div>  
  <div id="voteResultArea" class="hidden mt-5 space-y-3 pt-4 border-t border-neutral-800">  
  <div class="text-xs font-bold text-neutral-300">投票統計結果：</div>  
  <div class="bg-neutral-950 border border-amber-600/40 rounded-xl p-3.5">  
@@ -1598,7 +1622,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.0.0</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.3.0 (小幫手防呆投票確認 + 藥不然隊友防偷襲版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -2873,7 +2897,7 @@ window.ActionEngine = ActionEngine;
     };
   }
   window.getOnlineDiagnostics = getOnlineDiagnostics;
-  console.info('%c古董局中局 v4.0.0 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
+  console.info('%c古董局中局 v3.8.14 已載入', 'font-weight:bold;color:#f59e0b;font-size:13px');
 
 
 /* ============================================================  
@@ -12662,12 +12686,13 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  list.forEach(p => {  
  const pc = COLOR_PALETTE.find(x => x.id === p.colorId) || COLOR_PALETTE[0];  
  const isSelected = (onlYaoTargetId === p.id);  
- const isLao = (p.role === '老朝奉');  
+ const knownLao = typeof getKnownTeammateForRole === 'function' ? getKnownTeammateForRole(room, me.role) : null;
+ const isLao = (p.role === '老朝奉') || !!(knownLao && knownLao.id === p.id);  
  html += `  
  <button type="button" onclick="onlSelectYaoTarget('${p.id}')" ${disAttr} class="p-3 rounded-xl border bg-neutral-900 ${isSelected ? 'ring-2 ring-rose-500 border-rose-500 bg-rose-950/30' : 'border-neutral-700 hover:border-neutral-500'} ${lockClass} transition flex flex-col items-center justify-center relative">  
  <span class="text-amber-300 text-base font-black">${pc.name}色</span>  
  <span class="text-xs text-neutral-300 font-bold mt-0.5">${p.name}</span>  
- ${isSelected ? (isLao ? '<span class="text-amber-300 font-black text-xs mt-1 animate-pulse">你忍心嗎?</span>' : '<span class="text-rose-400 font-black text-xs mt-1 animate-bounce">幹死他</span>') : ''}  
+ ${isSelected ? (isLao ? '<span class="text-amber-300 font-black text-xs mt-1 animate-pulse">你忍心偷隊友?</span>' : '<span class="text-rose-400 font-black text-xs mt-1 animate-bounce">幹死他</span>') : ''}  
  </button>  
  `;  
  });  
@@ -12846,6 +12871,11 @@ const isGoodCamp = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'
  onlYaoTargetId = pId;  
  const room = onlineRoomData;  
  const me = room.players.find(p => p.id === myOnlinePlayerId);  
+ const targetP = room.players.find(p => p.id === pId);
+ const laoP = getKnownTeammateForRole(room, '藥不然');
+ if (targetP && (targetP.role === '老朝奉' || (laoP && targetP.id === laoP.id))) {
+   showToast('你忍心偷隊友?', 'warning', 2500);
+ }
  const curRound = room.rounds[room.currentRoundIdx];  
  const myLog = (curRound.turnLogs && curRound.turnLogs[myOnlinePlayerId]) || {};  
  renderOnlineRoleAbilitySection(room, me, curRound, myLog);  
@@ -16009,7 +16039,7 @@ function renderOnlinePersonVotingReference(room) {
       const thinkingRoom = await getFreshMockThinkingRoom('playing', 'currentTurnPlayerId', mockPlayerId, room);
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiNextId = await withBotThinkTimeout(GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId), 20000, 'Gemini 傳位');
+          geminiNextId = await withBotThinkTimeout(GeminiBrain.prepareTurn(thinkingRoom, mockPlayerId), 4500, 'Gemini 傳位');
         } catch(e) {
           console.warn('[MockTurn] Gemini 思考傳遞逾時，改由本地引擎接手:', e);
         }
@@ -16245,7 +16275,7 @@ function renderOnlinePersonVotingReference(room) {
       const thinkingStartTime = Date.now();
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiSpeechText = await withBotThinkTimeout(GeminiBrain.prepareSpeech(room, mockSpeakerId), 20000, 'Gemini 發言');
+          geminiSpeechText = await withBotThinkTimeout(GeminiBrain.prepareSpeech(room, mockSpeakerId), 7000, 'Gemini 發言');
         } catch(e) {
           console.warn('[MockSpeech] Gemini 發言生成逾時，改由本地引擎接手:', e);
         }
@@ -16480,7 +16510,7 @@ function renderOnlinePersonVotingReference(room) {
       let geminiChosenId = null;
       if (window.GeminiBrain && window.GeminiBrain.cfg().on) {
         try {
-          geminiChosenId = await withBotThinkTimeout(GeminiBrain.preparePersonVote(room, mockPlayerId), 15000, 'Gemini 鑑人');
+          geminiChosenId = await withBotThinkTimeout(GeminiBrain.preparePersonVote(room, mockPlayerId), 4500, 'Gemini 鑑人');
         } catch(e) {
           console.warn('[MockPersonVote] Gemini 鑑人指認逾時，改由本地引擎接手:', e);
         }
@@ -19325,17 +19355,22 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
           list.forEach(p => {
             const pc = COLOR_PALETTE.find(x => x.id === p.colorId);
             const isSelected = G.yaoSelectedTargetId === p.id;
+            const isLao = (p.role === '老朝奉');
             html += `
               <button type="button" onclick="yaoSelectTarget(${p.id})" ${isLocked ? 'disabled' : ''} class="p-3 rounded-xl border bg-neutral-900 border-neutral-700 hover:border-amber-500 transition flex flex-col items-center justify-center relative ${isSelected ? 'ring-2 ring-rose-500 border-rose-500' : ''} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}">
                 <span class="text-amber-300 text-xl font-black">${pc.name}</span>
                 <span class="text-[11px] text-neutral-300 font-bold">${p.name}</span>
-                ${isSelected ? '<span class="text-rose-400 font-black text-xs mt-1 animate-bounce">幹死他</span>' : ''}
+                ${isSelected ? (isLao ? '<span class="text-amber-300 font-black text-xs mt-1 animate-pulse">你忍心偷隊友?</span>' : '<span class="text-rose-400 font-black text-xs mt-1 animate-bounce">幹死他</span>') : ''}
               </button>
             `;
           });
           html += '</div>';
           return html;
         }
+
+        const selectedTarget = G.players.find(p => p.id === G.yaoSelectedTargetId);
+        const isTargetLao = Boolean(selectedTarget && selectedTarget.role === '老朝奉');
+        const yaoConfirmText = isTargetLao ? '確認偷襲（你忍心偷隊友?） ➔' : '確認偷襲 ➔';
 
         container.innerHTML = `
           <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-3">
@@ -19352,8 +19387,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
               <button type="button" onclick="yaoSkipAmbush()" class="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-700 font-bold text-sm rounded-xl">
                 跳過不偷襲
               </button>
-              <button type="button" onclick="yaoConfirmAmbush()" id="btnYaoConfirm" class="flex-1 py-3 bg-rose-700 hover:bg-rose-600 text-white font-black text-sm rounded-xl shadow-lg disabled:opacity-40 disabled:cursor-not-allowed" ${G.yaoSelectedTargetId ? '' : 'disabled'}>
-                確認偷襲 ➔
+              <button type="button" onclick="yaoConfirmAmbush()" id="btnYaoConfirm" class="flex-1 py-3 ${isTargetLao ? 'bg-amber-600 hover:bg-amber-500 text-neutral-950' : 'bg-rose-700 hover:bg-rose-600 text-white'} font-black text-sm rounded-xl shadow-lg disabled:opacity-40 disabled:cursor-not-allowed" ${G.yaoSelectedTargetId ? '' : 'disabled'}>
+                ${yaoConfirmText}
               </button>
             </div>
             <div class="${isLocked ? '' : 'hidden'} text-xs text-center text-rose-400 font-bold">
@@ -19472,6 +19507,10 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
     function yaoSelectTarget(targetId) {
       if (G.abilityLockedInCurrentTurn) return;
       G.yaoSelectedTargetId = targetId;
+      const targetP = G.players.find(p => p.id === targetId);
+      if (targetP && targetP.role === '老朝奉') {
+        showToast('你忍心偷隊友?', 'warning', 2500);
+      }
       saveState();
       renderStepBRoleAbility(G.players.find(p => p.id === G.activePlayerId));
     }
@@ -19743,6 +19782,8 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         container.appendChild(row);
       });
 
+      const confirmModal = document.getElementById('localVoteConfirmModal');
+      if (confirmModal) confirmModal.classList.add('hidden');
       const resArea = document.getElementById('voteResultArea');
       if (curRound.voteResults) {
         showCalculatedResults(curRound.voteResults, false);
@@ -19766,10 +19807,116 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
     function calculateVoteResults() {
       const curRound = G.rounds[G.currentRoundIdx];
+      if (!curRound || !Array.isArray(curRound.beasts)) return;
+
+      curRound.beasts.forEach((b, bIdx) => {
+        const inp = document.getElementById(`voteInput_${bIdx}`);
+        if (inp) {
+          b.votes = Math.max(0, parseInt(inp.value, 10) || 0);
+        } else {
+          b.votes = Math.max(0, parseInt(b.votes, 10) || 0);
+        }
+      });
+      saveState();
 
       const sorted = [...curRound.beasts].sort((a, b) => {
-        if (b.votes !== a.votes) {
-          return b.votes - a.votes;
+        const va = a.votes || 0;
+        const vb = b.votes || 0;
+        if (vb !== va) {
+          return vb - va;
+        }
+        return ZODIAC_ORDER.indexOf(a.name) - ZODIAC_ORDER.indexOf(b.name);
+      });
+
+      const rank1 = sorted[0];
+      const rank2 = sorted[1];
+      const v1 = rank1 ? (rank1.votes || 0) : 0;
+      const v2 = rank2 ? (rank2.votes || 0) : 0;
+
+      // 語音提醒：票多的就說二，票少就說一；一樣多就說「X一Y一」（如「兔二馬一」或「兔一馬一」）
+      let voiceReminder = '';
+      if (rank1 && rank2) {
+        if (v1 > v2) {
+          voiceReminder = `${rank1.name}二${rank2.name}一`;
+        } else {
+          voiceReminder = `${rank1.name}一${rank2.name}一`;
+        }
+      }
+
+      window._currentLocalVoteVoiceReminder = voiceReminder;
+      const voiceBadge = document.getElementById('localVoteConfirmVoiceBadge');
+      if (voiceBadge) {
+        voiceBadge.innerHTML = `🔊 語音提醒：<b class="text-amber-400 font-mono">${voiceReminder}</b> <span class="text-[10px] text-neutral-400 font-normal">（點擊重聽）</span>`;
+      }
+
+      const listEl = document.getElementById('localVoteConfirmList');
+      if (listEl) {
+        const beastsInZodiac = [...curRound.beasts].sort((a, b) => ZODIAC_ORDER.indexOf(a.name) - ZODIAC_ORDER.indexOf(b.name));
+        listEl.innerHTML = beastsInZodiac.map(b => {
+          const votes = b.votes || 0;
+          const isR1 = rank1 && rank1.name === b.name;
+          const isR2 = rank2 && rank2.name === b.name;
+          const roleTag = isR1
+            ? '<span class="px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-600/60 text-[10px] font-black">🥇 預計第一名（封存）</span>'
+            : (isR2
+              ? '<span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-600/60 text-[10px] font-black">🥈 預計第二名（公開）</span>'
+              : '<span class="text-[10px] text-neutral-500">未入前二</span>');
+          const rowBorder = isR1
+            ? 'border-amber-500/70 bg-amber-950/20'
+            : (isR2 ? 'border-emerald-500/70 bg-emerald-950/20' : 'border-neutral-800 bg-neutral-900/70');
+          return `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg border ${rowBorder}">
+              <div class="flex items-center space-x-2">
+                <span class="text-lg font-black text-amber-300">${b.name}</span>
+                ${roleTag}
+              </div>
+              <span class="text-sm font-mono font-black text-neutral-100">${votes} 票</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const modal = document.getElementById('localVoteConfirmModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+
+      if (voiceReminder) {
+        speak(voiceReminder);
+      }
+    }
+
+        function playLocalVoteVoiceReminder() {
+      if (window._currentLocalVoteVoiceReminder) {
+        speak(window._currentLocalVoteVoiceReminder);
+      }
+    }
+    window.playLocalVoteVoiceReminder = playLocalVoteVoiceReminder;
+
+function cancelLocalVoteConfirm() {
+      const modal = document.getElementById('localVoteConfirmModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    }
+    window.cancelLocalVoteConfirm = cancelLocalVoteConfirm;
+
+    function confirmAndExecuteVoteResults() {
+      const modal = document.getElementById('localVoteConfirmModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      const curRound = G.rounds[G.currentRoundIdx];
+      if (!curRound || !Array.isArray(curRound.beasts)) return;
+
+      const sorted = [...curRound.beasts].sort((a, b) => {
+        const va = a.votes || 0;
+        const vb = b.votes || 0;
+        if (vb !== va) {
+          return vb - va;
         }
         return ZODIAC_ORDER.indexOf(a.name) - ZODIAC_ORDER.indexOf(b.name);
       });
@@ -19778,13 +19925,14 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
       const rank2 = sorted[1];
 
       curRound.voteResults = {
-        rank1: { name: rank1.name, votes: rank1.votes, isReal: rank1.isReal },
-        rank2: { name: rank2.name, votes: rank2.votes, isReal: rank2.isReal }
+        rank1: { name: rank1.name, votes: rank1.votes || 0, isReal: rank1.isReal },
+        rank2: { name: rank2.name, votes: rank2.votes || 0, isReal: rank2.isReal }
       };
 
       saveState();
       showCalculatedResults(curRound.voteResults, true);
     }
+    window.confirmAndExecuteVoteResults = confirmAndExecuteVoteResults;
 
     function showCalculatedResults(res, triggerSpeech) {
       document.getElementById('voteResultArea').classList.remove('hidden');
@@ -24149,8 +24297,8 @@ window.BotSimulationEngine = BotSimulationEngine;
   let geminiRequestInFlight = false;
   let geminiBlockedUntil = 0;
   try { geminiBlockedUntil = Number(sessionStorage.getItem('gudong_gemini_429_blocked_until') || 0) || 0; } catch (e) {}
-  const GEMINI_429_COOLDOWN_MS = 30 * 60 * 1000;
-
+  const GEMINI_429_COOLDOWN_MS = 15 * 1000; // 429 限流自適應短暫退避 15 秒（原本 30 分鐘太長容易造成永久斷線）
+  let lastGeminiCallTimestamp = 0;
 
   function decisionContextSignature(room, kind, botId) {
     const rIdx = Number.isInteger(room?.currentRoundIdx) ? room.currentRoundIdx : 0;
@@ -24171,15 +24319,38 @@ window.BotSimulationEngine = BotSimulationEngine;
     return !decisionContexts[k] || decisionContexts[k] === decisionContextSignature(room, kind, botId);
   }
 
-  // 純粹 Google Gemini API 呼叫器（支援智慧多模型輪詢降級：3.8 Flash ➔ 3.5 Lite ➔ 3.6 Flash ➔ 2.5 Flash）
+  // 取得當前 Gemini 連線與運作狀態（供 UI 顯示與診斷）
+  function getGeminiConnectionStatus() {
+    const now = Date.now();
+    const c = cfg();
+    if (!c.on) return { status: 'disabled', label: 'AI 未啟用 (純本地引擎)', color: '#a8a29e' };
+    if (geminiBlockedUntil > now) {
+      const remainSec = Math.ceil((geminiBlockedUntil - now) / 1000);
+      return { status: 'cooling', label: `暫態降級中 (${remainSec}s 後自動重連，本地大腦代管)`, color: '#f59e0b', remainSec };
+    }
+    if (window.GeminiBrain && window.GeminiBrain.lastError) {
+      return { status: 'degraded', label: `連線異常 (${window.GeminiBrain.lastError})`, color: '#f87171' };
+    }
+    return { status: 'online', label: `連線就緒 (${window.GeminiBrain?.currentActiveModel || c.model || 'gemini-3.8-flash'})`, color: '#34d399' };
+  }
+
+  // 重設連線鎖定（提供手動一鍵重連）
+  function resetGeminiCooldown() {
+    geminiBlockedUntil = 0;
+    try { sessionStorage.removeItem('gudong_gemini_429_blocked_until'); } catch (e) {}
+    if (window.GeminiBrain) window.GeminiBrain.lastError = null;
+    console.info('🔄 [GeminiBrain] 已重設 Gemini 冷卻鎖定，恢復連線探測！');
+  }
+
+  // 具備雙向容錯 (Proxy ↔ Direct)、智慧模型輪詢與斷路器保護之 Google Gemini 核心呼叫器
   async function ask(system, user, max, timeout) {
     const now = Date.now();
     if (geminiBlockedUntil > now) {
+      const remainSec = Math.ceil((geminiBlockedUntil - now) / 1000);
       window.GeminiBrain = window.GeminiBrain || {};
-      window.GeminiBrain.lastError = 'Gemini 回報 429 配額/速率限制，暫停呼叫至 ' + new Date(geminiBlockedUntil).toLocaleTimeString() + '；目前改用本地 BOT 引擎';
+      window.GeminiBrain.lastError = `Gemini 連線冷卻中（剩餘 ${remainSec} 秒），本動作由本地電競神經大腦代管`;
       return null;
     }
-    // 同一頁面一次只允許一個 Gemini 請求，避免房間快照連續觸發時同時打爆配額。
     if (geminiRequestInFlight) return null;
     const c = cfg();
     if (!c.on) return null;
@@ -24195,7 +24366,14 @@ window.BotSimulationEngine = BotSimulationEngine;
       return null;
     }
 
-    // 依序嘗試模型：優先使用使用者設定模型，接著依序輪詢降級
+    // 請求微型節流：相鄰請求保持至少 350ms 間隔，防止瞬間併發觸發 429
+    const timeSinceLast = now - lastGeminiCallTimestamp;
+    if (timeSinceLast < 350) {
+      await new Promise(r => setTimeout(r, 350 - timeSinceLast));
+    }
+    lastGeminiCallTimestamp = Date.now();
+
+    // 依序嘗試模型：優先使用設定模型，接著依序輪詢降級
     const modelsToTry = [userModel];
     for (const m of CANDIDATE_MODELS) {
       if (!modelsToTry.includes(m)) {
@@ -24203,123 +24381,127 @@ window.BotSimulationEngine = BotSimulationEngine;
       }
     }
 
-    const overallTimeout = timeout || 25000;
+    const overallTimeout = timeout || 12000;
     const startTime = Date.now();
     geminiRequestInFlight = true;
 
     try {
-    for (let i = 0; i < modelsToTry.length; i++) {
-      const currentModel = modelsToTry[i];
-      const elapsed = Date.now() - startTime;
-      const remainingTime = overallTimeout - elapsed;
-      if (remainingTime <= 1000 && i > 0) {
-        break; // 剩餘時間不足以嘗試下一個模型
-      }
+      for (let i = 0; i < modelsToTry.length; i++) {
+        const currentModel = modelsToTry[i];
+        const elapsed = Date.now() - startTime;
+        const remainingTime = overallTimeout - elapsed;
+        if (remainingTime <= 1000 && i > 0) break;
 
-      const attemptTimeout = Math.min(remainingTime, i === 0 ? 15000 : 8000);
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), attemptTimeout);
+        const attemptTimeout = Math.min(remainingTime, i === 0 ? 6000 : 3800);
 
-      try {
-        let reqUrl = '';
-        const reqHeaders = { 'Content-Type': 'application/json' };
-        let reqBody = {};
-
+        // 雙向端點容錯：優先使用設定的端點；若端點失敗且有備用端點，自動雙向切換！
+        const endpoints = [];
         if (proxyUrl) {
-          reqUrl = proxyUrl;
-          reqBody = {
-            model: currentModel,
-            contents: [{ role: 'user', parts: [{ text: user }] }],
-            systemInstruction: { parts: [{ text: system }] },
-            generationConfig: {
-              temperature: 0.85,
-              maxOutputTokens: max || 220,
-              ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
-            }
-          };
+          endpoints.push({ type: 'proxy', url: proxyUrl });
           if (effectiveKey) {
-            reqHeaders['x-goog-api-key'] = effectiveKey;
+            endpoints.push({ type: 'direct', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent` });
           }
-        } else {
-          reqUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
-          reqHeaders['x-goog-api-key'] = effectiveKey;
-          reqBody = {
-            systemInstruction: { parts: [{ text: system }] },
-            contents: [{ role: 'user', parts: [{ text: user }] }],
-            generationConfig: {
-              temperature: 0.85,
-              maxOutputTokens: max || 220,
-              ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
+        } else if (effectiveKey) {
+          endpoints.push({ type: 'direct', url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent` });
+          if (DEFAULT_PROXY_URL) {
+            endpoints.push({ type: 'proxy', url: DEFAULT_PROXY_URL });
+          }
+        }
+
+        let modelSuccess = false;
+        for (const ep of endpoints) {
+          const epElapsed = Date.now() - startTime;
+          if (overallTimeout - epElapsed <= 800) break;
+
+          const ctl = new AbortController();
+          const t = setTimeout(() => ctl.abort(), attemptTimeout);
+
+          try {
+            const reqHeaders = { 'Content-Type': 'application/json' };
+            const reqBody = {
+              contents: [{ role: 'user', parts: [{ text: user }] }],
+              systemInstruction: { parts: [{ text: system }] },
+              generationConfig: {
+                temperature: 0.85,
+                maxOutputTokens: max || 220,
+                ...(user && user.includes('請輸出純 JSON 格式') ? { responseMimeType: 'application/json' } : {})
+              }
+            };
+            if (ep.type === 'proxy') {
+              reqBody.model = currentModel;
+              if (effectiveKey) reqHeaders['x-goog-api-key'] = effectiveKey;
+            } else {
+              reqHeaders['x-goog-api-key'] = effectiveKey;
             }
-          };
+
+            const r = await fetch(ep.url, {
+              method: 'POST',
+              signal: ctl.signal,
+              headers: reqHeaders,
+              body: JSON.stringify(reqBody)
+            });
+
+            if (!r.ok) {
+              let errDetail = '';
+              try {
+                const ej = await r.json();
+                errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
+              } catch (e) {
+                errDetail = '';
+              }
+              const formattedErr = `HTTP ${r.status} (${currentModel})` + (errDetail ? ': ' + String(errDetail).slice(0, 80) : '');
+              window.GeminiBrain = window.GeminiBrain || {};
+              window.GeminiBrain.lastError = formattedErr;
+
+              if (r.status === 429) {
+                console.warn(`[Gemini] 模型 ${currentModel} 限流 (429)，自動切換至備用模型...`);
+                // 不直接鎖死 30 分鐘！若所有模型都 429，才冷卻 15 秒
+                if (i === modelsToTry.length - 1) {
+                  geminiBlockedUntil = Date.now() + 15000;
+                  try { sessionStorage.setItem('gudong_gemini_429_blocked_until', String(geminiBlockedUntil)); } catch (e) {}
+                  window.GeminiBrain.lastError = 'Gemini 達到每分鐘頻率限制 (429)，15 秒後自動恢復連線';
+                  return null;
+                }
+                break; // 換下一個模型
+              }
+              continue; // 嘗試備用 endpoint 或下個模型
+            }
+
+            const j = await r.json();
+            let resultText = '';
+            if (j.text) {
+              resultText = j.text.trim();
+            } else if (j.candidates?.[0]?.content?.parts) {
+              resultText = j.candidates[0].content.parts.map(p => p.text || '').join('').trim();
+            }
+
+            if (resultText) {
+              window.GeminiBrain = window.GeminiBrain || {};
+              window.GeminiBrain.currentActiveModel = j.model || j.modelVersion || currentModel;
+              window.GeminiBrain.lastError = null;
+              modelSuccess = true;
+              return resultText;
+            }
+          } catch(err) {
+            window.GeminiBrain = window.GeminiBrain || {};
+            if (err.name === 'AbortError') {
+              window.GeminiBrain.lastError = `模型 ${currentModel} 逾時`;
+            } else {
+              window.GeminiBrain.lastError = `連線異常: ${err.message || err}`;
+              if (/failed to fetch|networkerror|load failed/i.test(String(err.message || err))) {
+                // 網路中斷快速斷路保護：12 秒內不讓全桌 BOT 重複耗費逾時，由本地電競大腦流暢代管
+                geminiBlockedUntil = Date.now() + 12000;
+                window.GeminiBrain.lastError = '網路連線受阻，電腦玩家由本地電競神經大腦代管（12秒後自動重連）';
+                return null;
+              }
+            }
+          } finally {
+            clearTimeout(t);
+          }
         }
-
-        const r = await fetch(reqUrl, {
-          method: 'POST',
-          signal: ctl.signal,
-          headers: reqHeaders,
-          body: JSON.stringify(reqBody)
-        });
-
-        if (!r.ok) {
-  let errDetail = '';
-
-  try {
-    const ej = await r.json();
-    errDetail = ej.error?.message || ej.error || JSON.stringify(ej);
-  } catch (e) {
-    errDetail = '';
-  }
-
-  const formattedErr =
-    `HTTP ${r.status} (${currentModel})` +
-    (errDetail ? ': ' + String(errDetail).slice(0, 80) : '');
-
-  window.GeminiBrain = window.GeminiBrain || {};
-  window.GeminiBrain.lastError = formattedErr;
-
-  // 限流時停止本次輪詢，交由上層本地決策引擎兜底
-  if (r.status === 429) {
-  geminiBlockedUntil = Date.now() + GEMINI_429_COOLDOWN_MS;
-  try { sessionStorage.setItem('gudong_gemini_429_blocked_until', String(geminiBlockedUntil)); } catch (e) {}
-  console.warn('[Gemini] 收到 429，停止模型輪詢並暫停 30 分鐘，後續 BOT 改走本地引擎。', errDetail);
-  window.GeminiBrain.lastError = 'HTTP 429：' + String(errDetail).slice(0, 120) + '；已暫停 Gemini 30 分鐘';
-  return null;
-}
-
-  // 其他 HTTP 錯誤仍可嘗試下一個候選模型
-  continue;
-}
-
-        // 成功回應也必須解析 JSON；舊版漏掉這一步，會讓 j 未定義。
-        const j = await r.json();
-        let resultText = '';
-        if (j.text) {
-          resultText = j.text.trim();
-        } else if (j.candidates?.[0]?.content?.parts) {
-          resultText = j.candidates[0].content.parts.map(p => p.text || '').join('').trim();
-        }
-
-        if (resultText) {
-          window.GeminiBrain = window.GeminiBrain || {};
-          window.GeminiBrain.currentActiveModel = j.model || j.modelVersion || currentModel;
-          window.GeminiBrain.lastError = null;
-          return resultText;
-        }
-      } catch(err) {
-        window.GeminiBrain = window.GeminiBrain || {};
-        if (err.name === 'AbortError') {
-          window.GeminiBrain.lastError = `模型 ${currentModel} 逾時`;
-        } else {
-          window.GeminiBrain.lastError = `模型 ${currentModel} 異常: ${err.message || err}`;
-        }
-        continue;
-      } finally {
-        clearTimeout(t);
+        if (modelSuccess) break;
       }
-    }
-
-    return null;
+      return null;
     } finally {
       geminiRequestInFlight = false;
     }
@@ -24541,8 +24723,10 @@ ${ctx.voteCall ? `- 號票：你是後面發言者且手上有資訊，請自然
         const cl = BotDeductionEngine.parseOwnClaims(clause, beasts);
         for (const c of cl) {
           const f = reliable.find(x => x.beast === c.beast);
-          if (!f || f.status !== c.status) {
-            console.warn('[GeminiBrain] 攔截到捏造或與查驗不符的第一人稱情報:', clause);
+          // 修正：只有當該獸首確實在自己親驗名單中，且宣稱結論與實際相反時才攔截！
+          // 若玩家未親自查驗該獸首，在發言中做出斷言或推論定調（如「我確認【牛】是真品」），屬於正常桌遊推論，絕不攔截！
+          if (f && f.status !== c.status) {
+            console.warn('[GeminiBrain] 攔截到與實際查驗相反的情報:', clause);
             return false;
           }
         }
@@ -24570,7 +24754,7 @@ ${ctx.voteCall ? `- 號票：你是後面發言者且手上有資訊，請自然
     const beliefs = BotDeductionEngine.evaluateBeliefs(pov);
     const draft = BotDeductionEngine._origGenerateSpeech(pov, beliefs);
     const [s, u] = buildSpeechPrompt(pov, beliefs, draft);
-    const out = await ask(s, u, 140, 14000);
+    const out = await ask(s, u, 140, 5500);
     if (out) {
       let cleaned = out.replace(/Strict\s*timeline\s*rule[:：]?\s*No\s*one\s*before\s*me/gi, '').replace(/^["「『]|["」』]$/g, '').trim();
       if (window.stripSelfDoubt) cleaned = window.stripSelfDoubt(cleaned);
@@ -25141,9 +25325,15 @@ ${roundSpeeches}
       <input id="gbModelInput" placeholder="如 gemini-3.8-flash" value="${c.model || 'gemini-3.8-flash'}" style="width:100%;padding:6px;background:#0c0a09;color:#38bdf8;border:1px solid #57534e;border-radius:6px;margin-bottom:10px;font-size:12px;font-family:monospace">
 
       <button id="gbSave" style="width:100%;padding:10px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;margin-bottom:6px">儲存並測試 Gemini 連線</button>
-      <button id="gbTrainNeural" type="button" style="width:100%;padding:8px;background:#065f46;color:#a7f3d0;border:1px solid #059669;border-radius:6px;font-weight:bold;cursor:pointer;font-size:12px">⚡ 離線神經網路自對局強化訓練 (100局)</button>
+      <div style="display:flex;gap:4px;margin-bottom:6px">
+        <button id="gbResetCooldown" type="button" style="flex:1;padding:8px;background:#1e1b4b;color:#38bdf8;border:1px solid #0284c7;border-radius:6px;font-weight:bold;cursor:pointer;font-size:11px">🔄 重設冷卻立即重連</button>
+        <button id="gbTrainNeural" type="button" style="flex:1;padding:8px;background:#065f46;color:#a7f3d0;border:1px solid #059669;border-radius:6px;font-weight:bold;cursor:pointer;font-size:11px">⚡ 本地神經訓練(100局)</button>
+      </div>
 
-      <div id="gbMsg" style="margin-top:8px;font-size:11px;color:#a8a29e;line-height:1.4"></div>
+      <div id="gbStatusIndicator" style="margin-top:4px;padding:6px 8px;border-radius:6px;background:#0c0a09;border:1px solid #44403c;font-size:11px;color:#34d399;font-weight:bold">
+        🟢 連線就緒 (Gemini 正常運行，斷線時本地電競大腦秒級無縫代管)
+      </div>
+      <div id="gbMsg" style="margin-top:6px;font-size:11px;color:#a8a29e;line-height:1.4"></div>
       <div style="margin-top:8px;font-size:10px;color:#78716c;border-top:1px solid #292524;padding-top:6px;line-height:1.3">
         ※ 專注串聯 Google Gemini 系列模型。內建開箱即用之安全代理伺服器，亦支援填入個人 API Key 直連官方 API！
       </div>
@@ -25180,6 +25370,15 @@ ${roundSpeeches}
       m.innerHTML = '<span style="color:#818cf8">💎 已選取 gemini-2.5-flash（穩定推薦）。</span>';
     };
 
+    const resetCooldownBtn = d.querySelector('#gbResetCooldown');
+    if (resetCooldownBtn) {
+      resetCooldownBtn.onclick = () => {
+        resetGeminiCooldown();
+        const m = d.querySelector('#gbMsg');
+        m.innerHTML = '<span style="color:#34d399">🔄 已清除 429 冷卻鎖定！立即恢復 Gemini 連線探測。</span>';
+        d.querySelector('#gbSave').click();
+      };
+    }
     const trainBtn = d.querySelector('#gbTrainNeural');
     if (trainBtn) {
       trainBtn.onclick = () => {
@@ -25233,6 +25432,8 @@ ${roundSpeeches}
     syncBotMemoriesToFirestore,
     ask,
     cfg,
+    resetGeminiCooldown,
+    getGeminiConnectionStatus,
     decisionContextSignature,
     isFreshDecisionContext
   };
@@ -28031,6 +28232,7 @@ migrateAllProfiles();
       const currentBeasts = Array.isArray(pov.currentBeasts) ? pov.currentBeasts.filter(Boolean) : [];
       const mySpeechPos = curSpeeches.length;
       const myPassIdx = curPassOrder.indexOf(pov.myId);
+      const isFirstSpeaker = (mySpeechPos === 0);
 
       const tom = (beliefs && beliefs.tom) || RecursiveToMEngine.analyze(pov, beliefs || {});
       const neuralOut = (pov._neuralOutput) || InBrowserPolicyValueNet.forward(pov, beliefs || {});
@@ -28113,7 +28315,7 @@ migrateAllProfiles();
         ? validMyFacts.map(f => ({ beast: f.beast, status: f.status === '真品' ? '贗品' : '真品', rawStatus: f.status, inverted: true }))
         : validMyFacts.map(f => ({ ...f, rawStatus: f.status, inverted: false }));
 
-      // 找出當輪最被好人看好的已驗證真品候選（絕不盲猜未驗獸首！）
+      // 找出當輪最被好人看好的已驗證真品候選（必須有自己確認真品，或場上好人已報出真品，絕不盲猜未驗獸首！）
       const getBestGoodAlternativeBeast = (excludeBeast) => {
         const ownReal = effectiveMyFacts.find(f => f.beast !== excludeBeast && f.status === '真品');
         if (ownReal) return ownReal.beast;
@@ -28133,65 +28335,6 @@ migrateAllProfiles();
         return candidates[0] || null;
       };
 
-      // 0. 積極回應前手/真人發言模組（徹底解決「電腦根本沒在看我發言」問題）
-      let replyClause = '';
-      if (mySpeechPos > 0 && curSpeeches.length > 0) {
-        // 優先尋找前置位真人玩家的發言，若無則鎖定上一位發言者
-        const humanSpeech = curSpeeches.slice().reverse().find(sp => {
-          const sid = sp.playerId || sp.speakerId;
-          return sid && !String(sid).startsWith('mock_p_') && String(sp.speech || sp.text || '').trim().length > 0;
-        });
-        const targetPreceding = humanSpeech || curSpeeches[curSpeeches.length - 1];
-        if (targetPreceding) {
-          const prevPid = targetPreceding.playerId || targetPreceding.speakerId;
-          const prevPlayer = getPlayer(prevPid);
-          const prevRaw = String(targetPreceding.speech || targetPreceding.text || '').trim();
-          const prevDesc = fmtPlayer(prevPlayer);
-
-          // 檢驗前手是否有提及獸首
-          const prevClaims = (window.BotDeductionEngine && typeof window.BotDeductionEngine.parseOwnClaims === 'function')
-            ? window.BotDeductionEngine.parseOwnClaims(prevRaw, currentBeasts)
-            : [];
-
-          if (prevClaims.length > 0) {
-            const firstClaim = prevClaims[0];
-            const myFactOnB = effectiveMyFacts.find(f => f.beast === firstClaim.beast);
-            if (myFactOnB) {
-              if (myFactOnB.status === firstClaim.status) {
-                replyClause = pickNonRepeatingClause('REPLY_AGREE', [
-                  `接一下剛才${prevDesc}說的，你提到【${firstClaim.beast}】是${firstClaim.status}，我手上實測結果跟你完全一致，這條線毫無疑問！`,
-                  `剛才${prevDesc}分析【${firstClaim.beast}】很有見地，我這邊驗出來也是${firstClaim.status}，好人陣營這票可以直接對齊！`,
-                  `聽完${prevDesc}剛才的重點，我支持你對【${firstClaim.beast}】為${firstClaim.status}的判斷，成色經得起考驗！`
-                ]);
-              } else {
-                replyClause = pickNonRepeatingClause('REPLY_DISAGREE', [
-                  `剛才${prevDesc}講了那麼長一大串想力保【${firstClaim.beast}】，但我手上的結果截然相反，這件根本不是${firstClaim.status}！你想踩人得有真憑實據，別在這裡混淆視聽！`,
-                  `聽完${prevDesc}剛才那段發言，你把【${firstClaim.beast}】吹成${firstClaim.status}完全站不住腳！我實測就是反的，你這段傳遞順位很有問題！`,
-                  `針對剛才${prevDesc}的長篇大論，我直接當面質疑你：【${firstClaim.beast}】分明是相反的，你剛才那番話分明是在替假貨護航！`
-                ]);
-              }
-            } else {
-              replyClause = pickNonRepeatingClause('REPLY_HEARD', [
-                `剛才${prevDesc}講了這麼多提到【${firstClaim.beast}】，我每一句都有在認真聽！雖然我沒親驗這件，但你的傳遞邏輯我記下了……`,
-                `聽了${prevDesc}剛才那番分析，你主張【${firstClaim.beast}】是${firstClaim.status}，這個論點很鮮明，大家多對照前後時序……`
-              ]);
-            }
-          } else if (prevRaw.length >= 18) {
-            replyClause = pickNonRepeatingClause('REPLY_LONG', [
-              `剛才${prevDesc}打了這麼長一串分析，我每一句都有認真看在眼裡！你講得煞有其事，但桌遊不是誰字多誰就對，關鍵還是在獸首成色……`,
-              `接一下${prevDesc}剛才那番長篇分析，我聽得很清楚！你指出的時序問題確實關鍵，不過我的重點在……`,
-              `聽完${prevDesc}剛才一大段發言，你的邏輯看似嚴密，但我看你核心就是在轉移全場對票型的注意力……`
-            ]);
-          } else if (/(偷襲|一片黑|被幹|暈眩|致盲)/.test(prevRaw)) {
-            replyClause = `剛才${prevDesc}說自己被偷襲致盲了，這條資訊很關鍵，代表藥不然就在前面那幾棒……`;
-          } else if (/(無法辨別|驗不到)/.test(prevRaw)) {
-            replyClause = `剛才${prevDesc}坦白說自己驗不到無法辨別，這種誠實態度比瞎扯強多了，代表這件很可能被鄭國渠封鎖了……`;
-          } else {
-            replyClause = `接一下${prevDesc}剛才的發言，大家前後順序我都對了一遍……`;
-          }
-        }
-      }
-
       let beastClause = '';
       let advocatedRealBeast = null;
       let warnedFakeBeast = null;
@@ -28210,6 +28353,7 @@ migrateAllProfiles();
           const f1 = effectiveMyFacts[0], f2 = effectiveMyFacts[1];
           const remBeasts = currentBeasts.filter(b => b !== f1.beast && b !== f2.beast);
           if (f1.status === '贗品' && f2.status === '贗品' && remBeasts.length >= 2) {
+            // 許願驗出兩假：依二真二假定理，剩餘兩隻100%雙真品！
             warnedFakeBeast = f1.beast;
             advocatedRealBeast = remBeasts[0];
             beastClause = pickNonRepeatingClause('XU_TWO_FAKE_SOLVE', [
@@ -28217,6 +28361,7 @@ migrateAllProfiles();
               `直接開全圖：【${f1.beast}】確定贗品；【${f2.beast}】確定贗品。用消去法反推，【${remBeasts[0]}】確定是真品；【${remBeasts[1]}】也確定是真品！`
             ]);
           } else if (f1.status === '真品' && f2.status === '真品' && remBeasts.length >= 2) {
+            // 許願驗出兩真：依二真二假定理，剩餘兩隻100%雙贗品！
             advocatedRealBeast = f1.beast;
             warnedFakeBeast = remBeasts[0];
             beastClause = pickNonRepeatingClause('XU_TWO_REAL_SOLVE', [
@@ -28254,7 +28399,7 @@ migrateAllProfiles();
           }
         }
       }
-      // --- 流派分支 B：方震 (直接報，絕不說「我傾向先視為真品」或「偏真」) ---
+      // --- 流派分支 B：方震 (修復位序判斷與避免「邏輯完全閉環」等機械術語) ---
       else if (pov.myRole === '方震') {
         const verifiedGoodIds = new Set((pov.fangZhenInspections || []).filter(i => !i.isEvil).map(i => i.targetId));
         const verifiedEvilIds = new Set((pov.fangZhenInspections || []).filter(i => i.isEvil).map(i => i.targetId));
@@ -28275,40 +28420,35 @@ migrateAllProfiles();
           ]);
         } else if (trustedClaim) {
           if (trustedClaim.status === '真品') advocatedRealBeast = trustedClaim.beast; else warnedFakeBeast = trustedClaim.beast;
+          // 【修復問題五】：摒棄空泛的「邏輯完全閉環」，改為真實道地的桌遊對白
           beastClause = pickNonRepeatingClause('FANG_ALLY', [
-            `【${trustedClaim.beast}】我這邊直接報就是${trustedClaim.status}，跟${fmtPlayer(trustedClaim.speaker)}的結論一致，這條資訊鏈千真萬確！`,
-            `我認同${fmtPlayer(trustedClaim.speaker)}在【${trustedClaim.beast}】報${trustedClaim.status}的判斷，從傳遞順位來看這件成色確定保真！`,
-            `對照前後傳遞順位，${fmtPlayer(trustedClaim.speaker)}報【${trustedClaim.beast}】為${trustedClaim.status}的邏輯完全閉環，我站這條線！`
+            `【${trustedClaim.beast}】我這邊看也是${trustedClaim.status}，跟${fmtPlayer(trustedClaim.speaker)}的結論一致，這條資訊鏈沒有被污染。`,
+            `我認同${fmtPlayer(trustedClaim.speaker)}在【${trustedClaim.beast}】報${trustedClaim.status}的判斷，從傳遞順位來看這件的可信度最高。`,
+            `對照前後傳遞順位，${fmtPlayer(trustedClaim.speaker)}說明【${trustedClaim.beast}】為${trustedClaim.status}的推導非常完整，前後順位都對得上，我站這條線。`,
+            `從他拿手機的順位和發言細節來看，${fmtPlayer(trustedClaim.speaker)}報【${trustedClaim.beast}】為${trustedClaim.status}的立論很扎實，沒有破綻，我支持他的判斷。`
           ]);
         } else {
           const probeBeast = currentBeasts[0] || '鼠';
-          advocatedRealBeast = probeBeast;
-          beastClause = pickNonRepeatingClause('FANG_OPEN', [
-            `我排在首位發言直接定調：【${probeBeast}】我驗過就是真品！後面誰敢在後位偷換概念我直接抓誰！`,
-            `第一位發言我直接亮劍：【${probeBeast}】確定是真品，全場好人這輪把票壓在【${probeBeast}】上，大家跟我走！`
-          ]);
-        }
-      }
-      // --- 流派分支 C：姬雲浮 (遭偷襲時直接報真品，絕不軟弱說偏真) ---
-      else if (pov.myRole === '姬雲浮') {
-        if (isBlindedNow) {
-          const bestClaim = publicClaims.find(c => (roleScores[c.speakerId]?.evilScore ?? 50) <= 48);
-          if (bestClaim) {
-            const bName = bestClaim.beast;
-            const bStatus = bestClaim.status;
-            if (bStatus === '真品') advocatedRealBeast = bName; else warnedFakeBeast = bName;
-            beastClause = pickNonRepeatingClause('JI_BLIND', [
-              `【${bName}】的真偽不需要再爭了，綜合前後順位的傳遞軌跡，【${bName}】確定是${bStatus}，想在這件上面渾水摸魚的人可以收手了！`,
-              `把整條傳遞時序攤開來看，【${bName}】屬於${bStatus}的證據鏈非常完整，誰再強行扭曲【${bName}】就是自己跳狼！`
+          // 【修復問題一】：位序判斷判定錯誤修復，非首位絕不說「第一位發言」
+          if (isFirstSpeaker) {
+            advocatedRealBeast = probeBeast;
+            beastClause = pickNonRepeatingClause('FANG_OPEN_FIRST', [
+              `我排在首位發言先不把獸首講死，【${probeBeast}】這條線留給後面親手查驗的好人定調，我會緊盯誰在後位偷換概念。`,
+              `第一位發言我先拋磚引玉，請後面拿到乾淨資訊的好人把【${probeBeast}】等獸首的底牌亮出來，我們再統一集中選票。`
             ]);
           } else {
-            const probeB = currentBeasts[0] || '鼠';
-            advocatedRealBeast = probeB;
-            beastClause = pickNonRepeatingClause('JI_BLIND_EARLY', [
-              `【${probeB}】我直接亮底牌：確定是真品！後面誰敢顛倒黑白我終局直接抓誰！`,
-              `前位發言我直接定調：【${probeB}】就是真品，誰敢在後面搞事我票型直接算帳！`
+            beastClause = pickNonRepeatingClause('FANG_OPEN_MIDDLE', [
+              `我排在第${mySpeechPos + 1}位發言，【${probeBeast}】這條線前面大家說法不一，我先不盲跟，多對照前後棒次的傳遞乾淨度。`,
+              `聽完前面幾位報的風向，【${probeBeast}】大家先別急著定調，多對照前後順位的邏輯能不能自圓其說。`,
+              `【${probeBeast}】這條線前面各有各的說法，我會緊盯誰在前後傳遞上露出破綻，大家多亮底牌。`
             ]);
           }
+        }
+      }
+      // --- 流派分支 C：姬雲浮 (修復問題三：適度偽裝猶豫，避免暴露神職「絕對真視」視野) ---
+      else if (pov.myRole === '姬雲浮') {
+        if (isBlindedNow) {
+          // 被偷襲致盲的姬雲浮，由後方 isBlindedNow 統一處理，不在此處硬充胖子斷言
         } else if (effectiveMyFacts.length > 0) {
           const f = effectiveMyFacts[0];
           if (f.status === '真品') advocatedRealBeast = f.beast; else warnedFakeBeast = f.beast;
@@ -28318,16 +28458,18 @@ migrateAllProfiles();
             beastClause = `我排在後位看【${f.beast}】雖然顯示${f.rawStatus}，但前位好人還沒被污染時報的是${f.status}，代表${midTxt}！還原反轉後【${f.beast}】實為${f.status}！`;
           } else if (opp) {
             const earlierThanMe = opp.passPos !== -1 && myPassIdx !== -1 && opp.passPos < myPassIdx;
-            beastClause = `【${f.beast}】我手上的鐵證是${f.status}，${fmtPlayer(opp.speaker)}卻報${opp.status}；${earlierThanMe ? '他順位在我前面，不是他本人撒謊就是他後面緊接著老朝奉' : '他順位在我後面，這段傳遞肯定有人動了手腳'}。`;
+            beastClause = `【${f.beast}】我手上的結果是${f.status}，${fmtPlayer(opp.speaker)}卻報${opp.status}；${earlierThanMe ? '他順位在我前面，不是他本人撒謊就是他後面緊接著老朝奉' : '他順位在我後面，這段傳遞肯定有人動了手腳'}。`;
           } else {
+            // 【修復問題三】：姬雲浮適度偽裝猶豫，語氣自然像平民，保留防禦空間
             beastClause = pickNonRepeatingClause('JI_ORACLE', [
-              `【${f.beast}】我這關驗出來確定是${f.status}，這件成色毫無疑問，大家可以直接拿來當本輪的定海神針。`,
-              `【${f.beast}】經我手確認為${f.status}，不受任何干擾，好人陣營直接以【${f.beast}】${f.status}作為本輪鐵座標。`
+              `【${f.beast}】我上手看過是${f.status}，包漿自然、成色很穩；只要前面傳遞沒被動手腳，這條線應該是可靠的。`,
+              `報一下我手上的結果，【${f.beast}】我確認是${f.status}。大家先對照前後棒次，要是沒有矛盾就以此為準。`,
+              `【${f.beast}】這件在我手裡看得很清晰是${f.status}，前後順位核對下來很乾淨，大家可以參考這條線。`
             ]);
           }
         }
       }
-      // --- 流派分支 D：壞人陣營 (瞎報時直接報真或假，絕不說「傾向視為真品」) ---
+      // --- 流派分支 D：壞人陣營 (修復問題一：壞人絕不說贗品還號票，要推贗品必須謊稱為真品) ---
       else if (!pov.isGoodCamp) {
         const myF = validMyFacts[0] || null;
         if (playstyle.id === 'LAO_PHANTOM_DISRUPTION') {
@@ -28337,8 +28479,8 @@ migrateAllProfiles();
           const altFake = currentBeasts.find(b => b !== bName && (!myF || myF.beast !== b || myF.status === '贗品')) || currentBeasts[1] || bName;
           advocatedRealBeast = altFake;
           beastClause = pickNonRepeatingClause('LAO_PHANTOM', [
-            `大家小心，【${bName}】前面雖然有人喊真品，但看這輪傳遞順序前段被老朝奉擾亂反轉了，【${bName}】就是贗品！真正該保的真品是【${altFake}】！`,
-            `別被表面的順風騙了，【${bName}】是老朝奉開擾亂後的假象，它就是贗品！大家全力把票轉投給真品【${altFake}】！`
+            `大家小心，【${bName}】雖然前面有人喊真品，但看這輪傳遞順序，前段極可能已經被老朝奉開過擾亂反轉了！【${bName}】實際上很可能是贗品，反而【${altFake}】才更像被掩蓋的真品。`,
+            `別被表面的順風騙了，【${bName}】連著幾個人喊真，這明顯是前位老朝奉開擾亂後的連鎖假象！真正該保的真品其實是【${altFake}】。`
           ]);
         } else if (playstyle.id === 'LAO_DEEP_SAINT_PIGFARM' && myF) {
           if (myF.status === '真品') advocatedRealBeast = myF.beast; else warnedFakeBeast = myF.beast;
@@ -28346,10 +28488,12 @@ migrateAllProfiles();
         } else if (playstyle.id === 'ZHENG_SELF_VICTIM_SABOTEUR' && pov.currentLockedBeast) {
           const fakeToPush = (myF && myF.status === '贗品') ? myF.beast : (currentBeasts.find(b => b !== pov.currentLockedBeast) || currentBeasts[0]);
           advocatedRealBeast = fakeToPush;
-          beastClause = `這輪【${pov.currentLockedBeast}】的資訊在傳遞鏈前段就被搞亂了，我自己親自看【${fakeToPush}】是真品，成色極硬，大家這票跟我投！`;
+          beastClause = `這輪【${pov.currentLockedBeast}】的資訊在傳遞鏈前段就已經被鄭國渠封鎖搞亂了，與其在那件上面賭，我自己看【${fakeToPush}】是真品，成色穩得多。`;
         } else if (myF) {
           if (myF.status === '贗品') {
+            // 壞人唯一得分是把贗品推進前二！若要推，唯一合理方式是「把贗品謊報成真品」騙好人跟票！
             advocatedRealBeast = myF.beast;
+            warnedFakeBeast = null;
             beastClause = pickNonRepeatingClause('EVIL_PUSH_FAKE', [
               `【${myF.beast}】我親自上手驗過是真品，器型跟包漿都很正，後面如果有人喊假，大概率是中段被擾亂了。`,
               `這輪【${myF.beast}】我確認是真品，我位置不算太偏，這條真品線大家可以放心跟。`,
@@ -28357,6 +28501,7 @@ migrateAllProfiles();
               `我這邊看【${myF.beast}】是實打實的真品，傳遞到我手上時資訊很乾淨，建議當作本輪主票。`
             ]);
           } else {
+            // 驗出真品，壞人想打壓真品、暗渡陳倉保假貨：
             warnedFakeBeast = myF.beast;
             const otherB = currentBeasts.find(b => b !== myF.beast) || myF.beast;
             advocatedRealBeast = otherB;
@@ -28369,13 +28514,24 @@ migrateAllProfiles();
         } else {
           const bName = currentBeasts[0] || '鼠';
           advocatedRealBeast = bName;
-          beastClause = `這輪不用再猶豫，【${bName}】我直接報就是真品，大家把票集中在【${bName}】上！`;
+          beastClause = `這輪前面風向太亂，【${bName}】從傳遞鏈與交叉比對來看偏真品，我傾向把票集中在【${bName}】。`;
         }
       }
 
-      // --- 流派分支 E：遭鄭國渠封鎖 / 黃煙煙 / 木戶加奈 / 一般好人 ---
+      // --- 流派分支 E：遭鄭國渠封鎖 / 黃煙煙 / 木戶加奈 / 被偷襲致盲 / 一般好人 ---
       if (!beastClause) {
-        if (isBlockedByZhengNow && blockedInspectLog) {
+        // 【修復問題二】：被偷襲致盲者發言修復，嚴禁斷言獸首真偽或帶票！
+        if (isBlindedNow) {
+          const prevId = myPassIdx > 0 ? curPassOrder[myPassIdx - 1] : null;
+          const prevP = prevId ? getPlayer(prevId) : null;
+          advocatedRealBeast = null;
+          warnedFakeBeast = null;
+          beastClause = pickNonRepeatingClause('GOOD_BLINDED_REPORT', [
+            `我接過手機直接被藥不然偷襲致盲了，${prevP ? `手機是從${fmtPlayer(prevP)}那邊傳過來的，` : ''}前段傳遞鏈肯定藏著藥不然；我這輪完全沒有獸首資訊，大家看前面的發言決定，千萬別聽瞎猜。`,
+            `我眼前一片黑被偷襲了！${prevP ? `手機剛從${fmtPlayer(prevP)}那棒接過來，` : ''}藥不然必然排在排在我前面的這幾位裡；我這輪沒拿到獸首底牌，大家以其他親驗好人的資訊為主。`,
+            `這輪我被藥不然致盲封鎖了，${prevP ? `經手${fmtPlayer(prevP)}這段很可疑，` : ''}我手上完全看不到獸首，大家別指望我的查驗，集中核對其他人的前後順位。`
+          ]);
+        } else if (isBlockedByZhengNow && blockedInspectLog) {
           const blockedB = blockedInspectLog.beastName || currentBeasts[0] || '鼠';
           const upstreamNames = myPassIdx > 0
             ? curPassOrder.slice(0, myPassIdx).map(id => { const q = getPlayer(id); return q ? q.name : ''; }).filter(Boolean)
@@ -28395,7 +28551,7 @@ migrateAllProfiles();
             const otherB = getBestGoodAlternativeBeast(f.beast) || currentBeasts.find(b => b !== f.beast) || currentBeasts[1];
             const otherSt = f.status === '真品' ? '贗品' : '真品';
             if (otherSt === '真品' && !advocatedRealBeast) advocatedRealBeast = otherB;
-            beastClause = `這輪盤面非常明朗，【${f.beast}】我確認是${f.status}，而【${otherB}】就是${otherSt}，兩真兩假的結構已經完全鎖定！`;
+            beastClause = `這輪盤面很明朗，【${f.beast}】我確認是${f.status}，再對照【${otherB}】偏${otherSt}的走勢，兩真兩假的結構我心裡已經有底了。`;
           } else {
             beastClause = pickNonRepeatingClause('GOOD_CLEAN_FACT', [
               `【${f.beast}】我這邊驗到是${f.status}，順位前後的傳遞鏈我有記下來，後面誰跟這條線衝突我們就盤誰。`,
@@ -28408,33 +28564,94 @@ migrateAllProfiles();
           const existing = (claimsByBeast[targetB] || [])[0];
           if (existing) {
             if (existing.status === '真品') advocatedRealBeast = targetB; else warnedFakeBeast = targetB;
-            beastClause = `【${targetB}】我直接認同就是${existing.status}，看${fmtPlayer(existing.speaker)}報的順位很穩，大家這輪不要猶豫，直接對齊！`;
+            beastClause = `我這輪正好撞上迷霧回合無法辨別真偽，但看${fmtPlayer(existing.speaker)}在【${targetB}】報${existing.status}的順位跟語氣，我暫時傾向順著這條線去抓對沖的人。`;
           } else {
             const pR = tom.roundBeastTruthProb?.[curRoundIdx]?.[targetB] ?? 0.5;
-            const decStatus = pR >= 0.5 ? '真品' : '贗品';
-            if (decStatus === '真品') advocatedRealBeast = targetB; else warnedFakeBeast = targetB;
-            beastClause = `【${targetB}】我直接報是${decStatus}！底款跟器型完全對得上，大家這輪票集中過來！`;
+            if (pR >= 0.5) advocatedRealBeast = targetB; else warnedFakeBeast = targetB;
+            beastClause = `我這輪撞上迷霧無法直接辨別【${targetB}】，先拋個試探石：後面誰對【${targetB}】有實測結果請直接亮出來對順位。`;
           }
-        } else if (isBlindedNow) {
-          const prevId = myPassIdx > 0 ? curPassOrder[myPassIdx - 1] : null;
-          const prevP = prevId ? getPlayer(prevId) : null;
-          const bRef = getBestGoodAlternativeBeast(null) || currentBeasts[0] || '鼠';
-          const pR = tom.roundBeastTruthProb?.[curRoundIdx]?.[bRef] ?? 0.5;
-          const decStatus = pR >= 0.5 ? '真品' : '贗品';
-          if (decStatus === '真品') advocatedRealBeast = bRef; else warnedFakeBeast = bRef;
-          beastClause = `我這輪接過手機直接被藥不然偷襲致盲了！${prevP ? `手機是從${fmtPlayer(prevP)}那邊傳過來的，前段傳遞鏈肯定藏著藥不然；` : ''}至於獸首【${bRef}】我直接斷言就是${decStatus}，好人陣營選票直接跟上！`;
         } else {
           const bRef = getBestGoodAlternativeBeast(null) || currentBeasts[0] || '鼠';
           advocatedRealBeast = bRef;
-          beastClause = `【${bRef}】我直接報就是真品，資訊非常乾淨，好人陣營這票直接壓在【${bRef}】上！`;
+          beastClause = `【${bRef}】目前在資訊鏈上的真品特徵最完整，我先把基準押在【${bRef}】真品上。`;
+        }
+      }
+
+      // 【修復問題四】：前手回應模組（Reply Module）與自身戰術立場之互斥防護
+      let replyClause = '';
+      if (mySpeechPos > 0 && curSpeeches.length > 0 && !isBlindedNow) {
+        const humanSpeech = curSpeeches.slice().reverse().find(sp => {
+          const sid = sp.playerId || sp.speakerId;
+          return sid && !String(sid).startsWith('mock_p_') && String(sp.speech || sp.text || '').trim().length > 0;
+        });
+        const targetPreceding = humanSpeech || curSpeeches[curSpeeches.length - 1];
+        if (targetPreceding) {
+          const prevPid = targetPreceding.playerId || targetPreceding.speakerId;
+          const prevPlayer = getPlayer(prevPid);
+          const prevRaw = String(targetPreceding.speech || targetPreceding.text || '').trim();
+          const prevDesc = fmtPlayer(prevPlayer);
+
+          const prevClaims = (window.BotDeductionEngine && typeof window.BotDeductionEngine.parseOwnClaims === 'function')
+            ? window.BotDeductionEngine.parseOwnClaims(prevRaw, currentBeasts)
+            : [];
+
+          if (prevClaims.length > 0) {
+            const firstClaim = prevClaims[0];
+            const pBeast = firstClaim.beast;
+            const pStatus = firstClaim.status;
+
+            // 判斷當前電腦自身對該獸首的立場：
+            // 1. 若自己親手查驗過
+            const myFactOnB = effectiveMyFacts.find(f => f.beast === pBeast);
+            // 2. 若自身戰術已將其標記為贗品或真品
+            const isWarnedFakeByMe = (warnedFakeBeast === pBeast);
+            const isAdvocatedRealByMe = (advocatedRealBeast === pBeast);
+
+            const iThinkItIsReal = (myFactOnB && myFactOnB.status === '真品') || isAdvocatedRealByMe;
+            const iThinkItIsFake = (myFactOnB && myFactOnB.status === '贗品') || isWarnedFakeByMe;
+
+            if (pStatus === '真品') {
+              if (iThinkItIsFake) {
+                // 前手說真，但我認定/戰術打壓為假 -> 必須堅決反駁！絕對嚴禁出現讚同詞！
+                replyClause = pickNonRepeatingClause('REPLY_DISAGREE_FAKE', [
+                  `剛才${prevDesc}說【${pBeast}】是真品，這點我持完全相反意見！`,
+                  `聽完${prevDesc}剛才想保【${pBeast}】的發言，這件分明有問題！`,
+                  `針對${prevDesc}對【${pBeast}】的真品判斷，我直接提出質疑！`
+                ]);
+              } else if (iThinkItIsReal) {
+                // 前手說真，我也認定為真 -> 可以讚同
+                replyClause = pickNonRepeatingClause('REPLY_AGREE_REAL', [
+                  `接一下剛才${prevDesc}說的，你提到【${pBeast}】是真品，我這邊也是同個結論，成色經得起考驗！`,
+                  `聽完${prevDesc}剛才的重點，我支持你對【${pBeast}】為真品的判斷！`
+                ]);
+              } else {
+                // 自身無立場 -> 中立過渡
+                replyClause = `剛才${prevDesc}提到【${pBeast}】是真品，這條線大家先記著……`;
+              }
+            } else if (pStatus === '贗品') {
+              if (iThinkItIsReal) {
+                // 前手說假，但我認定為真 -> 駁斥
+                replyClause = pickNonRepeatingClause('REPLY_DISAGREE_REAL', [
+                  `剛才${prevDesc}想把【${pBeast}】打成贗品，我認為這判斷很有問題！`,
+                  `聽完${prevDesc}說【${pBeast}】是假貨，我持懷疑態度，這條線很可能被前手污染了！`
+                ]);
+              } else if (iThinkItIsFake) {
+                replyClause = `剛才${prevDesc}提到【${pBeast}】是贗品，我也贊同這件千萬不能碰！`;
+              } else {
+                replyClause = `剛才${prevDesc}提到【${pBeast}】是贗品，大家多留個心眼……`;
+              }
+            }
+          } else if (prevRaw.length >= 18) {
+            replyClause = `剛才${prevDesc}分析了一大串，我每一句都有在認真聽！`;
+          }
         }
       }
 
       // 4. 第二、三回合：深度心理戰「盤人與集火號召子句」
-      // 鐵則：電腦盤神職的時機，嚴格盡量在第三回合 (curRoundIdx === 2)！第一、二回合嚴禁盤神職！
+      // 鐵則：第一回合全面禁止盤神職！第二回合只鎖定推假貨行為，嚴禁猜具體神職！第三回合才全面盤神職！
       let profileClause = '';
       if (curRoundIdx === 2) {
-        // 第三回合（決勝局）：全面盤神職！
+        // 第三回合（決勝局）：全面盤神職
         if (pov.isGoodCamp) {
           const verifiedEvilIns = (pov.myRole === '方震' && Array.isArray(pov.fangZhenInspections))
             ? pov.fangZhenInspections.find(x => x.isEvil)
@@ -28447,35 +28664,22 @@ migrateAllProfiles();
 
           if (topSuspect) {
             const rs = roleScores[topSuspect.id] || {};
-            let specificReason = '';
-            if (verifiedEvilIns) {
-              specificReason = '多輪傳遞時序與發言立場完全符合內鬼核心特徵';
-            } else if (rs.badDeeds && rs.badDeeds.length > 0 && !/方震|技能/.test(rs.badDeeds[0])) {
-              specificReason = rs.badDeeds[0];
-            } else {
-              // 想踩人要有憑有據，明面上資訊正確；若無直接鐵證，必須自己掰出一個具體資訊去踩！
-              const fakeBeast = warnedFakeBeast || '虎';
-              specificReason = pickNonRepeatingClause('FABRICATED_ATTACK', [
-                `我親眼驗了【${fakeBeast}】是贗品，而他剛才在前手卻公然吹成真品替假貨護航`,
-                `我上手摸【${fakeBeast}】包漿底款全是現代做舊，他剛才信誓旦旦替它背書露出致命破綻`,
-                `手機從他手上傳過來時序直接被擾亂反轉，他位列前手嫌疑最大`,
-                `明面紀錄清清楚楚，他在前一輪把票全砸在後來揭曉是假貨的獸首上`
-              ]);
-            }
-
+            const specificReason = (rs.badDeeds && rs.badDeeds.length > 0 && !/方震|技能/.test(rs.badDeeds[0]))
+              ? rs.badDeeds[0]
+              : '他在關鍵順位的傳遞與票向明顯替贗品護航';
             const guessedEvilRole = (rs.laoChaoFeng >= rs.yaoBuRan) ? '老朝奉' : '藥不然';
+
             window.__botPublicStances = window.__botPublicStances || {};
             window.__botPublicStances[pov.myId] = { targetId: topSuspect.id, role: '老朝奉', round: curRoundIdx, t: Date.now() };
 
             profileClause = pickNonRepeatingClause('GOOD_ACCUSE_R3', [
-              `另外請全場好人注意${fmtPlayer(topSuspect)}，${specificReason}，第三回合終局鑑人大家統一集火鎖定${fmtPlayer(topSuspect)}就是${guessedEvilRole}！`,
-              `結合三輪鐵證，${fmtPlayer(topSuspect)}的狐狸尾巴露出來了——${specificReason}，好人陣營終局請把票集中投給${fmtPlayer(topSuspect)}抓老朝奉！`,
-              `決勝局大家盯緊${fmtPlayer(topSuspect)}，${specificReason}，我的推演模型鎖定他就是${guessedEvilRole}，好人千萬別分票！`,
+              `另外請全場好人注意${fmtPlayer(topSuspect)}，${specificReason}，終局鑑人建議大家統一集火鎖定${fmtPlayer(topSuspect)}為${guessedEvilRole}！`,
+              `結合前幾輪鐵證，${fmtPlayer(topSuspect)}的破綻已經藏不住了——${specificReason}，好人陣營終局請把票集中投給${fmtPlayer(topSuspect)}抓老朝奉！`,
+              `大家盯緊${fmtPlayer(topSuspect)}，${specificReason}，我的推演模型鎖定他就是${guessedEvilRole}，好人千萬別分票！`,
               `順著時序與票型往回追，${fmtPlayer(topSuspect)}（${specificReason}）就是這局的核心內鬼，終局我會直接指認他為${guessedEvilRole}！`
             ]);
           }
         } else {
-          // 壞人第三回合：老朝奉抓許願、藥不然抓方震
           const nonMates = otherPlayers.filter(p => p.id !== pov.myId && !(pov.knownTeammateIds || []).includes(p.id));
           if (nonMates.length > 0) {
             const targetKind = pov.myRole === '老朝奉' ? 'xuYuan' : 'fangZhen';
@@ -28485,7 +28689,7 @@ migrateAllProfiles();
               window.__botPublicStances = window.__botPublicStances || {};
               window.__botPublicStances[pov.myId] = { targetId: topGod.id, role: roleLabel, round: curRoundIdx, t: Date.now() };
               profileClause = pickNonRepeatingClause('EVIL_SPOT_GOD_R3', [
-                `到了決勝局我不裝了，場上${fmtPlayer(topGod)}的視角跟控位節奏明顯比一般平民精準太多，我判斷他十之八九就是${roleLabel}！`,
+                `場上${fmtPlayer(topGod)}的視角跟控位節奏明顯比一般平民精準太多，我判斷他十之八九就是${roleLabel}！`,
                 `注意看${fmtPlayer(topGod)}剛才講話的底氣與資訊量，根本不像一般只看一隻獸首的人，決勝局鎖定他就是${roleLabel}！`
               ]);
             }
@@ -28499,9 +28703,9 @@ migrateAllProfiles();
           const topSuspect = sortedSuspects[0];
           if (topSuspect && (roleScores[topSuspect.id]?.evilScore ?? 50) >= 54) {
             const rs = roleScores[topSuspect.id] || {};
-            let specificReason = (rs.badDeeds && rs.badDeeds.length > 0 && !/方震|技能/.test(rs.badDeeds[0]))
+            const specificReason = (rs.badDeeds && rs.badDeeds.length > 0 && !/方震|技能/.test(rs.badDeeds[0]))
               ? rs.badDeeds[0]
-              : `前一輪的票型明顯在替贗品護航，跟好人利益完全相悖`;
+              : '前一輪的票型明顯在替贗品護航，跟好人利益完全相悖';
             profileClause = pickNonRepeatingClause('GOOD_SUSPECT_R2', [
               `第二輪提醒大家注意${fmtPlayer(topSuspect)}，${specificReason}，這個嫌疑甩不掉，大家這輪多提防他！`,
               `我看${fmtPlayer(topSuspect)}上輪的票向跟傳位非常可疑——${specificReason}，好人別被他帶走節奏！`
@@ -28522,15 +28726,15 @@ migrateAllProfiles();
         }
       }
 
-      // 5. 戰術歸票與行動呼應子句
+      // 5. 戰術歸票與行動呼應子句（修復問題一與三：去除「堅定投給真品」死板口吻，被偷襲致盲者絕不號票）
       let callClause = '';
-      if (mySpeechPos >= 3 || intent.agendaPush >= 0.62) {
+      if (!isBlindedNow && (mySpeechPos >= 3 || intent.agendaPush >= 0.62)) {
         if (advocatedRealBeast) {
           callClause = pickNonRepeatingClause('CALL_VOTE_REAL', [
-            `這輪我的選票會堅定投給真品【${advocatedRealBeast}】，建議同陣營把票集中過來保分！`,
-            `票型上別分散，把籌碼鎖定在【${advocatedRealBeast}】這件真品上最穩當。`,
-            `結論很明確，這輪全力護送真品【${advocatedRealBeast}】進前二鎖定勝局！`,
-            `我的籌碼會壓在真品【${advocatedRealBeast}】身上，好人陣營直接跟票鎖定勝局。`
+            `票型建議大家集中在【${advocatedRealBeast}】，只要這件能進前二，好人陣營這輪就很穩。`,
+            `我這票會給【${advocatedRealBeast}】，有同方向的好人可以考慮一起跟上。`,
+            `目前看來【${advocatedRealBeast}】的成色最穩，建議把選票集中過去保分。`,
+            `選票別分散了，籌碼鎖定在【${advocatedRealBeast}】身上最保險。`
           ]);
         } else if (warnedFakeBeast) {
           const safeAlt = getBestGoodAlternativeBeast(warnedFakeBeast);
@@ -28544,6 +28748,22 @@ migrateAllProfiles();
                 `誰要是把票投在【${warnedFakeBeast}】這件贗品上，終局我們就直接拿他的票型出來算帳！`
               ]);
         }
+      }
+
+      // 【修復問題四】：終局防人格分裂互斥守衛 (Anti-Personality Split Final Filter)
+      if (replyClause) {
+        currentBeasts.forEach(b => {
+          const saysRealInReply = replyClause.includes(`【${b}】`) && (replyClause.includes('為真品') || replyClause.includes('是真品') || replyClause.includes('完全一致') || replyClause.includes('支持你'));
+          const saysFakeInBeast = beastClause.includes(`【${b}】`) && (beastClause.includes('贗品') || beastClause.includes('假的') || beastClause.includes('假貨'));
+          if (saysRealInReply && saysFakeInBeast) {
+            replyClause = `剛才前手主張【${b}】是真品，這點我持完全相反意見！`;
+          }
+          const saysFakeInReply = replyClause.includes(`【${b}】`) && (replyClause.includes('為贗品') || replyClause.includes('是贗品'));
+          const saysRealInBeast = beastClause.includes(`【${b}】`) && (beastClause.includes('真品') || beastClause.includes('保真'));
+          if (saysFakeInReply && saysRealInBeast) {
+            replyClause = `剛才前手想把【${b}】打成贗品，我認為這判斷很有問題！`;
+          }
+        });
       }
 
       let finalSpeech = [replyClause, beastClause, profileClause, callClause].filter(Boolean).join('');
@@ -28584,7 +28804,6 @@ migrateAllProfiles();
       return finalSpeech;
     }
   }
-
 
   class PolicyGradientTrainer {
     static updatePostGame(room, gameOverData) {
@@ -28881,7 +29100,6 @@ migrateAllProfiles();
     };
   };
 })();
-
 </script>
 </body>
 </html>
