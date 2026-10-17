@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.4.0 - 全場身分保護與防錯亂終局修正版)</title>  
+ <title>古董局中局 (版本 4.5.0 )</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -15414,7 +15414,7 @@ function renderOnlineVotingView(room, me) {
  // 語音公佈第二名  
  speak(r2.name);  
  setTimeout(() => {  
- if (r2.isReal) speak("是真品。爽啦爽啦SONG啦！");  
+ if (r2.isReal) speak("是真品。哈哈，爽啦");  
  else speak("是贗品。真的很慘，沒救！");  
  }, 950);  
  }  
@@ -19719,7 +19719,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
 
         const selectedTarget = G.players.find(p => p.id === G.yaoSelectedTargetId);
         const isTargetLao = Boolean(selectedTarget && selectedTarget.role === '老朝奉');
-        const yaoConfirmText = isTargetLao ? '確認偷襲（你忍心偷隊友?） ➔' : '確認偷襲 ➔';
+        const yaoConfirmText = isTargetLao ? '確認偷襲 ➔' : '確認偷襲 ➔';
 
         container.innerHTML = `
           <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-3">
