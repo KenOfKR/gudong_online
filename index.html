@@ -17293,7 +17293,7 @@ function startOnlinePersonVoteDotsAnimation(votedCount) {
             <div class="text-3xl font-black ${isXuWon ? 'text-emerald-400' : 'text-rose-300'} font-mono">最終總分：${gData.totalScore} 分</div>
             <div class="text-xs text-neutral-400 mt-1.5 mb-3">
               對局時長：${gData.durationMinutes || 0} 分鐘 ｜ 
-              ${gData.hasMockPlayers ? '<span class="text-amber-400 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">🤖 測試版對局 (含電腦玩家)，不列入戰績網</span>' : (gData.durationMinutes >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 全真人有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>')}
+              ${gData.hasMockPlayers ? '<span class="text-amber-400 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">🤖 測試版對局 (含電腦玩家)，不列入戰績網</span>' : (gData.durationMinutes >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 全真人有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 無效對局，不列入戰績網</span>')}
             </div>
             <div class="space-y-1.5 bg-neutral-950 p-3 rounded-xl border border-neutral-800 text-left">
               ${scoreDetailsHtml}
@@ -20687,7 +20687,7 @@ function cancelLocalVoteConfirm() {
         <div class="text-3xl font-black text-emerald-400 font-mono">最終總分：${totalScore} 分</div>
         <div class="text-xs text-neutral-400 mt-1 mb-2">
           對局時長：${localElapsed} 分鐘 ｜ 
-          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>'}
+          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 無效對局，不列入戰績網</span>'}
         </div>
         <div class="text-sm font-bold text-neutral-400 mt-0.5 mb-3">（≥ 6分）</div>
       ` : `
@@ -20698,7 +20698,7 @@ function cancelLocalVoteConfirm() {
         <div class="text-3xl font-black text-rose-300 font-mono">最終總分：${totalScore} 分</div>
         <div class="text-xs text-neutral-400 mt-1 mb-2">
           對局時長：${localElapsed} 分鐘 ｜ 
-          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 未滿36分鐘，不列入戰績網</span>'}
+          ${localElapsed >= MIN_GAME_DURATION_MINUTES ? '<span class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">✓ 有效對局 (已計入戰績網)</span>' : '<span class="text-amber-500 font-bold bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">⏱️ 無效對局，不列入戰績網</span>'}
         </div>
         <div class="text-sm font-bold text-neutral-400 mt-0.5 mb-3">（0～5分）</div>
       `;
