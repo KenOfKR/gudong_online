@@ -8032,7 +8032,7 @@ service cloud.firestore {
  window.ensureTakeoverRole = ensureTakeoverRole;
 
  // --- 7. 斷線接管與死鎖防護 (Deadlock Prevention & Auto-Takeover) ---  
- var ONLINE_STALE_MS = 90000; // 真人超過 90 秒沒有心跳才視為斷線，由電腦暫時託管
+ var ONLINE_STALE_MS = 360000; // 真人超過 360 秒沒有心跳才視為斷線，由電腦暫時託管
 var _isExecutingAutoTakeover = false;  
  async function executeAutoTakeoverForCurrentTurn(room, requestedPlayerId = null) {
   if (!room || !isFirebaseReady || !db || _isExecutingAutoTakeover) return;
@@ -16459,11 +16459,11 @@ function renderOnlinePersonVotingReference(room) {
       const typingTime = 3000 + Math.floor(Math.random() * 1500);
       await new Promise(r => setTimeout(r, typingTime));
 
-      // 階段 2.5：電腦發言完畢，停頓一秒再發送訊息
+      // 階段 2.5：電腦發言完畢，停頓兩秒再發送訊息
       if (mockP && speakerBadge) {
         speakerBadge.innerHTML = `<span class="text-amber-400 font-bold font-mono">💬 【${mockP.name}】發言完畢，準備送出...</span>`;
       }
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 2000));
 
       // 階段 3：輸入好，正式送出發言到 Firestore
       try {
