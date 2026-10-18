@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.6.0 - 二階風險感知矩陣・傳遞時序因果・真人級發言邏輯版)</title>  
+ <title>古董局中局 (版本 4.7.0 (真人博弈語言與反轉因果正式版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1638,7 +1638,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.6.0 (二階風險感知矩陣・傳遞時序因果・真人級發言邏輯版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.7.0 (真人博弈語言與反轉因果正式版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -29748,5 +29748,392 @@ migrateAllProfiles();
   };
 })();
 </script>
+
+<!-- ==================== v4.7.0 正式版：真人級發言邏輯、反轉負負得正與直白口語引擎 ==================== -->
+<script>
+(function() {
+  console.info('%c🚀 [古董局中局 v4.7.0 正式版] 真人博弈語言與反轉因果引擎已掛載', 'color:#10b981;font-weight:bold;font-size:13px');
+
+  // 1. 將 0-based 傳遞索引轉為自然中文序數（徹底淘汰 1-3、1-4 代號）
+  window.toChinesePassOrderText = function(passIdx0) {
+    const map = ['第一位（首家）', '第二位', '第三位', '第四位', '第五位', '第六位', '第七位', '第八位（尾家）'];
+    return (passIdx0 >= 0 && passIdx0 < map.length) ? map[passIdx0] : '前面順位';
+  };
+
+  // 2. 全域直白口語清洗器：消滅包漿/成色/器型、消滅 1-4 代號、消滅「贗品卻誇很穩」的精神分裂句
+  window.sanitizeSpeechToPlainChinese = function(text) {
+    if (!text) return '';
+    let s = String(text);
+
+    // 將 1-1 ~ 3-8 座標轉為「第一位」～「第八位」
+    s = s.replace(/\b[123]-([1-8])\b/g, function(_, p1) {
+      const nums = ['一', '二', '三', '四', '五', '六', '七', '八'];
+      const idx = parseInt(p1, 10) - 1;
+      return idx === 0 ? '第一位' : ('第' + (nums[idx] || p1) + '位');
+    });
+
+    // 移除所有古董專有名詞，改為直白口語
+    s = s.replace(/包漿跟成色很穩|包漿很老|成色經得起考驗|器型跟包漿都很正|鑄造工藝和包漿|工藝與成色無懈可擊|成色很穩|包漿醇厚|器型很老/g, '看起來很像真的');
+    s = s.replace(/做舊工藝有明顯破綻|酸洗做舊破綻|拼接痕跡|工藝破綻|塑膠感|假貨做工/g, '看起來超假');
+    s = s.replace(/包漿|成色|器型|底款|銅銹|鑄造工藝/g, '外觀');
+    s = s.replace(/邏輯完全閉環|數據閉環/g, '推導前後都對得上');
+
+    // 修正精神分裂：如果句子裡判定為贗品/假貨，移除「看起來很像真的 / 這條線很穩 / 很可靠」
+    if (/贗品|假的|假貨/.test(s) && /避開|不要投|別碰/.test(s)) {
+      s = s.replace(/這隻[^，。！]*看起來很像真的[，、]?/g, '這隻看起來超假，');
+      s = s.replace(/這條線很穩[，、]?|這條線很可靠[，、]?/g, '大家千萬別踩坑，');
+    }
+
+    return s.trim();
+  };
+
+  // 3. 嚴格從「本輪已發生之發言紀錄 (curRound.speeches)」提取公開主張，杜絕點錯尚未發言的玩家名字
+  window.extractVerifiedSpokenClaims = function(room, myId) {
+    const curRoundIdx = room.currentRoundIdx || 0;
+    const curRound = (room.rounds && room.rounds[curRoundIdx]) || {};
+    const passOrder = curRound.passOrder || [];
+    const speeches = curRound.speeches || [];
+    const claims = [];
+
+    speeches.forEach(function(sp, spOrderIdx) {
+      const spId = sp.playerId || sp.speakerId;
+      if (!spId || spId === myId) return;
+      const spPlayer = (room.players || []).find(function(p) { return p.id === spId; });
+      if (!spPlayer) return;
+      const passIdx = passOrder.indexOf(spId);
+      const posText = window.toChinesePassOrderText(passIdx);
+      const rawText = String(sp.text || '');
+      if (!rawText || rawText.includes('直接過')) return;
+
+      const parsed = (typeof BotDeductionEngine !== 'undefined' && BotDeductionEngine.parseOwnClaims)
+        ? BotDeductionEngine.parseOwnClaims(rawText)
+        : {};
+
+      Object.entries(parsed || {}).forEach(function([bName, isRealClaim]) {
+        if (typeof isRealClaim === 'boolean') {
+          claims.push({
+            speakerId: spId,
+            speakerName: spPlayer.name,
+            colorId: spPlayer.colorId,
+            speechOrderIdx: spOrderIdx,
+            passIdx: passIdx,
+            posText: posText,
+            beast: bName,
+            claimReal: isRealClaim,
+            rawText: rawText
+          });
+        }
+      });
+    });
+    return claims;
+  };
+
+  // 4. 真人級結構化博弈發言生成器（完整涵蓋 9 大修正點）
+  window.buildV470HumanLikeSpeech = function(pov, room) {
+    if (!pov || !room) return null;
+    const curRoundIdx = room.currentRoundIdx || 0;
+    const curRound = (room.rounds && room.rounds[curRoundIdx]) || {};
+    const passOrder = curRound.passOrder || [];
+    const speeches = curRound.speeches || [];
+    const myPassIdx = passOrder.indexOf(pov.myId);
+    const myPosText = window.toChinesePassOrderText(myPassIdx);
+    const isFirstSpeaker = speeches.length === 0;
+    const isGood = (typeof GameRules !== 'undefined' && GameRules.isGoodCamp)
+      ? GameRules.isGoodCamp(pov.myRole)
+      : ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(pov.myRole);
+
+    const spokenClaims = window.extractVerifiedSpokenClaims(room, pov.myId);
+    const lastSpoken = speeches.length > 0 ? speeches[speeches.length - 1] : null;
+    const lastSpeakerPlayer = lastSpoken
+      ? (room.players || []).find(function(p) { return p.id === (lastSpoken.playerId || lastSpoken.speakerId); })
+      : null;
+
+    // 找出首家（第一位）或最前順位的真品主張（越往首家權重越強！）
+    const headRealClaim = spokenClaims
+      .filter(function(c) { return c.claimReal === true && c.passIdx >= 0; })
+      .sort(function(a, b) { return a.passIdx - b.passIdx; })[0] || null;
+
+    // 讀取自身查驗紀錄
+    const myInspectList = (pov.myTurnLog && Array.isArray(pov.myTurnLog.inspect)) ? pov.myTurnLog.inspect : [];
+    const myInspect = myInspectList[0] || null;
+    const myBeast = myInspect ? myInspect.beastName : null;
+    const isAmbushed = !!(myInspect && myInspect.isAmbushed);
+    const isBlockedOrConfused = !!(myInspect && (myInspect.isBlocked || myInspect.isConfused));
+    let mySawReal = null;
+    if (myInspect && !isAmbushed && !isBlockedOrConfused) {
+      if (typeof myInspect.displayedReal === 'boolean') mySawReal = myInspect.displayedReal;
+      else if (typeof myInspect.resultText === 'string') {
+        if (myInspect.resultText.includes('真品')) mySawReal = true;
+        else if (myInspect.resultText.includes('贗品')) mySawReal = false;
+      }
+    }
+
+    // 檢查前手是否有報過跟我同一隻獸首
+    const sameBeastPrior = myBeast
+      ? spokenClaims.filter(function(c) { return c.beast === myBeast; }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0]
+      : null;
+
+    // 檢測場上是否已出現「同一隻獸首前真後假」的反轉訊號
+    let fieldHasInversion = false;
+    for (let i = 0; i < spokenClaims.length; i++) {
+      for (let j = i + 1; j < spokenClaims.length; j++) {
+        if (spokenClaims[i].beast === spokenClaims[j].beast && spokenClaims[i].claimReal !== spokenClaims[j].claimReal) {
+          fieldHasInversion = true;
+        }
+      }
+    }
+    if (sameBeastPrior && mySawReal !== null && sameBeastPrior.claimReal !== mySawReal) {
+      fieldHasInversion = true;
+    }
+
+    // ==================== A. 被藥不然偷襲致盲：先算效益，不亂怪上一棒 ====================
+    if (isAmbushed && isGood) {
+      // 許願、姬雲浮或排在第4~8位的後段玩家：喊被偷襲無法縮小範圍反而暴露神職/少一驗，選擇隱忍跟首家真品！
+      if (pov.myRole === '許願' || pov.myRole === '姬雲浮' || myPassIdx >= 3) {
+        if (headRealClaim) {
+          return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】報【' + headRealClaim.beast + '】看起來是真的，越靠近首家的查驗越乾淨，這輪大家直接聽【' + headRealClaim.speakerName + '】的把票投給【' + headRealClaim.beast + '】！';
+        }
+        const fallbackB = (curRound.beasts && curRound.beasts[0]) ? curRound.beasts[0].name : '鼠';
+        return '我在' + myPosText + '看【' + fallbackB + '】看起來很像真的，這輪建議大家把票集中在【' + fallbackB + '】保分！';
+      }
+      // 排在第二位（1-2）或第三位（1-3）或跨輪首家（2-1/3-1）：範圍極小，公開抓藥不然！
+      if (myPassIdx === 0 && curRoundIdx >= 1) {
+        return '我這輪排在第一位拿手機就已經被藥不然偷襲了！代表藥不然是上一回合排在我後面順位的玩家，跨回合延宕偷襲我；我這輪沒有獸首資訊，大家直接看首家或前面乾淨的真品線來投！';
+      }
+      if (myPassIdx === 1) {
+        const firstP = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+        return '我在第二位接過手機直接被藥不然偷襲了！當輪只有排在第一位的【' + (firstP ? firstP.name : '首家') + '】能攻擊到我，【' + (firstP ? firstP.name : '首家') + '】鐵定是藥不然！大家千萬別信他的話！';
+      }
+      if (myPassIdx === 2) {
+        const p1 = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+        const p2 = (room.players || []).find(function(p) { return p.id === passOrder[1]; });
+        return '我在第三位拿手機發現被藥不然偷襲了！能偷襲到我的只有第一位【' + (p1 ? p1.name : '前家') + '】跟第二位【' + (p2 ? p2.name : '前家') + '】其中一人，藥不然就在他們兩個裡面！這輪我沒獸首資訊，大家看其他好人的真品線決定。';
+      }
+    }
+
+    // ==================== B. 被鄭國渠封鎖或迷霧：不點名部分名單 ====================
+    if (isBlockedOrConfused && isGood) {
+      if (myPassIdx === 1) {
+        const firstP = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+        return '我在第二位查驗【' + myBeast + '】顯示無法辨別真偽，若不是迷霧回合，就是第一位【' + (firstP ? firstP.name : '首家') + '】是鄭國渠封鎖了它！' + (headRealClaim ? '獸首建議聽【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】！' : '');
+      }
+      if (headRealClaim && headRealClaim.beast !== myBeast) {
+        return '我在' + myPosText + '查驗【' + myBeast + '】顯示無法辨別真偽，看來前面傳遞鏈有人封鎖或是迷霧回合；既然首家【' + headRealClaim.speakerName + '】已經報【' + headRealClaim.beast + '】是真的，這輪大家直接聽【' + headRealClaim.speakerName + '】的把票投給【' + headRealClaim.beast + '】！';
+      }
+      const altBeast = (curRound.beasts || []).map(function(b){return b.name;}).find(function(n){return n !== myBeast;}) || myBeast || '鼠';
+      return '我在' + myPosText + '查驗【' + altBeast + '】看起來很像真的，【' + altBeast + '】一定真！這輪大家把票集中投給【' + altBeast + '】！';
+    }
+
+    // ==================== C. 好人陣營標準推論 ====================
+    if (isGood) {
+      // C1. 方震亮牌帶隊（第2、3回合或抓到壞人時最具公信力）
+      if (pov.myRole === '方震' && pov.myTurnLog && pov.myTurnLog.fangZhenTargetId) {
+        const tPlayer = (room.players || []).find(function(p) { return p.id === pov.myTurnLog.fangZhenTargetId; });
+        const isTargetGood = pov.myTurnLog.fangZhenCamp === 'good';
+        if (tPlayer && (curRoundIdx >= 1 || !isTargetGood)) {
+          const tClaim = spokenClaims.find(function(c) { return c.speakerId === tPlayer.id && c.claimReal === true; });
+          if (!isTargetGood && curRoundIdx >= 1) {
+            return '我直接亮方震底牌講話，我查驗過【' + tPlayer.name + '】是老朝奉陣營的壞人！他前面報的獸首全部是在帶假貨風向，大家千萬別信他' + (headRealClaim && headRealClaim.speakerId !== tPlayer.id ? '，這輪全體聽【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】！' : '！');
+          }
+          if (isTargetGood && tClaim && curRoundIdx === 2) {
+            return '到了決勝局我直接亮方震底牌，我親手驗過【' + tPlayer.name + '】確定是好人！他在' + tClaim.posText + '報【' + tClaim.beast + '】是真的，公信力最高，這輪大家聽【' + tPlayer.name + '】的投【' + tPlayer.beast + '】！';
+          }
+        }
+        // 方震平時隱藏身分，順著首家或前置位好人線走
+        if (headRealClaim) {
+          return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】報【' + headRealClaim.beast + '】是真的，我在' + myPosText + '看過也是真的，大家這輪聽【' + headRealClaim.speakerName + '】的，把票集中投給【' + headRealClaim.beast + '】！';
+        }
+      }
+
+      // C2. 姬雲浮真視定調（第3回合可亮牌，不受反轉影響）
+      if (pov.myRole === '姬雲浮' && myBeast && mySawReal !== null) {
+        if (mySawReal) {
+          if (headRealClaim && headRealClaim.beast !== myBeast && headRealClaim.passIdx === 0) {
+            return '首家【' + headRealClaim.speakerName + '】報【' + headRealClaim.beast + '】是真的，而我在' + myPosText + '看【' + myBeast + '】也確定一定真，就算中間有老朝奉開反轉也影響不到我！這輪好人直接【' + headRealClaim.beast + '】、【' + myBeast + '】雙真品一起投最穩！';
+          }
+          return (curRoundIdx === 2 ? '我直接亮姬雲浮真視底牌，' : '') + '我在' + myPosText + '看過【' + myBeast + '】確定一定真！不管前面有沒有人開反轉，這隻【' + myBeast + '】絕對是真的，大家票全集中投【' + myBeast + '】！';
+        } else {
+          return '我在' + myPosText + '看過【' + myBeast + '】看起來超假，確定是贗品無誤！大家千萬避開【' + myBeast + '】' + (headRealClaim ? '，這輪聽前面【' + headRealClaim.speakerName + '】的投【' + headRealClaim.beast + '】！' : '！');
+        }
+      }
+
+      // C3. 與前手驗同一隻獸首且「結果一致」➔ 絕不搶前置位的功，歸功給前置位！
+      if (sameBeastPrior && mySawReal !== null && sameBeastPrior.claimReal === mySawReal) {
+        if (mySawReal === true) {
+          if (sameBeastPrior.passIdx < myPassIdx) {
+            return '前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】已經先報【' + myBeast + '】是真的，我排在' + myPosText + '實際看過【' + myBeast + '】也確定是真的，代表從' + sameBeastPrior.posText + '到' + myPosText + '中間沒被反轉，大家這輪聽【' + sameBeastPrior.speakerName + '】的，把票集中投給【' + myBeast + '】！';
+          } else {
+            return '我排在' + myPosText + '比【' + sameBeastPrior.speakerName + '】更早拿到手機，我先看過【' + myBeast + '】確定是真的，後面【' + sameBeastPrior.speakerName + '】在' + sameBeastPrior.posText + '看也是真的，這條線完全沒變過，大家直接投【' + myBeast + '】！';
+          }
+        } else {
+          return '前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】說【' + myBeast + '】是假的，我在' + myPosText + '看【' + myBeast + '】也確實看起來超假，大家千萬避開【' + myBeast + '】' + (headRealClaim ? '，票改聽【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】！' : '！');
+        }
+      }
+
+      // C4. 與前手驗同一隻獸首但「結果相反」➔ 嚴格用傳遞順位與反轉污染區間盤邏輯！
+      if (sameBeastPrior && mySawReal !== null && sameBeastPrior.claimReal !== mySawReal) {
+        const myIsEarlier = myPassIdx < sameBeastPrior.passIdx;
+        if (myIsEarlier) {
+          // 我比前手更早拿手機（例如我在第四位驗虎真，他卻在第七位說虎假）
+          if (mySawReal === true) {
+            return '【' + sameBeastPrior.speakerName + '】在' + sameBeastPrior.posText + '說【' + myBeast + '】是假的，但我排在他前面的' + myPosText + '親手看過【' + myBeast + '】確定是真的！越前面的查驗越乾淨，要嘛是' + myPosText + '到' + sameBeastPrior.posText + '中間有人開了老朝奉反轉，要嘛是他在後位故意說謊！這輪大家一定要投【' + myBeast + '】！';
+          } else {
+            return '【' + sameBeastPrior.speakerName + '】在後段' + sameBeastPrior.posText + '說【' + myBeast + '】是真的，但我排在他前面的' + myPosText + '早就看過【' + myBeast + '】看起來超假！大家別被後置位帶風向誤導，避開【' + myBeast + '】' + (headRealClaim && headRealClaim.beast !== myBeast ? '，改聽首家【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】！' : '！');
+          }
+        } else {
+          // 前手比我更早拿手機（例如前手在第四位說龍真，我在第六位看龍假 ➔ 第四到第六位間有反轉！）
+          const invStart = sameBeastPrior.passIdx;
+          const invEnd = myPassIdx;
+          // 找「反轉起點之前（如首家）」的乾淨真品
+          const cleanBeforeInv = spokenClaims
+            .filter(function(c) { return c.claimReal === true && c.passIdx <= invStart && c.beast !== myBeast; })
+            .sort(function(a, b) { return a.passIdx - b.passIdx; })[0];
+          // 找「夾在反轉污染區間內（如第五位）」的真品主張
+          const pollutedInsideInv = spokenClaims
+            .filter(function(c) { return c.claimReal === true && c.passIdx > invStart && c.passIdx < invEnd && c.beast !== myBeast; })[0];
+
+          if (sameBeastPrior.claimReal === true && mySawReal === false) {
+            if (cleanBeforeInv) {
+              return sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】報【' + myBeast + '】是真的，但我排在' + myPosText + '看卻變成假的，代表' + sameBeastPrior.posText + '到' + myPosText + '中間有人開了老朝奉反轉！夾在這個區間內的查驗也會被反轉不能盲信，這輪我們回頭信最前面' + cleanBeforeInv.posText + '【' + cleanBeforeInv.speakerName + '】的【' + cleanBeforeInv.beast + '】跟反轉前的【' + myBeast + '】最穩！';
+            }
+            if (pollutedInsideInv) {
+              return sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】報【' + myBeast + '】是真的，但我排在' + myPosText + '看卻是假的，代表' + sameBeastPrior.posText + '到' + myPosText + '中間有老朝奉開反轉！連帶夾在中間' + pollutedInsideInv.posText + '【' + pollutedInsideInv.speakerName + '】報的【' + pollutedInsideInv.beast + '】也會被反轉影響，除非大家認定【' + pollutedInsideInv.speakerName + '】是姬雲浮才跟他的【' + pollutedInsideInv.beast + '】，否則應該聽前置位【' + sameBeastPrior.speakerName + '】投【' + myBeast + '】！';
+            }
+            return sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】先看【' + myBeast + '】是真的，到我' + myPosText + '看卻變成假的，明顯中間被老朝奉反轉過了！越往前面的資訊越真，我自己看到的假反而是被反轉後的結果，這輪大家應該聽【' + sameBeastPrior.speakerName + '】的投【' + myBeast + '】！';
+          }
+        }
+      }
+
+      // C5. 後置位（第5~8位）自己驗到「假」，但場上前面已有反轉跡象 ➔ 啟動「負負得正」高階推論！
+      if (myBeast && mySawReal === false && myPassIdx >= 4 && fieldHasInversion) {
+        if (headRealClaim && headRealClaim.beast !== myBeast) {
+          return '聽前面幾位的查驗對沖，中段明顯有老朝奉開過反轉了！我在' + myPosText + '看【' + myBeast + '】雖然顯示是假的，但在前面已經變過的前提下，負負得正【' + myBeast + '】其實是被反轉的真品！搭配首家【' + headRealClaim.speakerName + '】最乾淨的【' + headRealClaim.beast + '】，這輪好人直接【' + headRealClaim.beast + '】、【' + myBeast + '】雙投！';
+        }
+        return '前面傳遞鏈中間已經有老朝奉開過反轉了，我在後段' + myPosText + '看【' + myBeast + '】顯示是假的，在前面變過的前提下，【' + myBeast + '】其實才是真品！這輪【' + myBeast + '】是可以投的！';
+      }
+
+      // C6. 自己驗到真品，且前面已有人報另一隻真品 ➔ 絕不無視前手，主動喊「雙真品一起投」或「一定真」！
+      if (myBeast && mySawReal === true) {
+        if (headRealClaim && headRealClaim.beast !== myBeast) {
+          return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經報了【' + headRealClaim.beast + '】是真的，而我在' + myPosText + '看【' + myBeast + '】也確定一定真！我覺得這輪【' + headRealClaim.beast + '】跟【' + myBeast + '】兩隻真品一起投是最好的，好人直接拿雙真品！';
+        }
+        if (isFirstSpeaker) {
+          return '我是這輪第一個發言，報一下我在' + myPosText + '看到的結果：【' + myBeast + '】看起來是真的，這隻【' + myBeast + '】一定真！大家這輪先以【' + myBeast + '】為準集中投票！';
+        }
+        return '報一下我在' + myPosText + '看到的結果，【' + myBeast + '】看起來就是真的，這隻【' + myBeast + '】一定真！請大家把選票集中投給【' + myBeast + '】保分！';
+      }
+
+      // C7. 自己驗到假貨（無反轉跡象）➔ 直白說看起來超假，絕不誇它穩，並呼應首家真品
+      if (myBeast && mySawReal === false) {
+        if (headRealClaim && headRealClaim.beast !== myBeast) {
+          return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】報【' + headRealClaim.beast + '】是真的，越往首家的資訊越強；我自己排在' + myPosText + '看【' + myBeast + '】看起來超假，確定是贗品。大家避開【' + myBeast + '】，這輪聽【' + headRealClaim.speakerName + '】的把票集中投給【' + headRealClaim.beast + '】！';
+        }
+        return '我在' + myPosText + '親手看過【' + myBeast + '】了，外觀看起來超假，確定是贗品！大家這輪千萬避開【' + myBeast + '】不要投！';
+      }
+    }
+
+    // ==================== D. 壞人陣營高階話術（明跳評估 vs 負負得正偽裝 vs 謊報一定真） ====================
+    if (!isGood) {
+      const fakeBeasts = (curRound.beasts || []).filter(function(b) { return !b.isReal; }).map(function(b) { return b.name; });
+      const targetFake = fakeBeasts[0] || myBeast || '鼠';
+
+      // D1. 壞人明跳評估：僅在第3回合尾段、或鄭國渠在局勢明朗需號召壞人同伴灌票鎖死前二時才明跳！
+      const shouldOpenWolf = (curRoundIdx === 2 && pov.myRole === '鄭國渠' && speeches.length >= 5);
+      if (shouldOpenWolf) {
+        return '到了最後一局我直接跟老朝奉陣營的兄弟明牌號票：【' + targetFake + '】我確認過是我們的目標贗品！現在好人票型分散，壞人隊友不用再演了，把所有籌碼全部集中灌給【' + targetFake + '】直接搶下前二！';
+      }
+
+      // D2. 後置位壞人高階偽裝：利用前面玩家的反轉資訊，把假貨說成「我驗到假，但前面變過所以它是真品」！
+      if (myPassIdx >= 4 && (fieldHasInversion || spokenClaims.length >= 2)) {
+        if (headRealClaim && headRealClaim.beast !== targetFake) {
+          return '聽前面幾位的說法明顯有落差，中段肯定有老朝奉開過反轉了！我在' + myPosText + '看【' + targetFake + '】雖然顯示是假的，但在前面已經變過的前提下，負負得正【' + targetFake + '】其實是被反轉的真品！這輪建議大家把首家【' + headRealClaim.speakerName + '】的【' + headRealClaim.beast + '】跟【' + targetFake + '】兩隻一起投！';
+        }
+        return '前面傳遞鏈中間明顯被老朝奉開過反轉了！我在後段' + myPosText + '看【' + targetFake + '】顯示是假的，反推回去【' + targetFake + '】其實才是真品！這輪大家直接把票集中投給【' + targetFake + '】！';
+      }
+
+      // D3. 前中置位壞人：把贗品直接當真品強力定真（絕不說它是贗品還叫好人投！）
+      if (headRealClaim && headRealClaim.beast !== targetFake) {
+        return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】報了【' + headRealClaim.beast + '】，但我在' + myPosText + '看【' + targetFake + '】看起來超像真的，【' + targetFake + '】一定真！這輪大家直接把票集中投給【' + targetFake + '】最穩！';
+      }
+      return '報一下我在' + myPosText + '看到的結果，【' + targetFake + '】看起來就是真的，這隻【' + targetFake + '】一定真！大家這輪把選票全部集中投給【' + targetFake + '】！';
+    }
+
+    return null;
+  };
+
+  // 5. 攔截並升級 GeminiBrain 與 NeuralSpeechSynthesizer
+  if (typeof GeminiBrain !== 'undefined') {
+    const origBuildPrompt = GeminiBrain.buildSpeechPrompt;
+    if (typeof origBuildPrompt === 'function') {
+      GeminiBrain.buildSpeechPrompt = function(pov, room) {
+        let basePrompt = origBuildPrompt.apply(this, arguments);
+        const v470Draft = window.buildV470HumanLikeSpeech(pov, room);
+        const extraRules = [
+          '',
+          '【v4.7.0 真人桌遊語言與反轉邏輯最高鐵則（違反直接淘汰）】',
+          '1. 嚴禁古董專有名詞：禁止出現「包漿、成色、器型、底款、鑄造工藝、酸洗」等詞，一律直白說「看起來很像真的」、「看起來超假」、「一定真」。',
+          '2. 嚴禁講出內部代號：禁止講出「1-1、1-3、1-4、2-5」等破折號代號，要講順位一律說「第一位（首家）」、「第三位」、「第四位」。',
+          '3. 嚴禁點錯人名：只能引用【本輪已發言紀錄】中真正開口過的玩家，未發言者絕對不可點名。',
+          '4. 嚴禁精神分裂與亂號票：若說某獸首是贗品（假），絕不可誇它「很穩、可靠」，更不可在未明跳壞人時叫大家投贗品！壞人想推贗品，必須謊報它是真品，或用「前面有反轉，我驗到假代表它其實是真品」來號票。',
+          '5. 首家權重與不搶功：越往首家（第一位）的查驗越乾淨；若前置位【甲】已報某獸首真，你在後位也驗到真，要說「大家這輪聽【甲】的投這隻」，不可搶功說「聽我的」。若前面已報A真、你驗出B真，要說「A跟B雙真品一起投」或強調「B一定真」。',
+          '6. 反轉污染區間與負負得正：若第4位報真、你在第6位驗出假（代表第4~6位有反轉），則第5位也在反轉污染區內！不可直接叫人改信第5位（除非貼他姬雲浮標籤），應回頭信首家。若你在後段且前面有反轉，你驗到假代表負負得正其實是真品！',
+          v470Draft ? ('【本輪高階真人邏輯推薦話術參考（請優先採用此邏輯結構）】：\n「' + v470Draft + '」') : ''
+        ].join('\n');
+        return basePrompt + extraRules;
+      };
+    }
+
+    const origIsValid = GeminiBrain.isValidBotSpeech;
+    if (typeof origIsValid === 'function') {
+      GeminiBrain.isValidBotSpeech = function(text, pov, room) {
+        if (!text) return false;
+        const cleaned = window.sanitizeSpeechToPlainChinese(text);
+        // 攔截未明跳卻「說X是贗品還叫大家投X」的荒謬語病
+        const fakeMatch = cleaned.match(/【([^】]+)】[^。！]*?(?:是贗品|是假的|超假)/);
+        const voteMatch = cleaned.match(/(?:投給|集中投|全投|改投)【([^】]+)】/);
+        if (fakeMatch && voteMatch && fakeMatch[1] === voteMatch[1] && !cleaned.includes('老朝奉陣營的兄弟') && !cleaned.includes('負負得正') && !cleaned.includes('反推')) {
+          console.warn('[v4.7.0 守門員] 攔截自相矛盾號票:', cleaned);
+          return false;
+        }
+        return origIsValid.call(this, cleaned, pov, room);
+      };
+    }
+
+    const origPrepare = GeminiBrain.prepareSpeech;
+    if (typeof origPrepare === 'function') {
+      GeminiBrain.prepareSpeech = async function(pov, room) {
+        const res = await origPrepare.apply(this, arguments);
+        if (res && typeof res === 'string') {
+          const cleaned = window.sanitizeSpeechToPlainChinese(res);
+          // 檢查是否有點名尚未發言的玩家
+          const curRound = (room && room.rounds && room.rounds[room.currentRoundIdx || 0]) || {};
+          const spokenIds = new Set(((curRound.speeches) || []).map(function(s){ return s.playerId || s.speakerId; }));
+          const unSpokenPlayer = ((room && room.players) || []).find(function(p) {
+            return p.id !== pov.myId && !spokenIds.has(p.id) && p.name && cleaned.includes(p.name + '說');
+          });
+          if (unSpokenPlayer) {
+            console.warn('[v4.7.0 守門員] 攔截引用未發言玩家 (' + unSpokenPlayer.name + ')，切換為 v4.7.0 真人邏輯引擎');
+            return window.buildV470HumanLikeSpeech(pov, room) || cleaned;
+          }
+          return cleaned;
+        }
+        return window.buildV470HumanLikeSpeech(pov, room) || res;
+      };
+    }
+  }
+
+  // 6. 覆寫本地神經發言合成器，確保 Gemini 離線或退避時 100% 輸出高智商真人話術
+  if (typeof NeuralSpeechSynthesizer !== 'undefined') {
+    const origSynth = NeuralSpeechSynthesizer.synthesize;
+    NeuralSpeechSynthesizer.synthesize = function(pov, room) {
+      const smartSpeech = window.buildV470HumanLikeSpeech(pov, room);
+      if (smartSpeech) return window.sanitizeSpeechToPlainChinese(smartSpeech);
+      const fallback = origSynth ? origSynth.apply(this, arguments) : '';
+      return window.sanitizeSpeechToPlainChinese(fallback);
+    };
+  }
+})();
+</script>
+
 </body>
 </html>
