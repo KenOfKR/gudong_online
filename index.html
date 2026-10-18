@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.7.2 (非同步防卡死穩定正式版)</title>  
+ <title>古董局中局 (版本 4.7.3 (五倍詞庫無破綻穩定正式版)</title>  
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1638,7 +1638,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.7.2 (非同步防卡死穩定正式版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.7.3 (五倍詞庫無破綻穩定正式版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -29985,51 +29985,263 @@ migrateAllProfiles();
     return claims;
   };
 
+  // ==================== v4.7.3 五倍詞庫與壞人無破綻擬態發言引擎 ====================
+  window._usedSpeechTemplatesInRound = window._usedSpeechTemplatesInRound || new Set();
+  window._lastSpeechRoundKey = '';
+
+  window.pickRichTemplate = function(arr, seedStr) {
+    if (!Array.isArray(arr) || arr.length === 0) return '';
+    const used = window._usedSpeechTemplatesInRound;
+    const available = arr.filter(function(_, idx) { return !used.has(seedStr + '_' + idx); });
+    const pool = available.length > 0 ? available : arr;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    const origIdx = arr.indexOf(chosen);
+    if (origIdx !== -1) used.add(seedStr + '_' + origIdx);
+    return chosen;
+  };
+
   window.buildV472SafeSpeech = function(pov, room) {
     try {
-      room = room || (typeof onlineRoomData !== 'undefined' ? onlineRoomData : null);
-      if (!pov || !room) return NEUTRAL_SPEECH;
-      const { round } = currentRound(room);
-      const roundBeastNames = window.getCurrentRoundBeastNames(pov, room);
-      if (!round || roundBeastNames.length !== 4) {
-        console.error('[v4.7.6] 本輪獸首資料無效；停止生成具體獸首結論。');
-        return NEUTRAL_SPEECH;
+      if (!pov || !room) return null;
+      const curRoundIdx = room.currentRoundIdx || 0;
+      const roundKey = String(room.startTimestamp || '') + '_' + curRoundIdx;
+      if (window._lastSpeechRoundKey !== roundKey) {
+        window._lastSpeechRoundKey = roundKey;
+        window._usedSpeechTemplatesInRound.clear();
       }
-      const { order: passOrder, mismatch } = getValidatedPassOrder(pov, room, round);
-      if (mismatch || !passOrder) return NEUTRAL_SPEECH;
-      const myPassIdx = passOrder.indexOf(pov.myId);
-      if (myPassIdx < 0) return NEUTRAL_SPEECH;
+
+      const curRound = (room.rounds && room.rounds[curRoundIdx]) || {};
+      const passOrder = (Array.isArray(curRound.passOrder) && curRound.passOrder.length > 0)
+        ? curRound.passOrder
+        : ((pov && Array.isArray(pov.passOrder)) ? pov.passOrder : []);
+      const speeches = curRound.speeches || [];
+      const myPassIdx = passOrder.indexOf(pov.myId) !== -1 ? passOrder.indexOf(pov.myId) : (typeof pov.myPassIdx === 'number' ? pov.myPassIdx : 0);
       const myPosText = window.toChinesePassOrderText(myPassIdx);
+      const isFirstSpeaker = speeches.length === 0;
       const isGood = (typeof GameRules !== 'undefined' && GameRules.isGoodCamp)
         ? GameRules.isGoodCamp(pov.myRole)
         : ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(pov.myRole);
+
+      const roundBeastNames = window.getCurrentRoundBeastNames(pov, room);
       const validBeastSet = new Set(roundBeastNames);
       const spokenClaims = window.extractVerifiedSpokenClaims(room, pov.myId, roundBeastNames);
-      const headRealClaim = spokenClaims
-        .filter(c => c.claimReal === true && c.passIdx >= 0 && c.passIdx < myPassIdx && validBeastSet.has(c.beast))
-        .sort((a, b) => a.passIdx - b.passIdx)[0] || null;
-      const myInspect = getOwnInspect(pov, room, roundBeastNames);
 
-      if (isGood) {
-        if (!myInspect) {
-          const fallbackBeast = roundBeastNames[0];
-          return '本輪我先保留對【' + fallbackBeast + '】的真偽判斷，不會把未核實的說法當成查驗結果；我會對照各家的公開發言與票面資訊，再決定投票方向。';
+      // 首家或最前順位的真品主張
+      const headRealClaim = spokenClaims
+        .filter(function(c) { return c.claimReal === true && c.passIdx >= 0 && validBeastSet.has(c.beast); })
+        .sort(function(a, b) { return a.passIdx - b.passIdx; })[0] || null;
+
+      // 首家或前順位的贗品主張
+      const headFakeClaim = spokenClaims
+        .filter(function(c) { return c.claimReal === false && c.passIdx >= 0 && validBeastSet.has(c.beast); })
+        .sort(function(a, b) { return a.passIdx - b.passIdx; })[0] || null;
+
+      const rawTurnLog = (curRound.turnLogs && curRound.turnLogs[pov.myId]) || pov.myTurnLog || {};
+      const myInspectList = Array.isArray(rawTurnLog.inspect) ? rawTurnLog.inspect : (rawTurnLog.inspect ? [rawTurnLog.inspect] : []);
+      const myInspect = myInspectList.find(function(it) { return it && validBeastSet.has(it.beastName); }) || myInspectList[0] || null;
+      const myBeast = (myInspect && validBeastSet.has(myInspect.beastName)) ? myInspect.beastName : (roundBeastNames[0] || '鼠');
+      const isAmbushed = !!(myInspect && myInspect.isAmbushed);
+      const isBlockedOrConfused = !!(myInspect && (myInspect.isBlocked || myInspect.isConfused));
+
+      let mySawReal = null;
+      if (myInspect && !isAmbushed && !isBlockedOrConfused) {
+        if (typeof myInspect.displayedReal === 'boolean') mySawReal = myInspect.displayedReal;
+        else if (typeof myInspect.resultText === 'string') {
+          if (myInspect.resultText.includes('真品')) mySawReal = true;
+          else if (myInspect.resultText.includes('贗品')) mySawReal = false;
         }
-        const ownResult = myInspect.isReal ? '是真品' : '是贗品';
-        if (headRealClaim && headRealClaim.beast !== myInspect.beastName && headRealClaim.passIdx < myPassIdx) {
-          return '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】公開表示【' + headRealClaim.beast + '】是真的；我在' + myPosText + '實際查驗【' + myInspect.beastName + '】，結果' + ownResult + '。請依各自可核對的查驗結果投票。';
-        }
-        return '我在' + myPosText + '實際查驗【' + myInspect.beastName + '】，結果' + ownResult + '。請以本輪有效查驗與票面資訊判斷。';
       }
-      // 壞人可以策略性誤導，但只可提及本輪白名單中的獸首。
-      const target = (headRealClaim && validBeastSet.has(headRealClaim.beast))
-        ? headRealClaim.beast
-        : roundBeastNames[0];
-      if (!target || !validBeastSet.has(target)) return NEUTRAL_SPEECH;
-      return '我認為【' + target + '】值得優先討論，大家可以結合本輪其他人的查驗與票面資訊判斷。';
+
+      const sameBeastPrior = myBeast
+        ? spokenClaims.filter(function(c) { return c.beast === myBeast; }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0]
+        : null;
+
+      // ==================== 情境 1：好人被偷襲或無法辨別（豐富口語庫） ====================
+      if (isGood && isAmbushed) {
+        if (myPassIdx === 1) {
+          const p0 = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+          const p0Name = p0 ? p0.name : '首家';
+          return window.pickRichTemplate([
+            '我在第二位接手機直接眼前一片黑被偷襲了！當輪只有第一位的【' + p0Name + '】能動手，【' + p0Name + '】鐵定是藥不然！大家這輪千萬別信他！',
+            '報告大家，我在第二位拿手機就被藥不然砍了！排在我前面的只有第一位【' + p0Name + '】，直接抓到【' + p0Name + '】是藥不然！',
+            '第二位接手機直接被偷襲致盲，這不用盤了，第一位【' + p0Name + '】百分之百是藥不然，大家把他的話當耳邊風就好！'
+          ], 'ambush_p2');
+        }
+        if (myPassIdx === 2) {
+          const p0 = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+          const p1 = (room.players || []).find(function(p) { return p.id === passOrder[1]; });
+          const n0 = p0 ? p0.name : '第一位';
+          const n1 = p1 ? p1.name : '第二位';
+          return window.pickRichTemplate([
+            '我在第三位接過手機發現被偷襲了！藥不然一定藏在第一位【' + n0 + '】跟第二位【' + n1 + '】這兩個人裡面！我這輪沒資訊，大家看前面乾淨的線投。',
+            '第三位拿手機眼前一片黑，能偷襲我的只有【' + n0 + '】或【' + n1 + '】，這兩位必有一隻藥不然！獸首大家先跟其他好人報的真品。'
+          ], 'ambush_p3');
+        }
+        // 後段或神職被偷襲：低調跟好人線或直接定調
+        if (headRealClaim) {
+          return window.pickRichTemplate([
+            '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經報【' + headRealClaim.beast + '】是真的，越往首家的查驗越乾淨，這輪大家直接聽【' + headRealClaim.speakerName + '】的投【' + headRealClaim.beast + '】！',
+            '這輪' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】給的【' + headRealClaim.beast + '】真品線很明確，順位夠前面，大家不用猶豫，跟著【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】就對了！',
+            '順著前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】的查驗走，【' + headRealClaim.beast + '】這條線最穩，好人這輪把票集中在【' + headRealClaim.beast + '】保分！'
+          ], 'ambush_follow');
+        }
+      }
+
+      if (isGood && isBlockedOrConfused) {
+        if (headRealClaim && headRealClaim.beast !== myBeast) {
+          return window.pickRichTemplate([
+            '我在' + myPosText + '看【' + myBeast + '】顯示無法辨別真偽，不是迷霧就是被鄭國渠封鎖了；既然前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】報了【' + headRealClaim.beast + '】是真的，這輪大家聽【' + headRealClaim.speakerName + '】的投【' + headRealClaim.beast + '】！',
+            '我這棒在' + myPosText + '查【' + myBeast + '】看不到真假，八成被封鎖或撞上迷霧了。好在' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經驗出【' + headRealClaim.beast + '】真品，這輪直接跟【' + headRealClaim.speakerName + '】投【' + headRealClaim.beast + '】最穩！',
+            '【' + myBeast + '】在我' + myPosText + '這棒無法辨別，前面可能有人開封鎖；保險起見我們直接保' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】驗出來的【' + headRealClaim.beast + '】！'
+          ], 'blocked_follow');
+        }
+        const fallbackGoodB = roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast;
+        return window.pickRichTemplate([
+          '我在' + myPosText + '看【' + myBeast + '】顯示無法辨別真偽，這輪建議大家把焦點放在【' + fallbackGoodB + '】上面，集中選票保分！',
+          '我這棒在' + myPosText + '查驗【' + myBeast + '】被迷霧或封鎖擋住了，大家這輪先略過【' + myBeast + '】，改從【' + fallbackGoodB + '】這條線下手！'
+        ], 'blocked_solo');
+      }
+
+      // ==================== 情境 2：好人標準多元詞庫（擴充 5 倍） ====================
+      if (isGood) {
+        // 2A. 撞同獸首且同為真品（歸功前手，絕不搶功）
+        if (sameBeastPrior && mySawReal === true && sameBeastPrior.claimReal === true) {
+          return window.pickRichTemplate([
+            '前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】已經先報【' + myBeast + '】是真的，我排在' + myPosText + '再看一次【' + myBeast + '】也確實是真的！代表中間完全沒被反轉，大家這輪聽【' + sameBeastPrior.speakerName + '】的投【' + myBeast + '】！',
+            '我幫' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】背書！我在' + myPosText + '親手複驗過【' + myBeast + '】看起來真的沒問題，這條真品線鐵定穩，大家跟著【' + sameBeastPrior.speakerName + '】投【' + myBeast + '】！',
+            '剛才【' + sameBeastPrior.speakerName + '】在' + sameBeastPrior.posText + '說【' + myBeast + '】真品，我' + myPosText + '看過也是真的，從' + sameBeastPrior.posText + '到我這棒中間很乾淨，這輪票直接灌給【' + myBeast + '】！',
+            '【' + myBeast + '】這條線經過' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】跟我' + myPosText + '雙重確認都是真的，好人不用懷疑了，聽【' + sameBeastPrior.speakerName + '】的把【' + myBeast + '】送進前二！',
+            '完全同意' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】的判斷！我在' + myPosText + '摸過【' + myBeast + '】也是真品，這隻穩到不行，選票全部集中【' + myBeast + '】！'
+          ], 'good_same_true');
+        }
+
+        // 2B. 撞同獸首但真假相反（盤傳遞順位與老朝奉反轉）
+        if (sameBeastPrior && mySawReal !== null && sameBeastPrior.claimReal !== mySawReal) {
+          if (mySawReal === true) {
+            return window.pickRichTemplate([
+              '等一下，【' + sameBeastPrior.speakerName + '】在' + sameBeastPrior.posText + '說【' + myBeast + '】是假的，但我排在' + myPosText + '親手看過【' + myBeast + '】明明是真的！要嘛中間有人開反轉，要嘛【' + sameBeastPrior.speakerName + '】在帶假風向，這輪【' + myBeast + '】一定真，投【' + myBeast + '】！',
+              '我這棒在' + myPosText + '看到的結果跟' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】完全相反！【' + myBeast + '】在我手上看起來就是真品，大家別被【' + sameBeastPrior.speakerName + '】誤導了，票集中投【' + myBeast + '】！',
+              '【' + sameBeastPrior.speakerName + '】居然在' + sameBeastPrior.posText + '把【' + myBeast + '】打成贗品？我在' + myPosText + '確認過【' + myBeast + '】百分之百是真的！好人千萬別放掉【' + myBeast + '】，這輪跟我保【' + myBeast + '】！',
+              '直接跟' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】對沖！【' + myBeast + '】我在' + myPosText + '驗過絕對是真的，不管是老朝奉反轉還是有人故意踩真品，這輪【' + myBeast + '】必須保下來！'
+            ], 'good_conflict_mytrue');
+          } else {
+            const altB = (headRealClaim && headRealClaim.beast !== myBeast) ? headRealClaim.beast : (roundBeastNames.find(function(n){return n !== myBeast;}) || myBeast);
+            return window.pickRichTemplate([
+              sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】說【' + myBeast + '】是真的，但我排在' + myPosText + '看【' + myBeast + '】卻看起來超假！代表中間有人開了老朝奉反轉，或是【' + sameBeastPrior.speakerName + '】在硬推假貨！大家千萬小心！',
+              '怪了，' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】報【' + myBeast + '】真品，結果傳到我' + myPosText + '看卻是贗品！這段傳遞鏈肯定有老朝奉動過手腳，大家投票前先對清楚順位！',
+              '我在' + myPosText + '看到的【' + myBeast + '】是假的，跟前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】講的不一樣！中間必有老朝奉開反轉，如果大家不放心這條線，也可以優先考慮保【' + altB + '】！',
+              '提醒全場，【' + myBeast + '】從' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】傳到我' + myPosText + '結果變成了贗品！中間百分之百有反轉斷點，大家這輪選票務必謹慎！'
+            ], 'good_conflict_myfake');
+          }
+        }
+
+        // 2C. 自己驗到真品，且前面已有另一隻真品（雙真合流 / 定真）
+        if (mySawReal === true) {
+          if (headRealClaim && headRealClaim.beast !== myBeast) {
+            return window.pickRichTemplate([
+              '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經報了【' + headRealClaim.beast + '】是真的，而我在' + myPosText + '看【' + myBeast + '】也確定是真的！這輪【' + headRealClaim.beast + '】跟【' + myBeast + '】兩隻真品一起投最好，好人直接鎖死雙真品！',
+              '太好了，' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】驗出【' + headRealClaim.beast + '】真，我自己排在' + myPosText + '看【' + myBeast + '】也是真品！兩件真品都浮出來了，大家這輪【' + headRealClaim.beast + '】配【' + myBeast + '】分票保進前二最穩！',
+              '既然' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】確認【' + headRealClaim.beast + '】是真的，那我補上另一塊拼圖：我在' + myPosText + '驗過【' + myBeast + '】一定真！好人這輪直接投【' + headRealClaim.beast + '】跟【' + myBeast + '】拿滿分！',
+              '前面有【' + headRealClaim.speakerName + '】保【' + headRealClaim.beast + '】真，我這邊在' + myPosText + '實測【' + myBeast + '】看起來也完全是真的！大家可以把票分給【' + headRealClaim.beast + '】和【' + myBeast + '】，也可以直接重注我的【' + myBeast + '】！',
+              '聽完前面【' + headRealClaim.speakerName + '】報【' + headRealClaim.beast + '】真品，我在' + myPosText + '看【' + myBeast + '】也確定一定真！這輪雙真品就是【' + headRealClaim.beast + '】跟【' + myBeast + '】了，大家照這兩隻投準沒錯！'
+            ], 'good_double_true');
+          }
+          // 單獨報真品（10種豐富句型）
+          return window.pickRichTemplate([
+            (isFirstSpeaker ? '我是這輪第一個開口的，先給大家定個調：' : '報一下我這棒的實測結果，') + '我在' + myPosText + '看過【' + myBeast + '】看起來就是真的，這隻【' + myBeast + '】一定真！大家這輪把票集中投給【' + myBeast + '】！',
+            '直接講結論，我在' + myPosText + '親手查驗過【' + myBeast + '】，外觀看起來完全是真的！好人這輪不用到處亂猜，選票直接鎖定【' + myBeast + '】保分！',
+            '我排在' + myPosText + '拿到手機，我看【' + myBeast + '】確定是真品沒錯！只要我前面沒人偷開反轉，這隻【' + myBeast + '】穩穩是真的，大家跟我投【' + myBeast + '】！',
+            '給全場一個明確方向，【' + myBeast + '】我在' + myPosText + '驗過了，看起來很像真的，一定真！這輪好人把票凝聚在【' + myBeast + '】身上最安全！',
+            '大家聽我這邊，我在' + myPosText + '驗的是【' + myBeast + '】，結果顯示是真品！還沒決定投哪隻的好人，這輪直接把票灌給【' + myBeast + '】就對了！',
+            '【' + myBeast + '】這件我在' + myPosText + '親自看過，確定是真的！這輪局勢不用想太複雜，先把【' + myBeast + '】這分穩穩收進口袋最重要！',
+            '報告一下' + myPosText + '的查驗資訊：【' + myBeast + '】是真品！後面如果有人突然跳出來踩【' + myBeast + '】，那中間肯定有鬼，大家這輪堅定保【' + myBeast + '】！'
+          ], 'good_solo_true');
+        }
+
+        // 2D. 自己驗到贗品（排除假貨 + 順推真品，10種豐富句型）
+        if (mySawReal === false) {
+          if (headRealClaim && headRealClaim.beast !== myBeast) {
+            return window.pickRichTemplate([
+              '我在' + myPosText + '看【' + myBeast + '】看起來超假，確定是贗品！幫大家排掉一個錯誤選項，這輪避開【' + myBeast + '】，直接聽前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】的把票投給【' + headRealClaim.beast + '】！',
+              '先幫大家踩個煞車，【' + myBeast + '】我在' + myPosText + '驗過是假的，千萬別碰！既然' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經報【' + headRealClaim.beast + '】是真的，我們這輪全體集中投【' + headRealClaim.beast + '】！',
+              '我這棒在' + myPosText + '查了【' + myBeast + '】，確定是贗品無誤。把【' + myBeast + '】劃掉之後，前面【' + headRealClaim.speakerName + '】在' + headRealClaim.posText + '報的【' + headRealClaim.beast + '】可信度就非常高了，大家聽【' + headRealClaim.speakerName + '】的投【' + headRealClaim.beast + '】！',
+              '【' + myBeast + '】不用考慮了，我在' + myPosText + '看過確定是假貨！好人選票不要分散，直接跟上' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】驗出來的真品【' + headRealClaim.beast + '】！',
+              '排除一隻假貨：我在' + myPosText + '驗到【' + myBeast + '】是贗品。越往首家的資訊越乾淨，這輪大家避開【' + myBeast + '】，跟著【' + headRealClaim.speakerName + '】把票灌給【' + headRealClaim.beast + '】！'
+            ], 'good_fake_follow_true');
+          }
+          const otherCandidate = roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast;
+          return window.pickRichTemplate([
+            '我在' + myPosText + '親手看過【' + myBeast + '】了，外觀看起來超假，確定是贗品！大家這輪千萬避開【' + myBeast + '】，把票留給【' + otherCandidate + '】或其他真品線！',
+            '給大家排個雷，我在' + myPosText + '驗到【' + myBeast + '】是假的！誰要是待會硬保【' + myBeast + '】誰就有問題，這輪大家絕對不要投【' + myBeast + '】！',
+            '報告' + myPosText + '的查驗結果：【' + myBeast + '】確定是贗品！四選二已經幫大家扣掉【' + myBeast + '】這隻假貨了，大家選票往【' + otherCandidate + '】那邊靠攏！',
+            '【' + myBeast + '】在我' + myPosText + '手上驗出來是假貨，這條線直接放生！好人千萬別把寶貴的票浪費在【' + myBeast + '】身上！',
+            '先幫好人省票，我在' + myPosText + '看過【' + myBeast + '】確定看起來超假！這輪避開【' + myBeast + '】就對了，我們從剩下的獸首裡抓真品投！'
+          ], 'good_solo_fake');
+        }
+      }
+
+      // ==================== 情境 3：壞人高段位四大偽裝流派（徹底根除「值得優先討論」破綻！） ====================
+      if (!isGood) {
+        // 找出壞人要推的目標假貨（若自己驗到假就是它；否則挑首家沒保過的那隻）
+        let targetFake = null;
+        const actualFakeList = (curRound.beasts || []).filter(function(b) { return b && b.isReal === false; }).map(function(b) { return b.name; });
+        if (actualFakeList.length > 0) {
+          targetFake = actualFakeList.find(function(n) { return !headRealClaim || n !== headRealClaim.beast; }) || actualFakeList[0];
+        } else if (myBeast && mySawReal === false) {
+          targetFake = myBeast;
+        } else {
+          targetFake = roundBeastNames.find(function(n) { return !headRealClaim || n !== headRealClaim.beast; }) || roundBeastNames[0];
+        }
+        const sacrificialBeast = roundBeastNames.find(function(n) { return n !== targetFake && (!headRealClaim || n === headRealClaim.beast); })
+          || roundBeastNames.find(function(n) { return n !== targetFake; }) || targetFake;
+
+        // 根據棒次與場上局勢，隨機切換 4 種高擬真壞人戰術：
+        const tacticRoll = Math.random();
+
+        // 【戰術 A：順水推舟雙投流】（當前手已經有人報真品時，假裝認同前手，順便把假貨塞進雙投名單！）
+        if (headRealClaim && headRealClaim.beast !== targetFake && tacticRoll < 0.38) {
+          return window.pickRichTemplate([
+            '前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】已經報了【' + headRealClaim.beast + '】是真的，而我在' + myPosText + '看【' + targetFake + '】也確定是真的！我覺得這輪【' + headRealClaim.beast + '】跟【' + targetFake + '】兩隻真品一起投最穩！',
+            '既然' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】確認【' + headRealClaim.beast + '】是真品，那我補上另一隻：我在' + myPosText + '驗過【' + targetFake + '】看起來也是真的！好人這輪直接【' + headRealClaim.beast + '】配【' + targetFake + '】雙投拿分！',
+            '聽完【' + headRealClaim.speakerName + '】在' + headRealClaim.posText + '報【' + headRealClaim.beast + '】真，我自己排在' + myPosText + '查驗【' + targetFake + '】也確定一定真！這輪兩隻真品都出來了，大家把票分給【' + headRealClaim.beast + '】和【' + targetFake + '】最安全！',
+            '我認同前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】說【' + headRealClaim.beast + '】是真的，同時我在' + myPosText + '看過【' + targetFake + '】也完全是真品！如果怕【' + headRealClaim.beast + '】票太多溢出，大家可以把票集中投給【' + targetFake + '】保第二名！'
+          ], 'evil_piggyback');
+        }
+
+        // 【戰術 B：踩真推假排雷流】（假裝自己驗到另一隻是假貨幫大家排雷，順理成章把大家引導去投 targetFake！）
+        if (sacrificialBeast !== targetFake && tacticRoll < 0.65) {
+          return window.pickRichTemplate([
+            '我在' + myPosText + '看【' + sacrificialBeast + '】看起來超假，確定是贗品！幫大家排掉一個地雷，這輪千萬避開【' + sacrificialBeast + '】，把選票集中投給【' + targetFake + '】才穩！',
+            '先幫好人踩個煞車，我在' + myPosText + '親手驗過【' + sacrificialBeast + '】是假的！扣掉【' + sacrificialBeast + '】之後，這輪盤面上最穩的真品就是【' + targetFake + '】了，大家直接集中投【' + targetFake + '】！',
+            '報告' + myPosText + '的查驗結果：【' + sacrificialBeast + '】是贗品，而【' + targetFake + '】這條線看起來最乾淨！大家別把票浪費在【' + sacrificialBeast + '】身上，全體改投【' + targetFake + '】保分！',
+            '【' + sacrificialBeast + '】在我' + myPosText + '這棒驗出來確定是假貨！誰要是硬保【' + sacrificialBeast + '】肯定有鬼，這輪好人把票全部集中到【' + targetFake + '】最安全！'
+          ], 'evil_frame_other');
+        }
+
+        // 【戰術 C：後置位反轉負負得正流】（排在第5~8位時，利用老朝奉反轉概念把假貨洗成真品）
+        if (myPassIdx >= 4 && speeches.length >= 2 && tacticRoll < 0.82) {
+          return window.pickRichTemplate([
+            '聽前面幾位的說法明顯對不上，中段肯定有老朝奉開過反轉了！我在' + myPosText + '看【' + targetFake + '】雖然顯示是假的，但在前面已經變過的前提下，負負得正【' + targetFake + '】其實才是真品！這輪應該投【' + targetFake + '】！',
+            '前面傳遞鏈中間已經被老朝奉動過手腳反轉了！我在後段' + myPosText + '看【' + targetFake + '】顯示假，反推回去【' + targetFake + '】原本其實是真品！大家別被表象騙了，這輪票投【' + targetFake + '】！',
+            '大家注意，中段順位明顯出現反轉斷點！這代表後段看到的結果是反過來的，我在' + myPosText + '算下來【' + targetFake + '】才是真正該保的真品，這輪選票集中投【' + targetFake + '】！'
+          ], 'evil_inversion_bluff');
+        }
+
+        // 【戰術 D：強勢焊跳定真流】（直接跟好人一模一樣的口氣，鐵口直斷假貨是真品！）
+        return window.pickRichTemplate([
+          (isFirstSpeaker ? '我是這輪第一個發言，先報我手上的結果：' : '報一下我在' + myPosText + '看到的結果，') + '【' + targetFake + '】看起來就是真的，這隻【' + targetFake + '】一定真！請大家把選票集中投給【' + targetFake + '】保分！',
+          '直接給結論，我在' + myPosText + '親手查驗過【' + targetFake + '】，外觀看起來完全是真的！好人這輪不用猶豫，選票直接鎖定【' + targetFake + '】！',
+          '我排在' + myPosText + '拿到手機，我看【' + targetFake + '】確定是真品沒錯！這條線很乾淨，大家這輪直接把票灌給【' + targetFake + '】就對了！',
+          '給全場一個明確方向，【' + targetFake + '】我在' + myPosText + '驗過了，看起來很像真的，一定真！這輪好人把票凝聚在【' + targetFake + '】身上最穩當！',
+          '【' + targetFake + '】這件我在' + myPosText + '親自看過，確定是真的！還沒決定投哪隻的好人，這輪跟著我把【' + targetFake + '】送進前二拿分！',
+          '報告一下' + myPosText + '的實測資訊：【' + targetFake + '】是真品！後面如果有人亂帶風向踩【' + targetFake + '】大家千萬別信，這輪堅定保【' + targetFake + '】！'
+        ], 'evil_hard_claim');
+      }
+
+      return '報一下我在' + myPosText + '看到的結果，【' + myBeast + '】看起來就是真的，大家這輪把票集中投給【' + myBeast + '】！';
     } catch (err) {
-      console.error('[v4.7.6] 安全發言生成失敗，改用中性備援：', err);
-      return NEUTRAL_SPEECH;
+      console.error('[v4.7.3 安全降級] 發言生成例外:', err);
+      return '我這棒實測查驗結果很明確，大家對照前後傳遞順位集中投票保真品！';
     }
   };
 
