@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.7.3 (五倍詞庫無破綻穩定正式版)</title>  
+ <title>古董局中局 (版本 4.7.7 五倍詞庫無破綻學習保留修正版)</title>
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1638,7 +1638,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.7.3 (五倍詞庫無破綻穩定正式版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.7.7 (五倍詞庫無破綻・學習保留修正版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -4228,6 +4228,15 @@ static evolveDNA(dnaStr, traits, isWin, expectedLength = null) {
               });
             }
           });
+
+          // v4.7.7：回歸力。原本幾乎所有回饋都是「只增不減」，數百局後 41 位 BOT 的
+          // voteIndependence / speechConfidence 全數頂到 0.99，個性同質化、不再成長。
+          // 每局向自己原型的 base 拉回 5%，讓「近期表現」而不是「累積局數」決定個性。
+          if (gen.base) {
+            Object.keys(gen.base).forEach(k => {
+              if (typeof w[k] === 'number' && typeof gen.base[k] === 'number') w[k] += (gen.base[k] - w[k]) * 0.05;
+            });
+          }
 
           // 遺傳彈簧防同質化約束
           Object.keys(gen.min).forEach(k => {
@@ -8023,7 +8032,7 @@ service cloud.firestore {
  window.ensureTakeoverRole = ensureTakeoverRole;
 
  // --- 7. 斷線接管與死鎖防護 (Deadlock Prevention & Auto-Takeover) ---  
- var ONLINE_STALE_MS = 360000; // 真人超過 90 秒沒有心跳才視為斷線，由電腦暫時託管
+ var ONLINE_STALE_MS = 90000; // 真人超過 90 秒沒有心跳才視為斷線，由電腦暫時託管
 var _isExecutingAutoTakeover = false;  
  async function executeAutoTakeoverForCurrentTurn(room, requestedPlayerId = null) {
   if (!room || !isFirebaseReady || !db || _isExecutingAutoTakeover) return;
@@ -16447,14 +16456,14 @@ function renderOnlinePersonVotingReference(room) {
       }
 
       // 擬真打字時長（延長五倍：維持 3.0 ~ 4.5 秒）
-      const typingTime = 5000 + Math.floor(Math.random() * 1500);
+      const typingTime = 3000 + Math.floor(Math.random() * 1500);
       await new Promise(r => setTimeout(r, typingTime));
 
       // 階段 2.5：電腦發言完畢，停頓一秒再發送訊息
       if (mockP && speakerBadge) {
         speakerBadge.innerHTML = `<span class="text-amber-400 font-bold font-mono">💬 【${mockP.name}】發言完畢，準備送出...</span>`;
       }
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1000));
 
       // 階段 3：輸入好，正式送出發言到 Firestore
       try {
@@ -16729,7 +16738,7 @@ function renderOnlinePersonVotingReference(room) {
           if (onlineRoomData && onlineRoomData.status === 'person_voting') {
             triggerMockPlayerPersonVoting(onlineRoomData);
           }
-        }, 5000);
+        }, 250);
       }
     }
     window.executeMockPersonVoteStep = executeMockPersonVoteStep;
@@ -24922,6 +24931,10 @@ window.BotSimulationEngine = BotSimulationEngine;
   }
 
   function applyDNA(pov) {
+    // v4.7.7 修正：原實作每次建立視角都把「永久」traits 以 0.7/0.3 往 DNA 混合，
+    // 而 actionDNA 為 120 碼時又被換成 '5'×50（=0.55），導致學到的個性每局都被洗回 0.55。
+    // 永久人格只允許由 BotLearningEngine.reflect 在賽後更新，這裡不再改寫。
+    return;
     try {
       const pid = pov.myBotProfileId || BotLearningEngine.toProfileId(pov.myName);
       const p = BotLearningEngine.getProfile(pid, pov.myRole);
