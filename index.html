@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.7.7 五倍詞庫無破綻學習保留修正版)</title>
+ <title>古董局中局 (版本 4.8.1 (戰績合併選單修復正式版)</title>
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1611,9 +1611,6 @@
  <div class="text-xs font-bold text-neutral-300 text-left mb-2">全體玩家全程操作軌跡記錄：</div>  
  <div id="allPlayerActionLogs" class="space-y-3 mb-5 text-left text-xs bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 max-h-96 overflow-y-auto"></div>  
   
- <button id="btnForceUploadLocalGame" onclick="forceUploadCurrentLocalGame()" class="w-full py-3 mb-2.5 bg-amber-950/80 hover:bg-amber-900 text-amber-300 font-bold text-xs rounded-xl border border-amber-600/80 transition flex items-center justify-center space-x-1.5 active:scale-[0.99]">
- <span>📤 強制將本局對決上傳至戰績網</span>
- </button>
  <button onclick="confirmResetGame()" class="w-full py-3 bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-sm rounded-xl transition">  
  再開一局新遊戲  
  </button>  
@@ -1638,7 +1635,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.7.7 (五倍詞庫無破綻・學習保留修正版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 4.8.1 (戰績合併選單修復正式版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -1760,14 +1757,41 @@ service cloud.firestore {
  <span>玩家統計排行：</span>  
  <span class="text-[10px] text-amber-500 font-normal">點擊玩家展開各角色詳情</span>  
  </div>
- <div id="adminPlayerStatsResetBar" class="hidden p-2.5 bg-rose-950/40 border border-rose-700/70 rounded-xl space-y-2 text-xs">
-   <div class="font-bold text-rose-300">🛡️ 管理員：重設指定玩家的個人累計戰績</div>
-   <div class="text-[10px] leading-relaxed text-neutral-300">只排除該玩家在重設當下已存在的歷史對局統計；不刪除任何對局，也不影響同場其他玩家。之後的新對局會重新累計。</div>
-   <div class="flex items-center gap-2">
-     <select id="adminSelectPlayerStatsReset" class="min-w-0 flex-1 p-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-neutral-100 font-bold">
-       <option value="">-- 選擇玩家 --</option>
-     </select>
-     <button type="button" onclick="adminResetSelectedPlayerStats()" class="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-black whitespace-nowrap">歸零個人戰績</button>
+ <div id="adminPlayerStatsResetBar" class="hidden p-3 bg-rose-950/40 border border-rose-700/70 rounded-xl space-y-3 text-xs">
+   <div class="font-bold text-amber-300 flex items-center justify-between">
+     <span>🛡️ 管理員：玩家戰績合併與資料刪除中心</span>
+     <button type="button" onclick="adminRestoreDeletedPlayers()" class="text-[10px] text-cyan-400 hover:underline font-normal">復原已刪除暱稱</button>
+   </div>
+
+   <!-- 功能 1：合併戰績 -->
+   <div class="p-2.5 bg-neutral-950/90 border border-amber-700/50 rounded-lg space-y-2">
+     <div class="font-bold text-amber-400">🔗 合併玩家戰績（將舊暱稱數據併入主暱稱）</div>
+     <div class="text-[10px] leading-relaxed text-neutral-400">將「來源暱稱」在雲端與本機所有歷史對局中的紀錄改名並累加至「目標主暱稱」名下（若兩者同場則自動跳過該場）。</div>
+     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+       <select id="adminSelectMergeSource" onfocus="window.syncAdminMergeAndDeleteSelectors()" onmousedown="window.syncAdminMergeAndDeleteSelectors()" class="min-w-0 w-full p-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 font-bold">
+         <option value="">-- 被合併來源暱稱 (A) --</option>
+       </select>
+       <select id="adminSelectMergeTarget" onfocus="window.syncAdminMergeAndDeleteSelectors()" onmousedown="window.syncAdminMergeAndDeleteSelectors()" class="min-w-0 w-full p-1.5 bg-neutral-900 border border-amber-600/80 rounded-lg text-amber-300 font-bold">
+         <option value="">-- 併入目標主暱稱 (B) --</option>
+       </select>
+     </div>
+     <button type="button" onclick="adminMergePlayerStats()" class="w-full py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black transition active:scale-[0.99]">
+       🔗 確認合併兩個暱稱的戰績數據
+     </button>
+   </div>
+
+   <!-- 功能 2：刪除玩家資料 -->
+   <div class="p-2.5 bg-neutral-950/90 border border-rose-800/60 rounded-lg space-y-2">
+     <div class="font-bold text-rose-300">🗑️ 刪除特定玩家資料欄位</div>
+     <div class="text-[10px] leading-relaxed text-neutral-400">將指定暱稱從玩家與角色排行榜中徹底移除（不影響同場其他玩家的對局勝率）。</div>
+     <div class="flex items-center gap-2">
+       <select id="adminSelectPlayerStatsReset" onfocus="window.syncAdminMergeAndDeleteSelectors()" onmousedown="window.syncAdminMergeAndDeleteSelectors()" class="min-w-0 flex-1 p-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-neutral-100 font-bold">
+         <option value="">-- 選擇要刪除的玩家暱稱 --</option>
+       </select>
+       <button type="button" onclick="adminDeleteSelectedPlayerProfile()" class="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-black whitespace-nowrap transition active:scale-95">
+         🗑️ 刪除玩家資料
+       </button>
+     </div>
    </div>
  </div>
  <div id="leaderboardList" class="space-y-2.5">  
@@ -30315,6 +30339,371 @@ migrateAllProfiles();
       return window.sanitizeSpeechToPlainChinese(safeSpeech, validBeasts) || NEUTRAL_SPEECH;
     };
   }
+})();
+</script>
+
+
+<!-- ==================== v4.8.1 正式版：戰績合併/刪除管理中心（修復下拉選單同步） ==================== -->
+<script>
+(function() {
+  console.info('%c🏆 [古董局中局 v4.8.1 正式版] 戰績合併/刪除管理選單同步引擎已掛載', 'color:#10b981;font-weight:bold;font-size:13px');
+
+  const DELETED_PLAYERS_STORAGE_KEY = 'gudong_deleted_players_v1';
+  const MERGED_ALIASES_STORAGE_KEY = 'gudong_merged_aliases_v1';
+
+  window.getDeletedPlayerNamesMap = function() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DELETED_PLAYERS_STORAGE_KEY) || '{}');
+      return (raw && typeof raw === 'object') ? raw : {};
+    } catch (e) { return {}; }
+  };
+
+  window.saveDeletedPlayerNamesMap = function(map) {
+    try { localStorage.setItem(DELETED_PLAYERS_STORAGE_KEY, JSON.stringify(map || {})); } catch (e) {}
+  };
+
+  window.getMergedPlayerAliasesMap = function() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MERGED_ALIASES_STORAGE_KEY) || '{}');
+      return (raw && typeof raw === 'object') ? raw : {};
+    } catch (e) { return {}; }
+  };
+
+  window.saveMergedPlayerAliasesMap = function(map) {
+    try { localStorage.setItem(MERGED_ALIASES_STORAGE_KEY, JSON.stringify(map || {})); } catch (e) {}
+  };
+
+  window.resolveMergedPlayerName = function(rawName) {
+    let cur = String(rawName || '').trim();
+    if (!cur) return '';
+    const aliasMap = window.getMergedPlayerAliasesMap();
+    let depth = 0;
+    while (aliasMap[cur] && aliasMap[cur] !== cur && depth < 8) {
+      cur = aliasMap[cur];
+      depth++;
+    }
+    return cur;
+  };
+
+  window.applyAliasesToGameRecord = function(g) {
+    if (!g || !Array.isArray(g.players)) return g;
+    const aliasMap = window.getMergedPlayerAliasesMap();
+    if (!aliasMap || Object.keys(aliasMap).length === 0) return g;
+
+    const existingNames = new Set(g.players.map(function(p) { return p && p.name ? String(p.name).trim() : ''; }));
+    let modified = false;
+    const clonedPlayers = g.players.map(function(p) {
+      if (!p || !p.name) return p;
+      const orig = String(p.name).trim();
+      const target = window.resolveMergedPlayerName(orig);
+      if (target && target !== orig && !existingNames.has(target)) {
+        existingNames.delete(orig);
+        existingNames.add(target);
+        modified = true;
+        return Object.assign({}, p, { name: target });
+      }
+      return p;
+    });
+
+    if (!modified) return g;
+    return Object.assign({}, g, { players: clonedPlayers });
+  };
+
+  // 全方位收集所有可選的玩家名稱（結合 playerMap、歷史對局紀錄、現有選單與排行榜 DOM）
+  window.collectAllAvailablePlayerNames = function(playerMap) {
+    const nameSet = new Set();
+    const deletedMap = window.getDeletedPlayerNamesMap();
+
+    // 來源 1：傳入的 playerMap
+    if (playerMap && typeof playerMap === 'object') {
+      Object.keys(playerMap).forEach(function(k) {
+        const n = window.resolveMergedPlayerName(k);
+        if (n && !deletedMap[n]) nameSet.add(n);
+      });
+    }
+
+    // 來源 2：記憶體中的歷史對局 currentLoadedHistoryGames
+    if (Array.isArray(window.currentLoadedHistoryGames)) {
+      window.currentLoadedHistoryGames.forEach(function(g) {
+        if (!g || !Array.isArray(g.players)) return;
+        g.players.forEach(function(p) {
+          if (!p || !p.name) return;
+          if (typeof p.id === 'string' && p.id.startsWith('mock_p_')) return;
+          const n = window.resolveMergedPlayerName(p.name);
+          if (n && !deletedMap[n]) nameSet.add(n);
+        });
+      });
+    }
+
+    // 來源 3：本地離線對局快取
+    try {
+      if (typeof getOfflineHistory === 'function') {
+        const localGames = getOfflineHistory() || [];
+        localGames.forEach(function(g) {
+          if (!g || !Array.isArray(g.players)) return;
+          g.players.forEach(function(p) {
+            if (!p || !p.name) return;
+            if (typeof p.id === 'string' && p.id.startsWith('mock_p_')) return;
+            const n = window.resolveMergedPlayerName(p.name);
+            if (n && !deletedMap[n]) nameSet.add(n);
+          });
+        });
+      }
+    } catch (e) {}
+
+    // 來源 4：原本的 #adminSelectPlayerStatsReset 選單
+    const selDelete = document.getElementById('adminSelectPlayerStatsReset');
+    if (selDelete && selDelete.options) {
+      Array.from(selDelete.options).forEach(function(opt) {
+        const v = String(opt.value || '').trim();
+        if (v && !deletedMap[v]) nameSet.add(v);
+      });
+    }
+
+    return Array.from(nameSet).sort(function(a, b) {
+      return a.localeCompare(b, 'zh-Hant');
+    });
+  };
+
+  // 核心同步函式：填滿「來源暱稱 (A)」、「目標暱稱 (B)」與「刪除玩家」三個下拉選單
+  window.syncAdminMergeAndDeleteSelectors = function(playerMap) {
+    const bar = document.getElementById('adminPlayerStatsResetBar');
+    if (bar && typeof isStatsAdminUnlocked !== 'undefined') {
+      bar.classList.toggle('hidden', !isStatsAdminUnlocked);
+    }
+
+    const names = window.collectAllAvailablePlayerNames(playerMap);
+    const esc = (typeof escapeHTML === 'function') ? escapeHTML : function(s) { return String(s); };
+    const optionsHtml = names.map(function(n) {
+      return '<option value="' + esc(n) + '">' + esc(n) + '</option>';
+    }).join('');
+
+    const selDelete = document.getElementById('adminSelectPlayerStatsReset');
+    if (selDelete) {
+      const prevD = selDelete.value;
+      selDelete.innerHTML = '<option value="">-- 選擇要刪除的玩家暱稱 --</option>' + optionsHtml;
+      if (names.includes(prevD)) selDelete.value = prevD;
+    }
+
+    const selSource = document.getElementById('adminSelectMergeSource');
+    if (selSource) {
+      const prevS = selSource.value;
+      selSource.innerHTML = '<option value="">-- 被合併來源暱稱 (A) --</option>' + optionsHtml;
+      if (names.includes(prevS)) selSource.value = prevS;
+    }
+
+    const selTarget = document.getElementById('adminSelectMergeTarget');
+    if (selTarget) {
+      const prevT = selTarget.value;
+      selTarget.innerHTML = '<option value="">-- 併入目標主暱稱 (B) --</option>' + optionsHtml;
+      if (names.includes(prevT)) selTarget.value = prevT;
+    }
+  };
+
+  // 直接覆寫原版的 renderAdminPlayerResetSelector，確保每次排行榜渲染或管理員解鎖時 100% 填滿三個選單！
+  window.renderAdminPlayerResetSelector = function(playerMap) {
+    if (playerMap && typeof playerMap === 'object') {
+      window._lastAdminPlayerMap = playerMap;
+    }
+    window.syncAdminMergeAndDeleteSelectors(playerMap || window._lastAdminPlayerMap);
+  };
+
+  // 攔截 updateStatsAdminButtonUI，當管理員解鎖瞬間立刻刷新選單
+  const origUpdateAdminUI = window.updateStatsAdminButtonUI;
+  if (typeof origUpdateAdminUI === 'function') {
+    window.updateStatsAdminButtonUI = function() {
+      origUpdateAdminUI.apply(this, arguments);
+      window.syncAdminMergeAndDeleteSelectors(window._lastAdminPlayerMap);
+    };
+  }
+
+  // 攔截 calculateAndRenderStats，套用別名映射並刷新選單
+  const origCalcAndRender = window.calculateAndRenderStats;
+  if (typeof origCalcAndRender === 'function') {
+    window.calculateAndRenderStats = function(games) {
+      const normalizedGames = Array.isArray(games)
+        ? games.map(function(g) { return window.applyAliasesToGameRecord(g); })
+        : [];
+      window.currentLoadedHistoryGames = normalizedGames;
+      origCalcAndRender.call(this, normalizedGames);
+      window.syncAdminMergeAndDeleteSelectors(window._lastAdminPlayerMap);
+    };
+  }
+
+  const origShouldSkip = window.shouldSkipPlayerStatInMatch;
+  window.shouldSkipPlayerStatInMatch = function(playerName, gameTimeMs) {
+    const pName = String(playerName || '').trim();
+    if (!pName) return true;
+    const deletedMap = window.getDeletedPlayerNamesMap();
+    if (deletedMap[pName]) return true;
+    if (typeof origShouldSkip === 'function') {
+      return origShouldSkip.call(this, pName, gameTimeMs);
+    }
+    return false;
+  };
+
+  // 實作「🔗 合併戰績」功能
+  window.adminMergePlayerStats = async function() {
+    if (typeof isStatsAdminUnlocked !== 'undefined' && !isStatsAdminUnlocked) {
+      if (typeof showToast === 'function') showToast('請先點擊左下角解鎖管理員模式', 'warning');
+      return;
+    }
+    const selSource = document.getElementById('adminSelectMergeSource');
+    const selTarget = document.getElementById('adminSelectMergeTarget');
+    const sourceName = selSource ? String(selSource.value || '').trim() : '';
+    const targetName = selTarget ? String(selTarget.value || '').trim() : '';
+
+    if (!sourceName || !targetName) {
+      if (typeof showToast === 'function') showToast('請同時選擇「被合併來源暱稱 (A)」與「併入目標主暱稱 (B)」！', 'warning');
+      return;
+    }
+    if (sourceName === targetName) {
+      if (typeof showToast === 'function') showToast('來源暱稱與目標暱稱不能相同！', 'warning');
+      return;
+    }
+    if (!confirm('確定要將【' + sourceName + '】的所有歷史戰績與角色數據合併至【' + targetName + '】名下嗎？\n\n※ 系統將自動更新本地與雲端對局紀錄中的暱稱，將兩人的場次與勝率完整累加（若兩人曾同場對決，該場將自動保留不覆蓋）。')) {
+      return;
+    }
+
+    const aliasMap = window.getMergedPlayerAliasesMap();
+    aliasMap[sourceName] = targetName;
+    Object.keys(aliasMap).forEach(function(k) {
+      if (aliasMap[k] === sourceName) aliasMap[k] = targetName;
+    });
+    window.saveMergedPlayerAliasesMap(aliasMap);
+
+    let localUpdatedCount = 0;
+    let skippedSameMatchCount = 0;
+    const renameInGameObj = function(g) {
+      if (!g || !Array.isArray(g.players)) return false;
+      const hasSource = g.players.some(function(p) { return p && String(p.name || '').trim() === sourceName; });
+      if (!hasSource) return false;
+      const hasTarget = g.players.some(function(p) { return p && String(p.name || '').trim() === targetName; });
+      if (hasTarget) {
+        skippedSameMatchCount++;
+        return false;
+      }
+      g.players.forEach(function(p) {
+        if (p && String(p.name || '').trim() === sourceName) {
+          p.name = targetName;
+        }
+      });
+      if (Array.isArray(g.personVoteDetails)) {
+        g.personVoteDetails.forEach(function(pv) {
+          if (pv && pv.voterName === sourceName) pv.voterName = targetName;
+          if (pv && pv.targetName === sourceName) pv.targetName = targetName;
+        });
+      }
+      return true;
+    };
+
+    try {
+      const localGames = (typeof getOfflineHistory === 'function') ? getOfflineHistory() : [];
+      localGames.forEach(function(g) {
+        if (renameInGameObj(g)) localUpdatedCount++;
+      });
+      localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(localGames));
+    } catch (e) {
+      console.warn('[合併戰績] 本地快取更新警告:', e);
+    }
+
+    let cloudUpdatedCount = 0;
+    if (Array.isArray(window.currentLoadedHistoryGames)) {
+      for (let i = 0; i < window.currentLoadedHistoryGames.length; i++) {
+        const g = window.currentLoadedHistoryGames[i];
+        const changed = renameInGameObj(g);
+        if (changed && isFirebaseReady && db && g._docId && !String(g._docId).startsWith('local_') && !String(g._docId).startsWith('verified_')) {
+          try {
+            await db.collection(FIRESTORE_COLLECTION).doc(g._docId).update({
+              players: g.players,
+              personVoteDetails: g.personVoteDetails || []
+            });
+            cloudUpdatedCount++;
+          } catch (cloudErr) {
+            console.warn('[合併戰績] 雲端單場更新略過:', g._docId, cloudErr);
+          }
+        }
+      }
+    }
+
+    if (typeof calculateAndRenderStats === 'function') {
+      calculateAndRenderStats(window.currentLoadedHistoryGames || []);
+    }
+    const skipNote = skippedSameMatchCount > 0 ? ('（另有 ' + skippedSameMatchCount + ' 場因兩人同場自動保留）') : '';
+    if (typeof showToast === 'function') {
+      showToast('✅ 已將【' + sourceName + '】合併至【' + targetName + '】！共更新 ' + Math.max(localUpdatedCount, cloudUpdatedCount) + ' 場紀錄' + skipNote, 'info', 4500);
+    }
+  };
+
+  // 實作「🗑️ 刪除玩家資料」功能
+  window.adminDeleteSelectedPlayerProfile = async function() {
+    if (typeof isStatsAdminUnlocked !== 'undefined' && !isStatsAdminUnlocked) {
+      if (typeof showToast === 'function') showToast('請先點擊左下角解鎖管理員模式', 'warning');
+      return;
+    }
+    const sel = document.getElementById('adminSelectPlayerStatsReset');
+    const pName = sel ? String(sel.value || '').trim() : '';
+    if (!pName) {
+      if (typeof showToast === 'function') showToast('請先選擇要刪除資料的玩家暱稱！', 'warning');
+      return;
+    }
+    if (!confirm('確定要刪除【' + pName + '】的玩家戰績資料欄位嗎？\n\n※ 刪除後【' + pName + '】將從玩家與角色排行榜中徹底移除，但不會刪除歷史對局，也不影響同場其他 7 位玩家的勝率統計。')) {
+      return;
+    }
+
+    const deletedMap = window.getDeletedPlayerNamesMap();
+    deletedMap[pName] = Date.now();
+    window.saveDeletedPlayerNamesMap(deletedMap);
+
+    if (typeof getPlayerStatsResets === 'function' && typeof savePlayerStatsResets === 'function') {
+      const resets = getPlayerStatsResets();
+      resets[pName] = 9999999999999;
+      await savePlayerStatsResets(resets);
+    }
+
+    if (typeof calculateAndRenderStats === 'function') {
+      calculateAndRenderStats(window.currentLoadedHistoryGames || []);
+    }
+    if (typeof showToast === 'function') {
+      showToast('🗑️ 已成功刪除【' + pName + '】的玩家戰績欄位！', 'info', 3500);
+    }
+  };
+
+  // 復原已刪除的玩家暱稱
+  window.adminRestoreDeletedPlayers = async function() {
+    const deletedMap = window.getDeletedPlayerNamesMap();
+    const resets = (typeof getPlayerStatsResets === 'function') ? getPlayerStatsResets() : {};
+    const allDeleted = Array.from(new Set([
+      ...Object.keys(deletedMap),
+      ...Object.keys(resets).filter(function(k) { return Number(resets[k]) > 4000000000000; })
+    ]));
+
+    if (allDeleted.length === 0) {
+      if (typeof showToast === 'function') showToast('目前沒有任何已刪除的玩家資料可供復原。', 'info');
+      return;
+    }
+    const pick = prompt('目前被刪除隱藏的玩家有：\n' + allDeleted.join('、') + '\n\n請輸入要復原的玩家暱稱（或輸入 ALL 全部復原）：', 'ALL');
+    if (!pick) return;
+    const trimmed = pick.trim();
+
+    if (trimmed.toUpperCase() === 'ALL') {
+      window.saveDeletedPlayerNamesMap({});
+      allDeleted.forEach(function(k) { delete resets[k]; });
+    } else {
+      delete deletedMap[trimmed];
+      window.saveDeletedPlayerNamesMap(deletedMap);
+      delete resets[trimmed];
+    }
+    if (typeof savePlayerStatsResets === 'function') {
+      await savePlayerStatsResets(resets);
+    }
+    if (typeof calculateAndRenderStats === 'function') {
+      calculateAndRenderStats(window.currentLoadedHistoryGames || []);
+    }
+    if (typeof showToast === 'function') {
+      showToast('♻️ 已成功復原玩家戰績資料！', 'info', 3000);
+    }
+  };
 })();
 </script>
 
