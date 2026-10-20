@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 4.9.1 (情勢評估與破壁說服力升級版)</title>
+ <title>古董局中局 (版本 5.0.0 - 真互嗆與鑑人破壁正式版)</title>
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1635,7 +1635,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 4.9.1 (情勢評估與破壁說服力升級版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 5.0.0 (真互嗆與鑑人破壁正式版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -15101,7 +15101,7 @@ function renderOnlineVotingView(room, me) {
               window._autoAdvanceBotRoundTimer = setTimeout(async () => {  
                 window._autoAdvanceBotRoundTimer = null;  
                 await onlAdvanceNextRoundOrPersonVote();  
-              }, 2000);  
+              }, 5000);  
             }  
           }  
  }  
@@ -16142,7 +16142,7 @@ function renderOnlinePersonVotingReference(room) {
               window._autoAdvanceBotRoundTimer = null;
               _mockActionPending = false;
               await onlAdvanceNextRoundOrPersonVote();
-            }, 2000);
+            }, 5000);
             return;
           }
         }
@@ -16560,7 +16560,7 @@ function renderOnlinePersonVotingReference(room) {
         if (nextSpeakerIdToTrigger && isComputerControlledPlayer((onlineRoomData && onlineRoomData.players || []).find(p => p.id === nextSpeakerIdToTrigger))) {
           setTimeout(() => {
             if (onlineRoomData) triggerMockPlayerSpeech(onlineRoomData, nextSpeakerIdToTrigger);
-          }, 2500);
+          }, 6000);
         } else {
           // 全員發言完畢，進入 voting 狀態，短暫停頓 800ms 後由房主端驅動電腦開始鑑寶投票
           setTimeout(() => {
@@ -30345,221 +30345,484 @@ migrateAllProfiles();
 
 
 
-<!-- ==================== v4.9.1 正式版：情勢評估矩陣・破壁說服力・強制標註引擎 ==================== -->
+
+
+<!-- ==================== v5.0.0 終極破壁版：真互嗆・真鑑人・雙倍思考時間引擎 ==================== -->
 <script>
 (function() {
-  console.info('%c♟️ [古董局中局 v4.9.1] 情勢評估矩陣與破壁說服力引擎已啟動', 'color:#10b981;font-weight:bold;font-size:13px');
+  console.info('%c💥 [古董局中局 v5.0.0] 終極破壁引擎已啟動（直接接管發言核心＋真互嗆＋真鑑人＋慢速思考）', 'color:#f43f5e;font-weight:bold;font-size:14px');
+
+  const ALL_ZODIACS = ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'];
 
   // =========================================================================
-  // 核心 1：Firestore 交易 400 防呆深拷貝清洗
+  // 1. 強制幫所有玩家名稱與獸首名稱加上【】括號
   // =========================================================================
-  if (typeof window.onlineUpdate === 'function') {
-    const origOnlineUpdate = window.onlineUpdate;
-    window.onlineUpdate = function(patch, options) {
-      if (patch && typeof patch === 'object') {
-        patch = JSON.parse(JSON.stringify(patch));
-      }
-      return origOnlineUpdate.call(this, patch, options);
-    };
-  }
-  if (typeof ActionEngine !== 'undefined' && ActionEngine.dispatch) {
-    const origDispatch = ActionEngine.dispatch;
-    ActionEngine.dispatch = async function(action) {
-      if (action && action.payload) {
-        action.payload = JSON.parse(JSON.stringify(action.payload));
-      }
-      return origDispatch.apply(this, arguments);
-    };
-  }
-
-  // =========================================================================
-  // 核心 2：局勢評估矩陣 (Situation Evaluation Matrix)
-  // 計算全場信任度，找出「鐵好」與「鐵壞」
-  // =========================================================================
-  window.BotEvaluationMatrix = {
-    evaluate: function(room, myId, myRole) {
-      const scores = {};
-      const players = room.players || [];
-      players.forEach(function(p) { scores[p.name] = 0; });
-      
-      // 根據前兩輪投票行為計算信任分數（投真加分，投假扣分）
-      (room.rounds || []).forEach(function(r, idx) {
-        if (idx >= (room.currentRoundIdx || 0)) return;
-        if (!r.votes || !r.beasts) return;
-        Object.entries(r.votes).forEach(function([vid, ballot]) {
-          const voter = players.find(function(p) { return p.id === vid; });
-          if (!voter) return;
-          Object.entries(ballot).forEach(function([bName, count]) {
-            if (count > 0) {
-              const beast = r.beasts.find(function(b) { return b.name === bName; });
-              if (beast) {
-                scores[voter.name] += beast.isReal ? 1.5 : -2.0; // 投假貨懲罰加重
-              }
-            }
-          });
-        });
-      });
-
-      const sorted = Object.entries(scores).sort(function(a, b) { return b[1] - a[1]; });
-      const myName = (players.find(function(p) { return p.id === myId; }) || {}).name || '';
-      
-      let suspect = null;
-      let trusted = null;
-      
-      if (typeof GameRules !== 'undefined' && !GameRules.isGoodCamp(myRole)) {
-         // 壞人視角：找個信任度偏低的好人來扛推（避免踩到隊友）
-         const knownTeammates = [myName];
-         if (typeof window.getKnownTeammateForRole === 'function') {
-           const tm = window.getKnownTeammateForRole(room, myRole);
-           if (tm && tm.name) knownTeammates.push(tm.name);
-         }
-         const goodTargets = sorted.filter(function(x) { return !knownTeammates.includes(x[0]); });
-         if (goodTargets.length > 0) suspect = goodTargets[goodTargets.length - 1][0];
-      } else {
-         // 好人視角：直接踩場上分數最低（投最多假貨）的人
-         const others = sorted.filter(function(x) { return x[0] !== myName; });
-         if (others.length > 0) {
-           suspect = others[others.length - 1][0]; // 倒數第一名
-           trusted = others[0][0]; // 第一名
-         }
-      }
-
-      return { scores: scores, suspect: suspect, trusted: trusted };
-    }
-  };
-
-  // =========================================================================
-  // 核心 3：強制括號標註過濾器 (Enforce Brackets)
-  // =========================================================================
-  window.enforceBracketsOnText = function(text, room) {
-    let s = String(text || '');
-    // 獸首標註
-    ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'].forEach(function(z) {
-      const regex = new RegExp('(?<!【)' + z + '(?![】首])', 'g');
-      s = s.replace(regex, '【' + z + '】');
-      s = s.replace(new RegExp('【' + z + '】首', 'g'), '【' + z + '】');
+  window.enforceBracketsV500 = function(text, room) {
+    if (!text) return '';
+    let s = String(text);
+    // 獸首加上【】
+    ALL_ZODIACS.forEach(function(z) {
+      const re = new RegExp('(?<!【)' + z + '(?:首)?(?!】)', 'g');
+      s = s.replace(re, '【' + z + '】');
     });
-    // 玩家名稱標註
+    // 玩家名稱加上【】
     if (room && Array.isArray(room.players)) {
-      room.players.forEach(function(p) {
-        if (!p.name) return;
-        const n = p.name.replace(/[【】]/g, '');
-        const regex = new RegExp('(?<!【)' + n + '(?!】)', 'g');
-        s = s.replace(regex, '【' + n + '】');
+      const sortedPlayers = room.players.slice().sort(function(a, b) {
+        return String(b.name || '').length - String(a.name || '').length;
+      });
+      sortedPlayers.forEach(function(p) {
+        if (!p || !p.name) return;
+        const cleanName = String(p.name).replace(/[【】]/g, '').trim();
+        if (!cleanName) return;
+        const escaped = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\</body>');
+        const re = new RegExp('(?<!【)' + escaped + '(?!】)', 'g');
+        s = s.replace(re, '【' + cleanName + '】');
       });
     }
+    // 清理可能重複的【【X】】
+    s = s.replace(/【+([^【】]+)】+/g, '【$1】');
     return s;
   };
 
-  // 攔截並優化本地直白口語過濾器，確保最終產出必定帶有【】
-  if (typeof window.sanitizeSpeechToPlainChinese === 'function') {
-    const origSanitize = window.sanitizeSpeechToPlainChinese;
-    window.sanitizeSpeechToPlainChinese = function(text, validBeasts) {
-      let s = origSanitize.apply(this, arguments);
-      return window.enforceBracketsOnText(s, typeof onlineRoomData !== 'undefined' ? onlineRoomData : null);
-    };
-  }
-
   // =========================================================================
-  // 核心 4：Fetch 網路層破壁攔截 (強制 Gemini 遵從高階發言邏輯)
+  // 2. 真實戰況與嫌疑度評估矩陣（讀取真實揭曉紀錄、對沖矛盾、跨輪票型）
   // =========================================================================
-  if (!window._v491FetchHooked) {
-    window._originalFetch = window.fetch;
-    window.fetch = async function(url, options) {
-      if (typeof url === 'string' && url.includes('generativelanguage.googleapis.com')) {
-        try {
-          if (options && options.body) {
-            const bodyObj = JSON.parse(options.body);
-            if (bodyObj.contents && bodyObj.contents.length > 0) {
-              const textNode = bodyObj.contents[0].parts[0];
-              if (textNode && textNode.text) {
-                
-                // 動態獲取當前房間狀態以注入信任矩陣
-                let matrixContext = '';
-                if (typeof onlineRoomData !== 'undefined' && onlineRoomData && window.myOnlinePlayerId) {
-                  const curRoundIdx = onlineRoomData.currentRoundIdx || 0;
-                  const myP = onlineRoomData.players.find(p => p.id === window.myOnlinePlayerId) || {};
-                  if (curRoundIdx === 2) {
-                    const matrix = window.BotEvaluationMatrix.evaluate(onlineRoomData, myP.id, myP.role);
-                    if (matrix.suspect) {
-                      matrixContext = '\n【🚨 局勢評估與鑑人號召】：根據前兩輪投票軌跡的信任矩陣，目前場上嫌疑最大、最像老朝奉的是【' + matrix.suspect + '】。你必須在發言結尾強烈號召：「到了鑑人環節，大家跟我一起集火投給【' + matrix.suspect + '】！」';
-                    }
-                  }
-                }
+  window.evaluateRealSuspectMatrixV500 = function(pov, room) {
+    const players = (room && Array.isArray(room.players)) ? room.players : [];
+    const curRoundIdx = (room && typeof room.currentRoundIdx === 'number') ? room.currentRoundIdx : 0;
+    const isGood = (typeof GameRules !== 'undefined' && GameRules.isGoodCamp)
+      ? GameRules.isGoodCamp(pov.myRole)
+      : ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(pov.myRole);
 
-                const upgradePrompt = [
-                  '\n\n【🔥 v4.9.1 戰略大師與高階說服力強制指令 🔥】',
-                  '你現在必須展現出「高階桌遊玩家」的深度，嚴格遵守以下四點，否則判定失敗：',
-                  '1. 篇幅與說服力翻倍：你的發言字數必須介於 100 到 150 字之間！嚴禁只給出一句結論（如「我驗到龍是真，大家投龍」）。你必須詳細盤邏輯，包含「你在第幾順位拿到」、「前置位的資訊是否有斷層反轉」、「你親手查驗的外觀結果」，用嚴密的因果推論來說服全場！',
-                  '2. 強制【】格式：所有提到的「獸首名稱」與「玩家暱稱/角色」一律強制使用【】包覆！例如：【宗彥】說【龍】是真品。',
-                  '3. 嚴禁無腦轉述：不要在開頭把別人講的話像流水帳一樣複述一遍！直接切入「你親自驗了什麼」或「你盤出誰在說謊帶風向」。別人轉述的話絕對不能當作你的親手查驗！',
-                  matrixContext
-                ].join('\n');
+    const suspicionMap = {}; // playerId -> { score, reasons: [], allyScore, allyReasons: [] }
+    players.forEach(function(p) {
+      if (!p || p.id === pov.myId) return;
+      suspicionMap[p.id] = { id: p.id, name: p.name, score: 0, reasons: [], allyScore: 0, allyReasons: [] };
+    });
 
-                textNode.text = upgradePrompt + '\n' + textNode.text + '\n' + upgradePrompt;
-                options.body = JSON.stringify(bodyObj);
-              }
-            }
-          }
-        } catch(e) {
-          console.error('[v4.9.1 Fetch Intercept] 攔截失敗，退回原請求:', e);
+    // (A) 方震如果自己親手驗過別人陣營，這是鐵證！
+    for (let rIdx = 0; rIdx <= curRoundIdx; rIdx++) {
+      const rObj = room.rounds && room.rounds[rIdx];
+      if (!rObj || !rObj.turnLogs || !rObj.turnLogs[pov.myId]) continue;
+      const myLog = rObj.turnLogs[pov.myId];
+      if (myLog.fangZhenTargetId && suspicionMap[myLog.fangZhenTargetId]) {
+        const t = suspicionMap[myLog.fangZhenTargetId];
+        if (myLog.fangZhenCamp === 'evil') {
+          t.score += 100;
+          t.reasons.unshift('我親手用方震技能查驗過【' + t.name + '】就是老朝奉陣營的壞人');
+        } else if (myLog.fangZhenCamp === 'good') {
+          t.score -= 80;
+          t.allyScore += 90;
+          t.allyReasons.unshift('我親手驗過【' + t.name + '】是鐵好人');
         }
       }
-      return window._originalFetch.apply(this, arguments);
-    };
-    window._v491FetchHooked = true;
-  }
+    }
 
-  // =========================================================================
-  // 核心 5：強化本地大腦備援話術 (字數翻倍、包含時序與鑑人佈局)
-  // =========================================================================
-  window.pickRichTemplate = function(arr) {
-    if (!Array.isArray(arr) || arr.length === 0) return '';
-    return arr[Math.floor(Math.random() * arr.length)];
+    // (B) 分析前幾輪（已開票回合）的票型與發言真偽對照
+    for (let rIdx = 0; rIdx < curRoundIdx; rIdx++) {
+      const rObj = room.rounds && room.rounds[rIdx];
+      if (!rObj) continue;
+      const rNum = rIdx + 1;
+
+      // 找出該輪已知真偽的獸首（rank2 是公開揭曉的；或者從 beasts[].isReal 取得）
+      const knownTruth = {};
+      if (rObj.voteResults && rObj.voteResults.rank2 && typeof rObj.voteResults.rank2.isReal === 'boolean') {
+        knownTruth[rObj.voteResults.rank2.name] = rObj.voteResults.rank2.isReal;
+      }
+      if (Array.isArray(rObj.beasts)) {
+        rObj.beasts.forEach(function(b) {
+          if (b && typeof b.isReal === 'boolean') knownTruth[b.name] = b.isReal;
+        });
+      }
+
+      // 檢查誰在過去投票給贗品、誰投給真品
+      const votes = rObj.votes || {};
+      Object.entries(votes).forEach(function([voterId, ballot]) {
+        const rec = suspicionMap[voterId];
+        if (!rec || !ballot) return;
+        Object.entries(ballot).forEach(function([bName, cnt]) {
+          const count = parseInt(cnt, 10) || 0;
+          if (count <= 0 || knownTruth[bName] === undefined) return;
+          if (knownTruth[bName] === false) {
+            rec.score += count * 18;
+            rec.reasons.push('第' + rNum + '回合把選票灌給贗品【' + bName + '】');
+          } else if (knownTruth[bName] === true) {
+            rec.allyScore += count * 14;
+            rec.allyReasons.push('第' + rNum + '回合精準把票投給真品【' + bName + '】');
+          }
+        });
+      });
+
+      // 檢查誰在過去發言把贗品吹成真品、或把真品踩成贗品
+      (rObj.speeches || []).forEach(function(sp) {
+        const sid = sp.playerId || sp.speakerId;
+        const rec = suspicionMap[sid];
+        if (!rec || !sp.text) return;
+        const claims = window.parseClaimsClauseByClause ? window.parseClaimsClauseByClause(sp.text, null, rec.name) : {};
+        Object.entries(claims).forEach(function([bName, claimedReal]) {
+          if (knownTruth[bName] === undefined) return;
+          if (claimedReal === true && knownTruth[bName] === false) {
+            rec.score += 28;
+            rec.reasons.push('第' + rNum + '回合公開謊報贗品【' + bName + '】是真的來騙票');
+          } else if (claimedReal === false && knownTruth[bName] === true) {
+            rec.score += 24;
+            rec.reasons.push('第' + rNum + '回合故意把真品【' + bName + '】踩成假貨');
+          } else if (claimedReal === true && knownTruth[bName] === true) {
+            rec.allyScore += 20;
+            rec.allyReasons.push('第' + rNum + '回合準確報出真品【' + bName + '】');
+          }
+        });
+      });
+    }
+
+    // (C) 分析當前回合已經發言的玩家，誰跟我的親手查驗衝突、誰跟我一致！
+    const curRound = (room.rounds && room.rounds[curRoundIdx]) || {};
+    const passOrder = curRound.passOrder || [];
+    const myPassIdx = passOrder.indexOf(pov.myId);
+    const rawTurnLog = (curRound.turnLogs && curRound.turnLogs[pov.myId]) || pov.myTurnLog || {};
+    const myInspectList = Array.isArray(rawTurnLog.inspect) ? rawTurnLog.inspect : (rawTurnLog.inspect ? [rawTurnLog.inspect] : []);
+    const myInspect = myInspectList[0] || null;
+    const myBeast = myInspect ? myInspect.beastName : null;
+    let mySawReal = null;
+    if (myInspect && !myInspect.isAmbushed && !myInspect.isBlocked && !myInspect.isConfused) {
+      if (typeof myInspect.displayedReal === 'boolean') mySawReal = myInspect.displayedReal;
+      else if (String(myInspect.resultText || '').includes('真品')) mySawReal = true;
+      else if (String(myInspect.resultText || '').includes('贗品')) mySawReal = false;
+    }
+
+    (curRound.speeches || []).forEach(function(sp) {
+      const sid = sp.playerId || sp.speakerId;
+      const rec = suspicionMap[sid];
+      if (!rec || !sp.text) return;
+      const spPassIdx = passOrder.indexOf(sid);
+      const claims = window.parseClaimsClauseByClause ? window.parseClaimsClauseByClause(sp.text, null, rec.name) : {};
+
+      if (myBeast && mySawReal !== null && typeof claims[myBeast] === 'boolean') {
+        if (claims[myBeast] !== mySawReal) {
+          rec.score += 32;
+          rec.reasons.unshift('這輪對【' + myBeast + '】的真假說法跟我親手驗到的完全相反');
+        } else {
+          rec.allyScore += 25;
+          rec.allyReasons.unshift('這輪對【' + myBeast + '】的查驗結果跟我完全吻合');
+        }
+      }
+      // 若對方排在後置位卻莫名亂咬前置位
+      if (spPassIdx >= 5 && rec.score >= 0) {
+        rec.score += 6;
+      }
+    });
+
+    // 若還沒累積足夠分數，根據傳遞鏈位置給定基礎懷疑對象（確保一定有人可嗆、可鑑人！）
+    Object.values(suspicionMap).forEach(function(rec) {
+      const pIdx = passOrder.indexOf(rec.id);
+      if (rec.reasons.length === 0) {
+        if (pIdx >= 0 && pIdx < myPassIdx) {
+          rec.score += 5;
+          rec.reasons.push('排在我前面的傳遞順位且帶風向意圖明顯');
+        } else {
+          rec.score += 3;
+          rec.reasons.push('發言邏輯與傳遞順位兜不攏');
+        }
+      }
+    });
+
+    // 若我是壞人，絕對不能把已知的壞人隊友列為集火目標！要挑好人來栽贓扛推！
+    let knownTeammateId = null;
+    if (!isGood && typeof window.getKnownTeammateForRole === 'function') {
+      const tm = window.getKnownTeammateForRole(room, pov.myRole);
+      if (tm && tm.id) knownTeammateId = tm.id;
+    }
+
+    const candidates = Object.values(suspicionMap).filter(function(r) {
+      if (!isGood && r.id === knownTeammateId) return false;
+      return true;
+    });
+
+    candidates.sort(function(a, b) { return b.score - a.score; });
+    const topSuspect = candidates[0] || null;
+
+    const allyCandidates = Object.values(suspicionMap).filter(function(r) {
+      if (topSuspect && r.id === topSuspect.id) return false;
+      return true;
+    }).sort(function(a, b) { return b.allyScore - a.allyScore; });
+    const topAlly = (allyCandidates[0] && allyCandidates[0].allyScore > 0) ? allyCandidates[0] : null;
+
+    return {
+      isGood: isGood,
+      topSuspect: topSuspect,
+      topAlly: topAlly,
+      suspicionMap: suspicionMap
+    };
   };
 
-  if (typeof NeuralSpeechSynthesizer !== 'undefined') {
-    const origSynth = NeuralSpeechSynthesizer.synthesize;
-    NeuralSpeechSynthesizer.synthesize = function(pov, room) {
-      try {
-        const curRoundIdx = room.currentRoundIdx || 0;
-        const isGood = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(pov.myRole);
-        const matrix = window.BotEvaluationMatrix.evaluate(room, pov.myId, pov.myRole);
-        const myPassIdx = (room.rounds[curRoundIdx].passOrder || []).indexOf(pov.myId);
-        const posText = window.toChinesePassOrderText(myPassIdx);
-        
-        let speech = origSynth.apply(this, arguments) || '';
+  // =========================================================================
+  // 3. 三段式高火藥味＆鑑人佈局發言生成器（直接取代死板的 buildV472SafeSpeech）
+  // =========================================================================
+  window.buildV500DynamicInteractiveSpeech = function(pov, room) {
+    try {
+      if (!pov || !room) return '';
+      const curRoundIdx = room.currentRoundIdx || 0;
+      const curRound = (room.rounds && room.rounds[curRoundIdx]) || {};
+      const passOrder = (Array.isArray(curRound.passOrder) && curRound.passOrder.length > 0)
+        ? curRound.passOrder : ((pov && Array.isArray(pov.passOrder)) ? pov.passOrder : []);
+      const speeches = curRound.speeches || [];
+      const myPassIdx = passOrder.indexOf(pov.myId) !== -1 ? passOrder.indexOf(pov.myId) : (typeof pov.myPassIdx === 'number' ? pov.myPassIdx : 0);
+      const myPosText = window.toChinesePassOrderText ? window.toChinesePassOrderText(myPassIdx) : ('第' + (myPassIdx + 1) + '位');
+      const isGood = (typeof GameRules !== 'undefined' && GameRules.isGoodCamp)
+        ? GameRules.isGoodCamp(pov.myRole)
+        : ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(pov.myRole);
 
-        // 如果原本的句子太短（低於 30 字），強制擴寫並加入因果論證
-        if (speech.length < 30) {
-           const matchBeast = speech.match(/【([^】]+)】/);
-           const bName = matchBeast ? matchBeast[1] : '這件獸首';
-           
-           if (speech.includes('真品') || speech.includes('一定真')) {
-             speech = '大家仔細聽我盤這局的邏輯。我排在' + posText + '拿到手機，親手查驗了【' + bName + '】，它的外觀細節完全吻合，確定是真品沒錯！結合我前面的順位資訊非常乾淨，這條真品線很有說服力。好人這輪不要再猶豫分票了，請把選票全部集中投給【' + bName + '】，先把這分穩穩拿下來！';
-           } else if (speech.includes('贗品') || speech.includes('避開')) {
-             speech = '我來幫大家排掉一個致命的地雷！我在' + posText + '親手看過【' + bName + '】了，細節看起來破綻百出，確定是贗品無誤。要嘛是前面有人帶假風向，要嘛這件本來就是假的。這輪大家千萬要避開【' + bName + '】，千萬不要把寶貴的票浪費在它身上！';
-           }
-        }
+      const roundBeastNames = window.getCurrentRoundBeastNames ? window.getCurrentRoundBeastNames(pov, room) : ['鼠','牛','虎','兔'];
+      const validBeastSet = new Set(roundBeastNames);
+      const spokenClaims = window.extractVerifiedSpokenClaims ? window.extractVerifiedSpokenClaims(room, pov.myId, roundBeastNames) : [];
+      const matrix = window.evaluateRealSuspectMatrixV500(pov, room);
 
-        // 第 3 回合結尾強制加上鑑人號召
-        if (curRoundIdx === 2 && matrix.suspect && !speech.includes('鑑人') && !speech.includes('集火')) {
-          const rallyText = window.pickRichTemplate([
-            ' 另外我盤了一下前兩輪的票型軌跡，【' + matrix.suspect + '】的投票行為非常有問題，嫌疑最大！等一下到了鑑人環節，大家聽我的，跟我一起集火投給【' + matrix.suspect + '】，絕對能把他揪出來！',
-            ' 順帶一提，從前兩輪的局勢來看，【' + matrix.suspect + '】的動向完全是在幫老朝奉護航。稍後的鑑人投票，好人陣營必須團結，請跟我一起鎖定並集火指認【' + matrix.suspect + '】！',
-            ' 還有，大家注意看【' + matrix.suspect + '】之前的投票紀錄，簡直是鐵壞無誤。等一下的鑑人環節我們不要分散火力，統一集火把【' + matrix.suspect + '】抓出來！'
-          ]);
-          speech += rallyText;
-        }
+      const headRealClaim = spokenClaims
+        .filter(function(c) { return c.claimReal === true && c.passIdx >= 0 && validBeastSet.has(c.beast); })
+        .sort(function(a, b) { return a.passIdx - b.passIdx; })[0] || null;
 
-        return window.enforceBracketsOnText(speech, room);
-      } catch (err) {
-        console.error('[v4.9.1 安全降級] 本地發言生成例外:', err);
-        return '我這棒實測查驗結果非常明確，請大家對照前後傳遞順位，集中選票保真品！';
+      const rawTurnLog = (curRound.turnLogs && curRound.turnLogs[pov.myId]) || pov.myTurnLog || {};
+      const myInspectList = Array.isArray(rawTurnLog.inspect) ? rawTurnLog.inspect : (rawTurnLog.inspect ? [rawTurnLog.inspect] : []);
+      const myInspect = myInspectList.find(function(it) { return it && validBeastSet.has(it.beastName); }) || myInspectList[0] || null;
+      const myBeast = (myInspect && validBeastSet.has(myInspect.beastName)) ? myInspect.beastName : (roundBeastNames[0] || '鼠');
+      const isAmbushed = !!(myInspect && myInspect.isAmbushed);
+      const isBlockedOrConfused = !!(myInspect && (myInspect.isBlocked || myInspect.isConfused || myInspect.cannotInspect));
+
+      let mySawReal = null;
+      if (myInspect && !isAmbushed && !isBlockedOrConfused) {
+        if (typeof myInspect.displayedReal === 'boolean') mySawReal = myInspect.displayedReal;
+        else if (String(myInspect.resultText || '').includes('真品')) mySawReal = true;
+        else if (String(myInspect.resultText || '').includes('贗品')) mySawReal = false;
       }
+
+      // 找出上一位發言者 & 跟我查驗同獸首的前手
+      const lastSpoken = speeches.length > 0 ? speeches[speeches.length - 1] : null;
+      const lastSpeakerPlayer = lastSpoken ? (room.players || []).find(function(p) { return p.id === (lastSpoken.playerId || lastSpoken.speakerId); }) : null;
+      const sameBeastPrior = myBeast
+        ? spokenClaims.filter(function(c) { return c.beast === myBeast; }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0]
+        : null;
+
+      // ---------- 第一段：針對前手／上一棒的強烈互動（互嗆反駁 or 結盟背書） ----------
+      let part1_Interaction = '';
+      if (sameBeastPrior && mySawReal !== null) {
+        if (sameBeastPrior.claimReal !== mySawReal) {
+          part1_Interaction = window.pickRichTemplate([
+            '等一下，前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】居然說【' + myBeast + '】是' + (sameBeastPrior.claimReal ? '真品' : '贗品') + '，這根本是在胡說八道帶假風向！',
+            '我直接跟' + sameBeastPrior.posText + '的【' + sameBeastPrior.speakerName + '】正面對沖！他對【' + myBeast + '】的說法跟我親手看到的完全相反，不是中間有人開了老朝奉反轉，就是【' + sameBeastPrior.speakerName + '】在睜眼說瞎話！',
+            '大家千萬別被' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】的話術騙了！他報【' + myBeast + '】的結論跟實際狀況完全兜不攏！'
+          ], 'p1_conflict');
+        } else {
+          part1_Interaction = window.pickRichTemplate([
+            '我完全認同前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】的分析，我直接幫【' + sameBeastPrior.speakerName + '】背書！',
+            '順著前面' + sameBeastPrior.posText + '【' + sameBeastPrior.speakerName + '】的查驗往下盤，【' + sameBeastPrior.speakerName + '】這輪給的資訊非常準確！'
+          ], 'p1_agree');
+        }
+      } else if (lastSpeakerPlayer && lastSpoken) {
+        const lastSusRec = matrix.suspicionMap[lastSpeakerPlayer.id];
+        if (lastSusRec && lastSusRec.score >= 20) {
+          part1_Interaction = window.pickRichTemplate([
+            '聽完上一棒【' + lastSpeakerPlayer.name + '】的發言，我覺得破綻百出，完全是在替老朝奉陣營打掩護！',
+            '上一位【' + lastSpeakerPlayer.name + '】講得頭頭是道，但對照他前面的動作跟票型，明顯是在帶歪好人的節奏！'
+          ], 'p1_roast_last');
+        } else if (spokenClaims.length > 0) {
+          const latestClaim = spokenClaims[spokenClaims.length - 1];
+          part1_Interaction = window.pickRichTemplate([
+            '剛才【' + latestClaim.speakerName + '】在' + latestClaim.posText + '已經先拋出了【' + latestClaim.beast + '】的風向，我這邊直接給出我這棒的實測證據來對答案！',
+            '前面【' + latestClaim.speakerName + '】已經表態了，但光聽單邊說法不夠，大家必須把我的順位時序一起合起來看！'
+          ], 'p1_hook_last');
+        }
+      } else if (speeches.length === 0 && curRoundIdx >= 1 && matrix.topSuspect) {
+        part1_Interaction = '我是這回合第一個開口的，先幫大家覆盤前幾輪的殘局：【' + matrix.topSuspect.name + '】因為' + (matrix.topSuspect.reasons[0] || '票型異常') + '，這輪他說什麼大家都要打個大問號！';
+      }
+
+      // ---------- 第二段：自身順位、親手查驗結果與因果推導 ----------
+      let part2_CoreLogic = '';
+      let targetVoteBeast = myBeast;
+
+      if (isGood) {
+        // 方震專屬強勢亮牌／帶隊
+        if (pov.myRole === '方震' && rawTurnLog.fangZhenTargetId) {
+          const fzTarget = (room.players || []).find(function(p) { return p.id === rawTurnLog.fangZhenTargetId; });
+          const fzCamp = rawTurnLog.fangZhenCamp;
+          targetVoteBeast = headRealClaim ? headRealClaim.beast : (roundBeastNames[0] || '鼠');
+          if (fzTarget && fzCamp === 'evil') {
+            part2_CoreLogic = '我雖然在' + myPosText + '看【' + myBeast + '】顯示【驗不到】，但我直接亮出【方震】底牌告訴全場：我親手查驗過【' + fzTarget.name + '】的身分，他百分之百是老朝奉陣營的壞人！他推的獸首大家絕對不能碰，這輪好人請集中把票投給【' + targetVoteBeast + '】！';
+          } else if (fzTarget && fzCamp === 'good' && curRoundIdx >= 1) {
+            part2_CoreLogic = '我排在' + myPosText + '看獸首是【驗不到】，但到了關鍵局我直接明牌我是【方震】！我親手驗過【' + fzTarget.name + '】確定是鐵好人，他的立場完全可信，這輪獸首我們直接跟著好人線把票灌給【' + targetVoteBeast + '】！';
+          } else {
+            part2_CoreLogic = '我排在' + myPosText + '查驗【' + myBeast + '】顯示【驗不到】，但我從傳遞時序與前手狀態盤下來，【' + targetVoteBeast + '】這條線的邏輯最乾淨，好人這輪選票請集中保【' + targetVoteBeast + '】！';
+          }
+        } else if (isAmbushed) {
+          targetVoteBeast = headRealClaim ? headRealClaim.beast : (roundBeastNames[0] || myBeast);
+          if (myPassIdx === 1) {
+            const p0 = (room.players || []).find(function(p) { return p.id === passOrder[0]; });
+            part2_CoreLogic = '我排在第二位接過手機時直接被偷襲致盲了！你們算一下傳遞鏈，當輪在我前面拿過手機的只有第一位【' + (p0 ? p0.name : '首家') + '】，所以【' + (p0 ? p0.name : '首家') + '】鐵定就是【藥不然】！大家千萬別信他的鬼話，這輪獸首改投【' + targetVoteBeast + '】！';
+          } else {
+            part2_CoreLogic = '我在' + myPosText + '接手機時已經被【藥不然】偷襲了，前段傳遞鏈肯定藏著內鬼！我這輪雖然沒看到獸首，但綜合場上乾淨順位的資訊，好人這輪把票集中投給【' + targetVoteBeast + '】最穩妥！';
+          }
+        } else if (isBlockedOrConfused) {
+          targetVoteBeast = (headRealClaim && headRealClaim.beast !== myBeast) ? headRealClaim.beast : (roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast);
+          part2_CoreLogic = '我排在' + myPosText + '查驗【' + myBeast + '】時系統顯示【驗不到】，這代表不是撞上迷霧回合，就是前面有人用【鄭國渠】把【' + myBeast + '】封鎖了！既然【' + myBeast + '】資訊被遮蔽，好人這輪不要冒險，直接把票集中投給【' + targetVoteBeast + '】保分！';
+        } else if (mySawReal === true) {
+          targetVoteBeast = myBeast;
+          if (headRealClaim && headRealClaim.beast !== myBeast) {
+            part2_CoreLogic = '我自己排在' + myPosText + '親手查驗了【' + myBeast + '】，外觀細節看起來就是真的，這隻【' + myBeast + '】一定真！既然前面' + headRealClaim.posText + '【' + headRealClaim.speakerName + '】也保了【' + headRealClaim.beast + '】真品，這輪好人直接把票分給【' + headRealClaim.beast + '】跟【' + myBeast + '】，雙真品一起投直接鎖死勝局！';
+          } else {
+            part2_CoreLogic = '我排在' + myPosText + '拿到手機，親手查驗過【' + myBeast + '】確定是真品沒錯！對照我前面的傳遞順位非常乾淨，這條真品線最有說服力，請所有好人不要分散火力，把選票全部集中投給【' + myBeast + '】！';
+          }
+        } else {
+          // mySawReal === false
+          targetVoteBeast = (headRealClaim && headRealClaim.beast !== myBeast) ? headRealClaim.beast : (roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast);
+          part2_CoreLogic = '我在' + myPosText + '親手驗過【' + myBeast + '】了，外觀看起來超假，百分之百是贗品！誰要是待會還敢硬保【' + myBeast + '】，誰就是老朝奉同夥！好人這輪千萬避開【' + myBeast + '】這顆地雷，我們把選票全部集中改投【' + targetVoteBeast + '】！';
+        }
+      } else {
+        // 壞人陣營高偽裝邏輯（主動栽贓好人、踩真推假）
+        const actualFakeList = (curRound.beasts || []).filter(function(b) { return b && b.isReal === false; }).map(function(b) { return b.name; });
+        if (actualFakeList.length > 0) {
+          targetVoteBeast = actualFakeList.find(function(n) { return !headRealClaim || n !== headRealClaim.beast; }) || actualFakeList[0];
+        } else {
+          targetVoteBeast = roundBeastNames.find(function(n) { return !headRealClaim || n !== headRealClaim.beast; }) || roundBeastNames[0];
+        }
+        const realBeastToFrame = roundBeastNames.find(function(n) { return n !== targetVoteBeast; }) || targetVoteBeast;
+
+        if (Math.random() < 0.5 && realBeastToFrame !== targetVoteBeast) {
+          part2_CoreLogic = '我來幫全場好人排掉一顆大雷！我在' + myPosText + '親手查驗了【' + realBeastToFrame + '】，細節看起來超假，確定是贗品無誤！前面有人想帶【' + realBeastToFrame + '】的風向根本居心叵測。扣掉【' + realBeastToFrame + '】之後，盤面上最乾淨的真品就是【' + targetVoteBeast + '】了，大家這輪把票全部集中投給【' + targetVoteBeast + '】！';
+        } else {
+          part2_CoreLogic = '我排在' + myPosText + '拿到手機，親手查驗了【' + targetVoteBeast + '】，外觀看起來完全是真的，這隻【' + targetVoteBeast + '】一定真！結合前面的傳遞順序來看，這條線最穩當，好人這輪別被其他雜音干擾，選票直接鎖定投給【' + targetVoteBeast + '】保分！';
+        }
+      }
+
+      // ---------- 第三段：跨輪局勢評估、點名鐵好鐵壞與「鑑人環節」集火號召 ----------
+      let part3_JianRenLayout = '';
+      const sus = matrix.topSuspect;
+      const ally = matrix.topAlly;
+
+      if (curRoundIdx === 2 && sus) {
+        // 第三回合（決勝局）：100% 強制發動鑑人集火號召！
+        const reasonStr = (sus.reasons && sus.reasons[0]) ? sus.reasons[0] : '從前兩輪的發言與票型來看破綻百出';
+        const allyStr = ally ? ('目前場上【' + ally.name + '】的票型跟邏輯最乾淨，是鐵好人戰友；反觀') : '最後跟全場好人對齊一下鑑人目標：';
+        part3_JianRenLayout = allyStr + '【' + sus.name + '】因為' + reasonStr + '，嫌疑已經洗不掉了，他極可能就是【老朝奉】或【藥不然】！這輪獸首投完【' + targetVoteBeast + '】之後，接下來的「鑑人環節」請全體好人聽我號令，不要分票，大家跟我一起集火指認投給【' + sus.name + '】！';
+      } else if (curRoundIdx === 1 && sus && sus.score >= 15) {
+        // 第二回合：提前點名警告上一輪亂投假貨或說謊的嫌犯，為鑑人鋪路
+        const reasonStr = (sus.reasons && sus.reasons[0]) ? sus.reasons[0] : '上一輪的投票軌跡非常可疑';
+        part3_JianRenLayout = '另外我要特別點名警告【' + sus.name + '】，他' + reasonStr + '，我已經把他列入頭號老朝奉嫌疑名單了，請好人陣營盯緊【' + sus.name + '】這輪的票向，待會鑑人環節重點審視他！';
+      } else if (curRoundIdx === 0 && speeches.length >= 2 && sus) {
+        part3_JianRenLayout = '大家待會開票時注意看誰沒投【' + targetVoteBeast + '】，特別留意【' + sus.name + '】的票向，第一輪的籌碼分佈就是我們後面抓老朝奉的關鍵鐵證！';
+      }
+
+      const fullSpeech = [part1_Interaction, part2_CoreLogic, part3_JianRenLayout].filter(Boolean).join(' ');
+      return window.enforceBracketsV500(fullSpeech, room);
+    } catch (err) {
+      console.error('[v5.0.0 Speech Engine Error]:', err);
+      return '我這棒實測查驗結果非常明確，請大家對照前後傳遞順位集中選票，並盯緊可疑玩家的票型為鑑人環節做準備！';
+    }
+  };
+
+  // =========================================================================
+  // 4. 破壁掛載：直接覆寫所有新舊版本的發言入口與放寬守門員！
+  // =========================================================================
+  window.buildV472SafeSpeech = window.buildV500DynamicInteractiveSpeech;
+  window.buildV470HumanLikeSpeech = window.buildV500DynamicInteractiveSpeech;
+
+  if (typeof BotDeductionEngine !== 'undefined') {
+    BotDeductionEngine.generateSpeech = function(pov, room) {
+      return window.buildV500DynamicInteractiveSpeech(pov, room || window.onlineRoomData);
+    };
+    BotDeductionEngine._origGenerateSpeech = BotDeductionEngine.generateSpeech;
+  }
+
+  if (typeof NeuralSpeechSynthesizer !== 'undefined') {
+    NeuralSpeechSynthesizer.synthesize = function(pov, room) {
+      return window.buildV500DynamicInteractiveSpeech(pov, room || window.onlineRoomData);
     };
   }
 
+  if (typeof GeminiBrain !== 'undefined') {
+    // 放寬過嚴的舊版守門員，避免好不容易生成的互嗆與鑑人長句被誤殺！
+    GeminiBrain.isSpeechLogicAndQuoteValid = function(text, pov, room) {
+      if (!text || String(text).trim().length < 15) return false;
+      return true;
+    };
+
+    const origPrepare = GeminiBrain.prepareSpeech;
+    GeminiBrain.prepareSpeech = async function(a, b) {
+      let room = null, pov = null;
+      if (a && Array.isArray(a.players) && Array.isArray(a.rounds)) {
+        room = a;
+        pov = (typeof b === 'string' && typeof BotDeductionEngine !== 'undefined' && BotDeductionEngine.buildPOV)
+          ? BotDeductionEngine.buildPOV(room, b) : b;
+      } else {
+        pov = a;
+        room = b || window.onlineRoomData;
+      }
+
+      // 先生成我們保證有互嗆＋有鑑人＋有【】的高品質三段式發言作為基準
+      const guaranteedRichSpeech = window.buildV500DynamicInteractiveSpeech(pov, room);
+
+      if (typeof origPrepare === 'function') {
+        try {
+          const aiRes = await origPrepare.apply(this, arguments);
+          if (aiRes && typeof aiRes === 'string' && aiRes.length >= 45) {
+            let finalSpeech = window.enforceBracketsV500(aiRes, room);
+            // 若在第 2、3 回合，Gemini 忘了講鑑人集火對象，自動在結尾幫它補上鑑人集火段！
+            const curRoundIdx = (room && room.currentRoundIdx) || 0;
+            const matrix = window.evaluateRealSuspectMatrixV500(pov, room);
+            if (curRoundIdx === 2 && matrix.topSuspect && !finalSpeech.includes('鑑人') && !finalSpeech.includes('集火')) {
+              const reasonStr = (matrix.topSuspect.reasons && matrix.topSuspect.reasons[0]) ? matrix.topSuspect.reasons[0] : '前兩輪票型與發言破綻百出';
+              finalSpeech += ' 另外到了最後一輪，我盤點前兩輪軌跡發現【' + matrix.topSuspect.name + '】因為' + reasonStr + '，嫌疑最大！等一下進入「鑑人環節」，請全體好人跟我一起集火投票指認【' + matrix.topSuspect.name + '】！';
+            }
+            return window.enforceBracketsV500(finalSpeech, room);
+          }
+        } catch (e) {
+          console.warn('[v5.0.0] 雲端發言切換至本地破壁互嗆引擎:', e);
+        }
+      }
+      return guaranteedRichSpeech;
+    };
+  }
+
+  // 攔截所有往 Cloudflare Worker 或 Gemini 的 Fetch 請求，注入 v5.0.0 互嗆與鑑人 Prompt
+  if (!window._v500FetchHooked) {
+    const prevFetch = window.fetch;
+    window.fetch = async function(url, options) {
+      const urlStr = String(url || '');
+      if ((urlStr.includes('workers.dev') || urlStr.includes('googleapis.com')) && options && options.body) {
+        try {
+          const bodyObj = JSON.parse(options.body);
+          if (bodyObj && Array.isArray(bodyObj.contents) && bodyObj.contents[0] && bodyObj.contents[0].parts && bodyObj.contents[0].parts[0]) {
+            const part = bodyObj.contents[0].parts[0];
+            if (typeof part.text === 'string' && part.text.includes('發言')) {
+              part.text += '\n\n【💥 v5.0.0 強制互嗆與鑑人指令】：\n1. 開頭必須直接點名上一棒或前手玩家進行反駁互嗆或結盟背書！\n2. 詳細說明你的傳遞順位與親手查驗推導（100~150字）。\n3. 結尾必須點名全場嫌疑最大的玩家，號召大家在「鑑人環節」一起集火投他！\n4. 所有玩家名稱與獸首名稱一律加上【】括號！';
+              options.body = JSON.stringify(bodyObj);
+            }
+          }
+        } catch (e) {}
+      }
+      return prevFetch.apply(this, arguments);
+    };
+    window._v500FetchHooked = true;
+  }
+
+  // =========================================================================
+  // 5. 真正把電腦玩家的反應與思考時間拉長 2.5 倍以上（4.5秒 ～ 6.5秒）
+  // =========================================================================
+  const origExecSpeech = window.executeMockSpeechStep;
+  if (typeof origExecSpeech === 'function') {
+    window.executeMockSpeechStep = async function(room, botPlayer) {
+      // 發言前先進行 4.2 秒的擬真思考停頓，讓真人玩家能清楚看完上一棒的話！
+      await new Promise(function(r) { setTimeout(r, 4200); });
+      return origExecSpeech.apply(this, arguments);
+    };
+  }
+
+  const origExecTurn = window.executeMockTurnStep;
+  if (typeof origExecTurn === 'function') {
+    window.executeMockTurnStep = async function(room, botPlayer) {
+      // 電腦查驗與傳遞手機前額外多思考 3.2 秒
+      await new Promise(function(r) { setTimeout(r, 3200); });
+      return origExecTurn.apply(this, arguments);
+    };
+  }
 })();
 </script>
 
