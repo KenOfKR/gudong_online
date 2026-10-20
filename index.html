@@ -30792,7 +30792,7 @@ migrateAllProfiles();
           if (bodyObj && Array.isArray(bodyObj.contents) && bodyObj.contents[0] && bodyObj.contents[0].parts && bodyObj.contents[0].parts[0]) {
             const part = bodyObj.contents[0].parts[0];
             if (typeof part.text === 'string' && part.text.includes('發言')) {
-              part.text += '\n\n【💥 v5.0.0 強制互嗆與鑑人指令】：\n1. 開頭必須直接點名上一棒或前手玩家進行反駁互嗆或結盟背書！\n2. 詳細說明你的傳遞順位與親手查驗推導（100~150字）。\n3. 結尾必須點名全場嫌疑最大的玩家，號召大家在「鑑人環節」一起集火投他！\n4. 所有玩家名稱與獸首名稱一律加上【】括號！';
+              part.text += '\n\n【💥 v5.0.0 強制互嗆與鑑人指令】：\n1. 開頭必須直接點名上一棒或前手玩家進行反駁互嗆或結盟背書！\n2. 詳細說明你的傳遞順位與親手查驗推導（70~210字）。\n3. 結尾必須點名全場嫌疑最大的玩家，號召大家在「鑑人環節」一起集火投他！\n4. 所有玩家名稱與獸首名稱一律加上【】括號！';
               options.body = JSON.stringify(bodyObj);
             }
           }
@@ -30819,7 +30819,7 @@ migrateAllProfiles();
   if (typeof origExecTurn === 'function') {
     window.executeMockTurnStep = async function(room, botPlayer) {
       // 電腦查驗與傳遞手機前額外多思考 3.2 秒
-      await new Promise(function(r) { setTimeout(r, 3200); });
+      await new Promise(function(r) { setTimeout(r, 6200); });
       return origExecTurn.apply(this, arguments);
     };
   }
