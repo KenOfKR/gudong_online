@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 5.0.10 - 許願資訊保留與統一查驗結果)</title>
+ <title>古董局中局 (版本 5.0.7 - 投票防跳動與自由博弈版)</title>
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -1635,7 +1635,7 @@
   
  <!-- 版本、免責文字與視覺風格微調 -->  
  <div class="text-[11px] text-neutral-500 leading-relaxed pt-1 space-y-2">  
- <div class="font-mono text-neutral-400 font-bold">版本 5.0.6 (接線修正版)</div>  
+ <div class="font-mono text-neutral-400 font-bold">版本 5.0.7 (投票防跳動與自由博弈版)</div>  
  <div>該程式為粉絲製作的古董局中局桌遊助手程式，不代表官方立場</div>  
   
 </div>  
@@ -31650,5 +31650,954 @@ migrateAllProfiles();
   console.info('[古董局中局] v5.0.10 已載入：許願僅公開一件查驗結果，困惑回合統一顯示無法辨別真偽。');
 })();
 </script>
+
+<!-- [GUDONG_PATCH_START_V507] -->
+<style>
+  /* 鎖定投票查驗提示列與投票按鈕區最小高度，防止任何文字更新造成版面上下跳動害玩家點錯 */
+  #onlVotingInspectResultSnippet {
+    display: inline-block;
+    min-height: 1.5rem;
+    line-height: 1.4rem;
+    vertical-align: middle;
+  }
+  #onlVotingInputsList {
+    min-height: 212px;
+  }
+  #onlAppraiseResultBox, #onlRoleAbilityContainer {
+    transition: none !important;
+    animation: none !important;
+  }
+</style>
+<script>
+(function() {
+  console.info("%c🎯 [古董局中局 v5.0.7] 投票加減號防消失防跳動 ＋ 許願靈活報法引擎已啟動", "color:#10b981;font-weight:bold;font-size:13px");
+
+  var ZODIACS = ["鼠","牛","虎","兔","龍","蛇","馬","羊","猴","雞","狗","豬"];
+  var DELETED_KEY = "gudong_deleted_players_v505";
+  var ALIAS_KEY = "gudong_merged_aliases_v505";
+
+  // =========================================================================
+  // ★ 核心修復 1：徹底根除「按下投票 + / - 加減號或背景同步時，查驗結果消失害人按錯」！
+  //    原因：原版 onlChangeVoteDelta 用 onlineRoomData.players.find() 抓到的 me 沒有私有 role，
+  //    且當 turnLogs 因為局部更新瞬間缺漏時，#onlVotingInspectResultSnippet 會被設為空字串 ""！
+  // =========================================================================
+  window._stickyOnlineRoleCache = window._stickyOnlineRoleCache || {};
+  window._stickyInspectSnippetCache = window._stickyInspectSnippetCache || {};
+  window._stickyTurnInspectArrayCache = window._stickyTurnInspectArrayCache || {};
+
+  var origGetOnlineMe = window.getOnlineMePlayer;
+  window.getOnlineMePlayer = function(room) {
+    var r = room || window.onlineRoomData;
+    var me = (typeof origGetOnlineMe === "function") ? origGetOnlineMe.call(this, r) : null;
+    if (!r || !me) return me;
+    var pid = me.id || window.myOnlinePlayerId;
+    var cacheKey = String(r.startTimestamp || "0") + "_" + String(pid || "");
+    if (me.role && me.role !== "") {
+      window._stickyOnlineRoleCache[cacheKey] = me.role;
+      try {
+        sessionStorage.setItem("gudong_active_role_" + pid, me.role);
+        if (r.startTimestamp) sessionStorage.setItem("gudong_active_role_start_" + pid, String(r.startTimestamp));
+      } catch (e) {}
+    } else if (window._stickyOnlineRoleCache[cacheKey]) {
+      me.role = window._stickyOnlineRoleCache[cacheKey];
+    }
+    return me;
+  };
+
+  // 計算並快取當前玩家在本回合的查驗結果文字（無論是許願、方震、黃煙煙、老朝奉、鄭國渠、藥不然全部保護！）
+  window.getStableMyInspectSnippetHTML = function(room, mePlayer) {
+    var r = room || window.onlineRoomData;
+    if (!r) return "";
+    var curRoundIdx = r.currentRoundIdx || 0;
+    var curRound = (r.rounds && r.rounds[curRoundIdx]) || {};
+    var me = mePlayer || (window.getOnlineMePlayer ? window.getOnlineMePlayer(r) : null) || {};
+    var pid = me.id || window.myOnlinePlayerId || "me";
+    var cacheKey = String(r.startTimestamp || "0") + "_R" + curRoundIdx + "_" + pid;
+
+    var myTurnLog = (curRound.turnLogs && curRound.turnLogs[pid]) || {};
+    var inspectArr = Array.isArray(myTurnLog.inspect) ? myTurnLog.inspect : (myTurnLog.inspect ? [myTurnLog.inspect] : []);
+    if (inspectArr.length === 0 && Array.isArray(window.onlMyInspectedBeastsInTurn) && window.onlMyInspectedBeastsInTurn.length > 0) {
+      inspectArr = window.onlMyInspectedBeastsInTurn;
+    }
+    if (inspectArr.length > 0) {
+      window._stickyTurnInspectArrayCache[cacheKey] = inspectArr;
+    } else if (window._stickyTurnInspectArrayCache[cacheKey]) {
+      inspectArr = window._stickyTurnInspectArrayCache[cacheKey];
+    }
+
+    var parts = [];
+    if (inspectArr.length > 0) {
+      parts.push("本輪查驗：" + inspectArr.map(function(i) { return i.resultText; }).join("、"));
+    }
+    // 若我是方震（或本輪有方震查驗紀錄），連同方震查驗的陣營結果一併固定顯示，絕不因按 + / - 消失！
+    if (myTurnLog.fangZhenTargetId) {
+      var tPlayer = (r.players || []).find(function(x) { return x && x.id === myTurnLog.fangZhenTargetId; });
+      if (tPlayer) {
+        var campText = myTurnLog.fangZhenCamp === "good" ? "好人" : "壞人";
+        var campColor = myTurnLog.fangZhenCamp === "good" ? "text-emerald-400" : "text-rose-400";
+        parts.push("陣營查驗：【" + tPlayer.name + "】為 <b class=\"" + campColor + "\">" + campText + "</b>");
+      }
+    }
+    // 若我是鄭國渠且封鎖了獸首、或藥不然偷襲了誰，也穩定保留提示
+    if (myTurnLog.blockedBeast) {
+      parts.push("已封鎖：【" + myTurnLog.blockedBeast + "】");
+    }
+    if (myTurnLog.ambushedTargetId) {
+      var aTarget = (r.players || []).find(function(x) { return x && x.id === myTurnLog.ambushedTargetId; });
+      if (aTarget) parts.push("已偷襲：【" + aTarget.name + "】");
+    }
+
+    var built = parts.join(" ｜ ");
+    if (built) {
+      window._stickyInspectSnippetCache[cacheKey] = built;
+      return built;
+    }
+    return window._stickyInspectSnippetCache[cacheKey] || "";
+  };
+
+  // 直接覆寫 onlChangeVoteDelta：按下 + / - 時，強制傳入完整的 getOnlineMePlayer，且恢復查驗顯示！
+  window.onlChangeVoteDelta = function(beastName, delta) {
+    if (window.isOnlineSpectator) return;
+    if (typeof onlMyCurrentBallot === "undefined" || !onlMyCurrentBallot) window.onlMyCurrentBallot = {};
+    var currentTotal = Object.values(onlMyCurrentBallot).reduce(function(a, b) { return a + b; }, 0);
+    var curVal = onlMyCurrentBallot[beastName] || 0;
+    var nextVal = curVal + delta;
+    if (nextVal < 0 || nextVal > 2) return;
+    if (delta > 0 && currentTotal >= 2) {
+      if (typeof showToast === "function") showToast("每人每回合最多只能投 2 票！請先減少其他獸首票數。", "warning");
+      return;
+    }
+    onlMyCurrentBallot[beastName] = nextVal;
+    var fullMe = window.getOnlineMePlayer ? window.getOnlineMePlayer(window.onlineRoomData) : null;
+    if (typeof renderOnlineVotingInputs === "function") {
+      renderOnlineVotingInputs(window.onlineRoomData, fullMe);
+    }
+    var snippetEl = document.getElementById("onlVotingInspectResultSnippet");
+    if (snippetEl) {
+      var stableHtml = window.getStableMyInspectSnippetHTML(window.onlineRoomData, fullMe);
+      if (stableHtml) snippetEl.innerHTML = stableHtml;
+    }
+  };
+
+  // 攔截 renderOnlineVotingInputs：確保任何時候（包括背景雲端同步、別人投票、自己按加減號）
+  // 都不會把查驗欄位清成空白，而且若玩家正在點選投票但票數沒變，不亂閃畫面！
+  if (typeof window.renderOnlineVotingInputs === "function" && !window.renderOnlineVotingInputs._v507Hooked) {
+    var origRenderVotingInputs = window.renderOnlineVotingInputs;
+    window.renderOnlineVotingInputs = function(room, me) {
+      var r = room || window.onlineRoomData;
+      var fullMe = (me && me.role) ? me : (window.getOnlineMePlayer ? window.getOnlineMePlayer(r) : me);
+      var res = origRenderVotingInputs.call(this, r, fullMe);
+      var snippetEl = document.getElementById("onlVotingInspectResultSnippet");
+      if (snippetEl) {
+        var stableHtml = window.getStableMyInspectSnippetHTML(r, fullMe);
+        if (stableHtml) snippetEl.innerHTML = stableHtml;
+      }
+      return res;
+    };
+    window.renderOnlineVotingInputs._v507Hooked = true;
+  }
+
+  // 保護個人回合查驗結果框 (#onlAppraiseResultBox) 與能力框 (#onlRoleAbilityContainer) 在本回合內絕不因背景 Snapshot 被隱藏或洗掉
+  if (typeof window.renderOnlineActiveTurn === "function" && !window.renderOnlineActiveTurn._v507Hooked) {
+    var origRenderActiveTurn = window.renderOnlineActiveTurn;
+    window.renderOnlineActiveTurn = function(room, me) {
+      var r = room || window.onlineRoomData;
+      var fullMe = (me && me.role) ? me : (window.getOnlineMePlayer ? window.getOnlineMePlayer(r) : me);
+      var resBox = document.getElementById("onlAppraiseResultBox");
+      var resText = document.getElementById("onlAppraiseResultText");
+      var prevVisible = resBox && !resBox.classList.contains("hidden");
+      var prevHtml = resText ? resText.innerHTML : "";
+
+      var ret = origRenderActiveTurn.call(this, r, fullMe);
+
+      // 若這個回合我已經點過獸首看過查驗結果，背景同步時絕不准把它藏回去！
+      if (prevVisible && prevHtml && Array.isArray(window.onlMyInspectedBeastsInTurn) && window.onlMyInspectedBeastsInTurn.length > 0) {
+        if (resBox && resBox.classList.contains("hidden")) {
+          resBox.classList.remove("hidden");
+        }
+        if (resText && !resText.innerHTML.trim()) {
+          resText.innerHTML = prevHtml;
+        }
+      }
+      return ret;
+    };
+    window.renderOnlineActiveTurn._v507Hooked = true;
+  }
+
+  // 鑑人階段方震查驗面板穩定渲染（Dirty Checking）
+  window._lastFangZhenRenderedSignature = "";
+  window.updateFangZhenResultUI = function(room) {
+    try {
+      var r = room || window.onlineRoomData;
+      if (!r || !Array.isArray(r.rounds)) return;
+      var fzContainer = document.getElementById("onlPersonRefFangZhenContainer");
+      var fzList = document.getElementById("onlPersonRefFangZhenList");
+      if (!fzContainer || !fzList) return;
+
+      var me = window.getOnlineMePlayer ? window.getOnlineMePlayer(r) : null;
+      var isSpecFollow = !!window.isOnlineSpectator && (window.onlineSpectatorViewMode !== "table");
+      var myRole = (me && me.role) ? me.role : "";
+
+      var fangPlayerId = null;
+      if (myRole === "方震" && me && me.id) {
+        fangPlayerId = me.id;
+      } else {
+        var pubFang = (r.players || []).find(function(p) { return p && p.role === "方震"; });
+        if (pubFang) fangPlayerId = pubFang.id;
+        else {
+          for (var i = 0; i < r.rounds.length; i++) {
+            var tLogs = (r.rounds[i] && r.rounds[i].turnLogs) || {};
+            var foundId = Object.keys(tLogs).find(function(k) { return tLogs[k] && tLogs[k].fangZhenTargetId; });
+            if (foundId) { fangPlayerId = foundId; break; }
+          }
+        }
+      }
+
+      var canSeeFangZhen = (myRole === "方震") || isSpecFollow || (fangPlayerId && fangPlayerId === window.myOnlinePlayerId);
+      if (!canSeeFangZhen || !fangPlayerId) {
+        if (!fzContainer.classList.contains("hidden")) fzContainer.classList.add("hidden");
+        return;
+      }
+
+      var items = [];
+      r.rounds.forEach(function(roundObj, rIdx) {
+        var log = roundObj && roundObj.turnLogs && roundObj.turnLogs[fangPlayerId];
+        if (!log || !log.fangZhenTargetId) return;
+        var tPlayer = (r.players || []).find(function(p) { return p && p.id === log.fangZhenTargetId; });
+        if (!tPlayer) return;
+        items.push({
+          rNum: rIdx + 1,
+          targetName: tPlayer.name,
+          colorId: tPlayer.colorId,
+          camp: log.fangZhenCamp
+        });
+      });
+
+      if (fzContainer.classList.contains("hidden")) fzContainer.classList.remove("hidden");
+      var newSig = String(r.startTimestamp || "") + "|" + fangPlayerId + "|" + JSON.stringify(items);
+      if (window._lastFangZhenRenderedSignature === newSig && fzList.innerHTML.trim().length > 0) return;
+      window._lastFangZhenRenderedSignature = newSig;
+
+      var esc = (typeof escapeHTML === "function") ? escapeHTML : function(s) { return String(s); };
+      if (items.length === 0) {
+        fzList.innerHTML = "<div class=\"text-[11px] text-neutral-500 text-center py-1.5\">尚無方震查驗玩家紀錄（或方震遭偷襲封鎖）</div>";
+      } else {
+        fzList.innerHTML = items.map(function(it) {
+          var pc = (typeof COLOR_PALETTE !== "undefined" && COLOR_PALETTE.find(function(c) { return c.id === it.colorId; })) || { name: "", bgClass: "bg-neutral-800 text-white" };
+          var campStr = it.camp === "good" ? "許願陣營（好人）" : "老朝奉陣營（壞人）";
+          var badgeCls = it.camp === "good" ? "bg-emerald-950/80 text-emerald-300 border-emerald-700/80" : "bg-rose-950/80 text-rose-300 border-rose-700/80";
+          return "<div class=\"flex items-center justify-between p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-xs\">" +
+            "<div class=\"flex items-center space-x-2\">" +
+              "<span class=\"px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-800/60 font-mono text-[10px] font-bold\">第 " + it.rNum + " 回合</span>" +
+              "<span class=\"text-neutral-400\">查驗目標：</span>" +
+              "<span class=\"px-2 py-0.5 rounded text-[11px] font-bold border " + pc.bgClass + "\">" + esc(pc.name) + " " + esc(it.targetName) + "</span>" +
+            "</div>" +
+            "<span class=\"px-2 py-0.5 rounded border font-black text-[11px] " + badgeCls + "\">➔ " + campStr + "</span>" +
+          "</div>";
+        }).join("");
+      }
+    } catch (e) {}
+  };
+
+  if (typeof window.renderOnlinePersonVoting === "function" && !window.renderOnlinePersonVoting._v507Hooked) {
+    var origRenderPV = window.renderOnlinePersonVoting;
+    window.renderOnlinePersonVoting = function(room) {
+      var res = origRenderPV.apply(this, arguments);
+      window.updateFangZhenResultUI(room || window.onlineRoomData);
+      return res;
+    };
+    window.renderOnlinePersonVoting._v507Hooked = true;
+  }
+
+  // =========================================================================
+  // 2. 確保【黃煙煙 / 木戶加奈】（含電腦）必有一輪困惑 (0, 1, 2)
+  // =========================================================================
+  window.ensureBotConfusedRoundV505 = function(player, room) {
+    if (!player || (player.role !== "黃煙煙" && player.role !== "木戶加奈")) return -1;
+    if (player.confusedRound === 0 || player.confusedRound === 1 || player.confusedRound === 2) return player.confusedRound;
+    var seedStr = String((room && room.startTimestamp) || "2026") + "_" + String(player.id || player.name || "") + "_" + player.role;
+    var hash = 0;
+    for (var i = 0; i < seedStr.length; i++) hash = ((hash << 5) - hash + seedStr.charCodeAt(i)) | 0;
+    var cRound = Math.abs(hash) % 3;
+    player.confusedRound = cRound;
+    if (room && Array.isArray(room.players)) {
+      var rp = room.players.find(function(x) { return x && x.id === player.id; });
+      if (rp) rp.confusedRound = cRound;
+    }
+    return cRound;
+  };
+
+  window.isPlayerConfusedInRoundV505 = function(player, room, curRoundIdx) {
+    if (!player || (player.role !== "黃煙煙" && player.role !== "木戶加奈")) return false;
+    var cRound = window.ensureBotConfusedRoundV505(player, room);
+    if (cRound === curRoundIdx) return true;
+    if (curRoundIdx === 2 && room && Array.isArray(room.rounds)) {
+      var r0Log = room.rounds[0] && room.rounds[0].turnLogs && room.rounds[0].turnLogs[player.id];
+      var r1Log = room.rounds[1] && room.rounds[1].turnLogs && room.rounds[1].turnLogs[player.id];
+      var r0Txt = r0Log && r0Log.inspect && r0Log.inspect[0] ? String(r0Log.inspect[0].resultText || "") : "";
+      var r1Txt = r1Log && r1Log.inspect && r1Log.inspect[0] ? String(r1Log.inspect[0].resultText || "") : "";
+      if ((r0Txt.includes("真品") || r0Txt.includes("贗品")) && (r1Txt.includes("真品") || r1Txt.includes("贗品"))) {
+        player.confusedRound = 2;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // =========================================================================
+  // 3. 佔位符保護玩家名 + 語境感知【】括號標註器
+  // =========================================================================
+  function escapeRegExpSafe(str) {
+    return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  window.escapeRegExpSafe = escapeRegExpSafe;
+
+  function enforceBracketsV507(text, room) {
+    if (!text) return "";
+    var s = String(text);
+    var placeholders = [];
+    function saveToken(wrapped) {
+      var idx = placeholders.length;
+      placeholders.push(wrapped);
+      return "\uE000" + idx + "\uE001";
+    }
+    s = s.replace(/【+([^【】]+)】+/g, function(_, inner) {
+      return saveToken("【" + inner.trim() + "】");
+    });
+    var r = room || window.onlineRoomData;
+    var players = (r && Array.isArray(r.players)) ? r.players : [];
+    if (players.length > 0) {
+      var sorted = players.slice().sort(function(a, b) {
+        return String((b && b.name) || "").length - String((a && a.name) || "").length;
+      });
+      sorted.forEach(function(p) {
+        if (!p || !p.name) return;
+        var cleanName = String(p.name).replace(/[【】]/g, "").trim();
+        if (!cleanName) return;
+        var re = new RegExp(escapeRegExpSafe(cleanName), "g");
+        s = s.replace(re, function() { return saveToken("【" + cleanName + "】"); });
+      });
+    }
+    var zChars = ZODIACS.join("");
+    s = s.replace(new RegExp("([" + zChars + "])首", "g"), function(_, z) {
+      return saveToken("【" + z + "】") + "首";
+    });
+    var prefixRe = new RegExp("(查驗|驗過|實測|看過|看了|摸過|投給|集中投|改投|全投|雙投|避開|別投|不要投|排掉|放生|鎖定|保住|先保|這隻|那隻|一隻)\\s*([" + zChars + "])(?![首上可來去頭肉排骨皮毛])", "g");
+    s = s.replace(prefixRe, function(_, pre, z) { return pre + saveToken("【" + z + "】"); });
+    var suffixRe = new RegExp("(?<![阿小老屬騎買賣養吃打吹拍])([" + zChars + "])\\s*(是真品|是贗品|是真的|是假的|是真貨|是假貨|一定真|確定真|確定假|看起來真|看起來假|看起來超假|真品|贗品|真(?=[，,。！!；;\\s]|$)|假(?=[，,。！!；;\\s]|$))", "g");
+    s = s.replace(suffixRe, function(_, z, suf) { return saveToken("【" + z + "】") + suf; });
+    s = s.replace(/\uE000(\d+)\uE001/g, function(_, idxStr) { return placeholders[parseInt(idxStr, 10)] || ""; });
+    return s.replace(/【+([^【】]+)】+/g, "【$1】");
+  }
+  window.enforceBracketsV507 = enforceBracketsV507;
+  window.enforceBracketsV506 = enforceBracketsV507;
+  window.enforceBracketsV505 = enforceBracketsV507;
+  window.enforceBracketsV504 = enforceBracketsV507;
+  window.enforceBracketsV503 = enforceBracketsV507;
+  window.enforceBracketsV502 = enforceBracketsV507;
+  window.enforceBracketsV501 = enforceBracketsV507;
+  window.enforceBracketsV500 = enforceBracketsV507;
+  window.enforceBracketsOnText = enforceBracketsV507;
+
+  // =========================================================================
+  // 4. 嚴守戰爭迷霧（Fog of War）的局勢評估矩陣
+  // =========================================================================
+  window.evaluateFogSafeMatrixV507 = function(pov, room) {
+    var r = room || window.onlineRoomData || {};
+    var players = Array.isArray(r.players) ? r.players : [];
+    var curRoundIdx = (typeof r.currentRoundIdx === "number") ? r.currentRoundIdx : 0;
+    var myId = (pov && pov.myId) || "";
+    var myRole = (pov && pov.myRole) || "";
+    var isGood = (typeof GameRules !== "undefined" && GameRules.isGoodCamp)
+      ? GameRules.isGoodCamp(myRole)
+      : ["許願", "方震", "姬雲浮", "黃煙煙", "木戶加奈"].includes(myRole);
+
+    var myPlayerObj = players.find(function(p) { return p && p.id === myId; }) || {};
+    var myName = myPlayerObj.name || (pov && pov.myName) || "";
+    var arch = (typeof BOT_ARCHETYPES !== "undefined" && BOT_ARCHETYPES[myName]) ? BOT_ARCHETYPES[myName] : null;
+    var baseTraits = (arch && typeof ARCHETYPE_TRAITS !== "undefined" && ARCHETYPE_TRAITS[arch.style])
+      ? ARCHETYPE_TRAITS[arch.style]
+      : { aggression: 0.5, skepticism: 0.6, trustPlayers: 0.5 };
+
+    var suspicionMap = {};
+    players.forEach(function(p) {
+      if (!p || p.id === myId) return;
+      suspicionMap[p.id] = { id: p.id, name: p.name, score: 0, reasons: [], allyScore: 0, evidenceTier: "none" };
+    });
+
+    for (var rIdx = 0; rIdx <= curRoundIdx; rIdx++) {
+      var rObj = r.rounds && r.rounds[rIdx];
+      var myLog = rObj && rObj.turnLogs && rObj.turnLogs[myId];
+      if (!myLog || !myLog.fangZhenTargetId || !suspicionMap[myLog.fangZhenTargetId]) continue;
+      var t = suspicionMap[myLog.fangZhenTargetId];
+      if (myLog.fangZhenCamp === "evil") {
+        t.score += 95;
+        t.reasons.unshift("我親手查驗出他是老朝奉陣營");
+      } else if (myLog.fangZhenCamp === "good") {
+        t.score -= 80;
+        t.allyScore += 85;
+      }
+    }
+
+    for (var pIdx = 0; pIdx < curRoundIdx; pIdx++) {
+      var pRound = r.rounds && r.rounds[pIdx];
+      if (!pRound) continue;
+      var rNum = pIdx + 1;
+      var knownTruthInFog = {};
+      if (pRound.voteResults && pRound.voteResults.rank2 && pRound.voteResults.rank2.isHidden === false && typeof pRound.voteResults.rank2.isReal === "boolean") {
+        knownTruthInFog[pRound.voteResults.rank2.name] = { isReal: pRound.voteResults.rank2.isReal, source: "public_rank2" };
+      }
+      var myPastLog = pRound.turnLogs && pRound.turnLogs[myId];
+      var myPastInspects = myPastLog && (Array.isArray(myPastLog.inspect) ? myPastLog.inspect : (myPastLog.inspect ? [myPastLog.inspect] : []));
+      if (Array.isArray(myPastInspects)) {
+        myPastInspects.forEach(function(ins) {
+          if (!ins || !ins.beastName || knownTruthInFog[ins.beastName]) return;
+          var txt = String(ins.resultText || "");
+          if (!ins.isAmbushed && !ins.isBlocked && !ins.isConfused && (txt.includes("真品") || txt.includes("贗品"))) {
+            knownTruthInFog[ins.beastName] = { isReal: txt.includes("真品"), source: "my_private" };
+          }
+        });
+      }
+
+      var votes = pRound.votes || {};
+      Object.entries(votes).forEach(function(entry) {
+        var voterId = entry[0], ballot = entry[1];
+        var rec = suspicionMap[voterId];
+        if (!rec || !ballot) return;
+        Object.entries(ballot).forEach(function(bEntry) {
+          var bName = bEntry[0], cnt = parseInt(bEntry[1], 10) || 0;
+          var truthInfo = knownTruthInFog[bName];
+          if (cnt <= 0 || !truthInfo) return;
+          var w = (truthInfo.source === "public_rank2") ? 1.0 : 0.7;
+          if (truthInfo.isReal === false) {
+            rec.score += Math.round(cnt * 15 * w);
+            rec.reasons.push("第" + rNum + "回合把票投給假貨【" + bName + "】");
+          } else {
+            rec.allyScore += Math.round(cnt * 12 * w);
+          }
+        });
+      });
+    }
+
+    var curRound = (r.rounds && r.rounds[curRoundIdx]) || {};
+    var passOrder = curRound.passOrder || [];
+    var myPassIdx = passOrder.indexOf(myId);
+    var rawTurnLog = (curRound.turnLogs && curRound.turnLogs[myId]) || (pov && pov.myTurnLog) || {};
+    var myInspectList = Array.isArray(rawTurnLog.inspect) ? rawTurnLog.inspect : (rawTurnLog.inspect ? [rawTurnLog.inspect] : []);
+    var myInspect = myInspectList[0] || null;
+    var myBeast = myInspect ? myInspect.beastName : null;
+    var myResTxt = myInspect ? String(myInspect.resultText || "") : "";
+    var mySawReal = null;
+    if (myResTxt.includes("真品")) mySawReal = true;
+    else if (myResTxt.includes("贗品")) mySawReal = false;
+
+    if ((myResTxt.includes("偷襲") || myResTxt.includes("一片黑") || myResTxt.includes("暈眩")) && myPassIdx === 1 && passOrder[0] && suspicionMap[passOrder[0]]) {
+      suspicionMap[passOrder[0]].score += 90;
+      suspicionMap[passOrder[0]].reasons.unshift("在首家傳遞順位與動作極度可疑");
+    }
+
+    (curRound.speeches || []).forEach(function(sp) {
+      var sid = sp.playerId || sp.speakerId;
+      var rec = suspicionMap[sid];
+      if (!rec || !sp.text) return;
+      var claims = window.parseClaimsClauseByClause ? window.parseClaimsClauseByClause(sp.text, null, rec.name) : {};
+      if (myBeast && mySawReal !== null && typeof claims[myBeast] === "boolean") {
+        if (claims[myBeast] !== mySawReal) {
+          rec.score += 22;
+          rec.reasons.unshift("這輪對【" + myBeast + "】的說法跟我親手看到的不同");
+        } else {
+          rec.allyScore += 18;
+        }
+      }
+    });
+
+    Object.values(suspicionMap).forEach(function(rec) {
+      if (rec.score >= 30) rec.evidenceTier = "hard";
+      else if (rec.score >= 15) rec.evidenceTier = "medium";
+      else if (rec.score >= 8) rec.evidenceTier = "weak";
+      else rec.evidenceTier = "none";
+    });
+
+    var knownTeammateId = null;
+    if (!isGood && typeof window.getKnownTeammateForRole === "function") {
+      var tm = window.getKnownTeammateForRole(r, myRole);
+      if (tm && tm.id) knownTeammateId = tm.id;
+    }
+    var candidates = Object.values(suspicionMap).filter(function(x) {
+      if (!isGood && x.id === knownTeammateId) return false;
+      return x.score > 0;
+    }).sort(function(a, b) { return b.score - a.score; });
+
+    var allyList = Object.values(suspicionMap).filter(function(x) {
+      return x.allyScore >= 15 && (!candidates[0] || x.id !== candidates[0].id);
+    }).sort(function(a, b) { return b.allyScore - a.allyScore; });
+
+    return {
+      isGood: isGood,
+      traits: baseTraits,
+      archetype: arch,
+      topSuspect: candidates[0] || null,
+      topAlly: allyList[0] || null,
+      suspicionMap: suspicionMap
+    };
+  };
+  window.evaluateFogSafeMatrixV506 = window.evaluateFogSafeMatrixV507;
+  window.evaluateFogSafeMatrixV505 = window.evaluateFogSafeMatrixV507;
+  window.evaluateRealSuspectMatrixV500 = window.evaluateFogSafeMatrixV507;
+
+  // =========================================================================
+  // ★ 核心修復 2：【許願】不再寫死只報 1 件！依局勢、順位與個性自由決定報 1 件或 2 件！
+  // =========================================================================
+  window.saveBotCommittedPlan = function(room, botId, plan) {
+    if (!room || !botId || !plan) return;
+    if (!room._botCommittedPlan) room._botCommittedPlan = {};
+    room._botCommittedPlan[botId] = Object.assign({}, room._botCommittedPlan[botId] || {}, plan, { updatedAt: Date.now() });
+  };
+  window.getBotCommittedPlan = function(room, botId, expectedRoundIdx) {
+    if (!room || !room._botCommittedPlan || !botId) return null;
+    var plan = room._botCommittedPlan[botId];
+    if (!plan) return null;
+    if (typeof expectedRoundIdx === "number" && plan.roundIdx !== expectedRoundIdx) return null;
+    return plan;
+  };
+
+  window.buildV507FlexibleSpeech = function(pov, room) {
+    try {
+      var r = room || window.onlineRoomData;
+      if (!pov || !r) return "";
+      var curRoundIdx = r.currentRoundIdx || 0;
+      var curRound = (r.rounds && r.rounds[curRoundIdx]) || {};
+      var passOrder = (Array.isArray(curRound.passOrder) && curRound.passOrder.length > 0) ? curRound.passOrder : (pov.passOrder || []);
+      var myPassIdx = passOrder.indexOf(pov.myId) !== -1 ? passOrder.indexOf(pov.myId) : (typeof pov.myPassIdx === "number" ? pov.myPassIdx : 0);
+      var myPosText = window.toChinesePassOrderText ? window.toChinesePassOrderText(myPassIdx) : ("第" + (myPassIdx + 1) + "位");
+      var isGood = (typeof GameRules !== "undefined" && GameRules.isGoodCamp)
+        ? GameRules.isGoodCamp(pov.myRole)
+        : ["許願", "方震", "姬雲浮", "黃煙煙", "木戶加奈"].includes(pov.myRole);
+
+      var roundBeastNames = window.getCurrentRoundBeastNames ? window.getCurrentRoundBeastNames(pov, r) : ["鼠","牛","虎","兔"];
+      var validBeastSet = new Set(roundBeastNames);
+      var spokenClaims = window.extractVerifiedSpokenClaims ? window.extractVerifiedSpokenClaims(r, pov.myId, roundBeastNames) : [];
+      var matrix = window.evaluateFogSafeMatrixV507(pov, r);
+      var traits = matrix.traits || { aggression: 0.5, skepticism: 0.6 };
+
+      // (A) 41 人個性口頭禪
+      var personaOpener = "";
+      if (matrix.archetype && Array.isArray(matrix.archetype.phrases) && matrix.archetype.phrases.length > 0) {
+        var pickIdx = (curRoundIdx + myPassIdx) % matrix.archetype.phrases.length;
+        var rawPhrase = String(matrix.archetype.phrases[pickIdx] || "");
+        var firstClause = rawPhrase.split(/[！!。？?～~]/)[0];
+        if (firstClause && firstClause.length >= 4 && firstClause.length <= 24) {
+          personaOpener = firstClause + "！";
+        }
+      }
+
+      var rawTurnLog = (curRound.turnLogs && curRound.turnLogs[pov.myId]) || pov.myTurnLog || {};
+      var myInspectList = Array.isArray(rawTurnLog.inspect) ? rawTurnLog.inspect : (rawTurnLog.inspect ? [rawTurnLog.inspect] : []);
+      var validMyInspects = myInspectList.filter(function(it) { return it && validBeastSet.has(it.beastName); });
+      var myInspect = validMyInspects[0] || myInspectList[0] || null;
+      var myBeast = (myInspect && validBeastSet.has(myInspect.beastName)) ? myInspect.beastName : (roundBeastNames[0] || "鼠");
+      var resTxt = myInspect ? String(myInspect.resultText || "") : "";
+      var isAmbushed = !!(myInspect && (myInspect.isAmbushed || resTxt.includes("偷襲") || resTxt.includes("一片黑") || resTxt.includes("暈眩")));
+      var isBlockedOrConfused = !isAmbushed && !!(myInspect && (myInspect.isBlocked || myInspect.isConfused || myInspect.cannotInspect || resTxt.includes("無法辨別") || resTxt.includes("看不懂") || resTxt.includes("驗不到")));
+
+      var mySawReal = null;
+      if (myInspect && !isAmbushed && !isBlockedOrConfused) {
+        if (typeof myInspect.displayedReal === "boolean") mySawReal = myInspect.displayedReal;
+        else if (resTxt.includes("真品")) mySawReal = true;
+        else if (resTxt.includes("贗品")) mySawReal = false;
+      }
+
+      var sameBeastPrior = myBeast
+        ? spokenClaims.filter(function(c) { return c.beast === myBeast; }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0]
+        : null;
+      var rebuttalClause = "";
+      if (sameBeastPrior && mySawReal !== null) {
+        if (sameBeastPrior.claimReal !== mySawReal) {
+          if (traits.aggression >= 0.68) {
+            rebuttalClause = "等一下，" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】說【" + myBeast + "】是" + (sameBeastPrior.claimReal ? "真品" : "贗品") + "，跟我親手看到的完全相反！不是中間被反轉，就是【" + sameBeastPrior.speakerName + "】在帶假風向！";
+          } else {
+            rebuttalClause = "前面" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】報【" + myBeast + "】是" + (sameBeastPrior.claimReal ? "真品" : "贗品") + "，不過傳到我這棒看到的結果卻相反，中間很可能被老朝奉反轉過了。";
+          }
+        } else {
+          rebuttalClause = "前面" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】對【" + myBeast + "】的查驗跟我這棒看到的吻合。";
+        }
+      }
+
+      var trustedRealClaim = spokenClaims.filter(function(c) {
+        if (!c.claimReal || !validBeastSet.has(c.beast)) return false;
+        var sRec = matrix.suspicionMap[c.speakerId];
+        return !sRec || sRec.score < 15;
+      }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0] || null;
+
+      var coreClause = "";
+      var committedBeast = myBeast;
+
+      if (isGood) {
+        // ★ 許願靈活報法：不寫死！依個性、順位、回合與查驗結果自由選擇報 2 件或藏 1 件！
+        if (pov.myRole === "許願" && validMyInspects.length >= 2 && !isAmbushed) {
+          var ins1 = validMyInspects[0], ins2 = validMyInspects[1];
+          var r1Real = String(ins1.resultText || "").includes("真品") || ins1.displayedReal === true;
+          var r2Real = String(ins2.resultText || "").includes("真品") || ins2.displayedReal === true;
+          // 許願在後置位、第3回合或高積極度個性時，直接報出雙查驗帶隊；若在前段想藏身分則可只講關鍵那一件
+          var revealBoth = (curRoundIdx === 2) || (myPassIdx >= 4) || (traits.aggression >= 0.55) || (r1Real !== r2Real && Math.random() < 0.65);
+          if (r1Real && r2Real) {
+            committedBeast = ins1.beastName;
+            if (revealBoth) {
+              coreClause = "我在" + myPosText + "看過盤面，【" + ins1.beastName + "】跟【" + ins2.beastName + "】兩件都是真品，這輪大家直接分票保【" + ins1.beastName + "】和【" + ins2.beastName + "】！";
+            } else {
+              coreClause = "我在" + myPosText + "親手查驗【" + ins1.beastName + "】確定是真品，這條線很穩，這輪我主投【" + ins1.beastName + "】！";
+            }
+          } else if (r1Real || r2Real) {
+            var goodB = r1Real ? ins1.beastName : ins2.beastName;
+            var badB = r1Real ? ins2.beastName : ins1.beastName;
+            committedBeast = goodB;
+            if (revealBoth) {
+              coreClause = "我在" + myPosText + "比對過了，【" + badB + "】顯示是贗品千萬避開，真品是【" + goodB + "】，這輪請集中投給【" + goodB + "】！";
+            } else {
+              coreClause = "我在" + myPosText + "親手確認【" + goodB + "】是真品，只要前面沒被反轉，這輪集中投【" + goodB + "】最穩！";
+            }
+          } else {
+            var restB = roundBeastNames.find(function(n) { return n !== ins1.beastName && n !== ins2.beastName; }) || roundBeastNames[0];
+            committedBeast = restB;
+            coreClause = "我在" + myPosText + "排掉了【" + ins1.beastName + "】跟【" + ins2.beastName + "】兩顆雷，這輪建議大家改投【" + committedBeast + "】！";
+          }
+        } else if (pov.myRole === "方震") {
+          var fzTarget = rawTurnLog.fangZhenTargetId ? (r.players || []).find(function(p) { return p.id === rawTurnLog.fangZhenTargetId; }) : null;
+          var fzCamp = rawTurnLog.fangZhenCamp;
+          committedBeast = trustedRealClaim ? trustedRealClaim.beast : (roundBeastNames[0] || myBeast);
+          if (fzTarget && fzCamp === "evil" && (curRoundIdx >= 1 || traits.aggression >= 0.6)) {
+            coreClause = "我直接點破局勢：我查出【" + fzTarget.name + "】是老朝奉陣營！大家別信他帶的風向，這輪獸首請改投【" + committedBeast + "】！";
+          } else if (fzTarget && fzCamp === "good") {
+            var allyClaim = spokenClaims.find(function(c) { return c.speakerId === fzTarget.id && c.claimReal === true; });
+            if (allyClaim) committedBeast = allyClaim.beast;
+            coreClause = "我這棒確認【" + fzTarget.name + "】是鐵好人，他這條線完全可信，這輪獸首我們跟著投【" + committedBeast + "】！";
+          } else {
+            coreClause = "這輪我從" + myPosText + "順著前段時序盤下來，【" + committedBeast + "】這條線最乾淨，這輪我投【" + committedBeast + "】。";
+          }
+        } else if (isAmbushed || isBlockedOrConfused) {
+          committedBeast = (trustedRealClaim && trustedRealClaim.beast) ? trustedRealClaim.beast : (roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast);
+          coreClause = "這輪我從" + myPosText + "評估場上的傳遞脈絡，【" + committedBeast + "】這條線相對最穩妥，建議大家集中投給【" + committedBeast + "】。";
+        } else if (mySawReal === true) {
+          committedBeast = myBeast;
+          var highTrustPriorReal = spokenClaims.find(function(c) {
+            if (!c.claimReal || c.beast === myBeast || !validBeastSet.has(c.beast)) return false;
+            var rec = matrix.suspicionMap[c.speakerId];
+            return (c.passIdx === 0) || (rec && rec.allyScore >= 12 && rec.score === 0);
+          });
+          if (highTrustPriorReal) {
+            coreClause = "我在" + myPosText + "親手查驗【" + myBeast + "】是真品，加上前面" + highTrustPriorReal.posText + "【" + highTrustPriorReal.speakerName + "】報的【" + highTrustPriorReal.beast + "】，這輪雙真品路線很穩，我主投【" + myBeast + "】！";
+          } else {
+            coreClause = "我在" + myPosText + "親手查驗【" + myBeast + "】顯示是真品，只要前面沒被反轉，這輪我投【" + myBeast + "】！";
+          }
+        } else {
+          committedBeast = (trustedRealClaim && trustedRealClaim.beast !== myBeast) ? trustedRealClaim.beast : (roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast);
+          coreClause = "我在" + myPosText + "親手看【" + myBeast + "】顯示是贗品，建議大家避開【" + myBeast + "】，這輪我改投【" + committedBeast + "】。";
+        }
+      } else {
+        var targetFake = null;
+        if (myBeast && mySawReal === false) {
+          targetFake = myBeast;
+        } else if (myBeast && mySawReal === true) {
+          targetFake = roundBeastNames.find(function(n) { return n !== myBeast && (!trustedRealClaim || n !== trustedRealClaim.beast); }) || roundBeastNames.find(function(n) { return n !== myBeast; }) || myBeast;
+        } else {
+          targetFake = roundBeastNames.find(function(n) { return !trustedRealClaim || n !== trustedRealClaim.beast; }) || roundBeastNames[0];
+        }
+        committedBeast = targetFake;
+        if (myBeast && mySawReal === true && myBeast !== targetFake && Math.random() < 0.5) {
+          coreClause = "我在" + myPosText + "親手查驗【" + myBeast + "】顯示是贗品，建議大家避開【" + myBeast + "】，這輪把票集中投給【" + committedBeast + "】比較穩！";
+        } else {
+          coreClause = "我在" + myPosText + "親手查驗過【" + committedBeast + "】顯示是真品，這條線沒問題，這輪我會把票投給【" + committedBeast + "】！";
+        }
+      }
+
+      var suspectClause = "";
+      var sus = matrix.topSuspect;
+      var committedSuspectId = null;
+      if (curRoundIdx === 2) {
+        if (sus && sus.evidenceTier === "hard") {
+          committedSuspectId = sus.id;
+          suspectClause = "至於待會的鑑人環節，因為【" + sus.name + "】" + (sus.reasons[0] || "票型與查驗衝突明顯") + "，證據明確，我這票會投給【" + sus.name + "】！";
+        } else if (sus && sus.evidenceTier === "medium") {
+          committedSuspectId = sus.id;
+          suspectClause = "至於鑑人環節，目前看下來【" + sus.name + "】因為" + (sus.reasons[0] || "票型軌跡可疑") + "，嫌疑較大，我暫定優先考慮投【" + sus.name + "】。";
+        } else {
+          suspectClause = "至於待會的鑑人環節，目前場上還沒有抓死老朝奉的鐵證，我先保留態度，看這輪最後的開票結果再決定。";
+        }
+      } else if (curRoundIdx === 1 && sus && sus.evidenceTier === "hard") {
+        committedSuspectId = sus.id;
+        suspectClause = "另外提醒大家留意【" + sus.name + "】，他" + (sus.reasons[0] || "上一輪票型異常") + "，這輪可以多觀察他的動向。";
+      }
+
+      window.saveBotCommittedPlan(r, pov.myId, {
+        roundIdx: curRoundIdx,
+        committedBeast: committedBeast,
+        committedSuspectId: committedSuspectId
+      });
+
+      var full = [personaOpener, rebuttalClause, coreClause, suspectClause].filter(Boolean).join(" ");
+      return enforceBracketsV507(full, r);
+    } catch (e) {
+      return "我這棒查驗結果已經記下了，這輪先看大家的票型跟順位對照再做判斷。";
+    }
+  };
+
+  window.buildV506StealthAndPersonalitySpeech = window.buildV507FlexibleSpeech;
+  window.buildV505PersonalityAndShieldSpeech = window.buildV507FlexibleSpeech;
+  window.buildV504AuthenticSpeech = window.buildV507FlexibleSpeech;
+  window.buildV502AuthenticSpeech = window.buildV507FlexibleSpeech;
+  window.buildV501AuthenticSpeech = window.buildV507FlexibleSpeech;
+  window.buildV500DynamicInteractiveSpeech = window.buildV507FlexibleSpeech;
+  window.buildV472SafeSpeech = window.buildV507FlexibleSpeech;
+  window.buildV470HumanLikeSpeech = window.buildV507FlexibleSpeech;
+
+  if (typeof BotDeductionEngine !== "undefined") {
+    BotDeductionEngine.generateSpeech = function(pov, room) {
+      return window.buildV507FlexibleSpeech(pov, room || window.onlineRoomData);
+    };
+  }
+
+  // =========================================================================
+  // 5. Gemini 獸首白名單檢查（僅擋非本輪 4 獸首，絕不寫死許願報幾件！）
+  // =========================================================================
+  if (typeof GeminiBrain !== "undefined") {
+    GeminiBrain.isSpeechLogicAndQuoteValid = function(text, pov, room) {
+      if (!text || typeof text !== "string") return false;
+      var cleaned = text.trim();
+      if (cleaned.length < 10 || cleaned.length > 280) return false;
+      var r = room || window.onlineRoomData;
+      var validBeasts = window.getCurrentRoundBeastNames ? window.getCurrentRoundBeastNames(pov, r) : [];
+      if (Array.isArray(validBeasts) && validBeasts.length === 4) {
+        var validSet = new Set(validBeasts);
+        var m = cleaned.match(/【([鼠牛虎兔龍蛇馬羊猴雞狗豬])】/g) || [];
+        for (var i = 0; i < m.length; i++) {
+          var z = m[i].replace(/[【】]/g, "");
+          if (!validSet.has(z)) return false;
+        }
+      }
+      return true;
+    };
+
+    var origPrep = GeminiBrain.prepareSpeech;
+    GeminiBrain.prepareSpeech = async function(a, b) {
+      var room = null, pov = null;
+      if (a && Array.isArray(a.players) && Array.isArray(a.rounds)) {
+        room = a;
+        pov = (typeof b === "string" && typeof BotDeductionEngine !== "undefined" && BotDeductionEngine.buildPOV) ? BotDeductionEngine.buildPOV(room, b) : b;
+      } else {
+        pov = a;
+        room = b || window.onlineRoomData;
+      }
+      var fallback = window.buildV507FlexibleSpeech(pov, room);
+      if (typeof origPrep === "function") {
+        try {
+          var aiRes = await origPrep.apply(this, arguments);
+          if (aiRes && typeof aiRes === "string" && GeminiBrain.isSpeechLogicAndQuoteValid(aiRes, pov, room)) {
+            var formatted = enforceBracketsV507(aiRes, room);
+            var validBeasts = window.getCurrentRoundBeastNames ? window.getCurrentRoundBeastNames(pov, room) : [];
+            var claims = window.parseClaimsClauseByClause ? window.parseClaimsClauseByClause(formatted, validBeasts, pov && pov.myName) : {};
+            var trueBeasts = Object.keys(claims).filter(function(k) { return claims[k] === true; });
+            if (trueBeasts.length > 0 && pov && pov.myId) {
+              window.saveBotCommittedPlan(room, pov.myId, {
+                roundIdx: (room && room.currentRoundIdx) || 0,
+                committedBeast: trueBeasts[trueBeasts.length - 1]
+              });
+            }
+            return formatted;
+          }
+        } catch (e) {}
+      }
+      return fallback;
+    };
+  }
+
+  // 綁定鑑寶投票與鑑人投票言行一致
+  if (typeof window.executeMockVoteStep === "function" && !window.executeMockVoteStep._v507Hooked) {
+    var origVoteStep = window.executeMockVoteStep;
+    window.executeMockVoteStep = async function(room, botPlayer) {
+      var res = await origVoteStep.apply(this, arguments);
+      try {
+        if (room && botPlayer && GameRules.isGoodCamp(botPlayer.role)) {
+          var cIdx = room.currentRoundIdx || 0;
+          var plan = window.getBotCommittedPlan(room, botPlayer.id, cIdx);
+          var rObj = room.rounds && room.rounds[cIdx];
+          var vNames = ((rObj && rObj.beasts) || []).map(function(b) { return typeof b === "string" ? b : b.name; });
+          if (plan && plan.committedBeast && vNames.includes(plan.committedBeast) && rObj && rObj.votes) {
+            var ballot = {}; ballot[plan.committedBeast] = 2;
+            rObj.votes[botPlayer.id] = ballot;
+            if (typeof onlineUpdate === "function") {
+              var p = {}; p["rounds." + cIdx + ".votes." + botPlayer.id] = ballot;
+              await onlineUpdate(p);
+            }
+          }
+        }
+      } catch (e) {}
+      return res;
+    };
+    window.executeMockVoteStep._v507Hooked = true;
+  }
+
+  if (typeof window.executeMockPersonVoteStep === "function" && !window.executeMockPersonVoteStep._v507Hooked) {
+    var origPVStep = window.executeMockPersonVoteStep;
+    window.executeMockPersonVoteStep = async function(room, botPlayer) {
+      var res = await origPVStep.apply(this, arguments);
+      try {
+        if (room && botPlayer && GameRules.isGoodCamp(botPlayer.role)) {
+          var plan = window.getBotCommittedPlan(room, botPlayer.id);
+          var validTarget = plan && plan.committedSuspectId && (room.players || []).some(function(p) { return p && p.id === plan.committedSuspectId; });
+          if (validTarget && room.personVotes) {
+            room.personVotes[botPlayer.id] = plan.committedSuspectId;
+            if (typeof onlineUpdate === "function") {
+              var p = {}; p["personVotes." + botPlayer.id] = plan.committedSuspectId;
+              await onlineUpdate(p);
+            }
+          }
+        }
+      } catch (e) {}
+      return res;
+    };
+    window.executeMockPersonVoteStep._v507Hooked = true;
+  }
+
+  // =========================================================================
+  // 6. 管理員面板：合併戰績 / 刪除玩家 / 選擇性復原
+  // =========================================================================
+  window.getDeletedPlayerNamesMap = function() {
+    try { return JSON.parse(localStorage.getItem(DELETED_KEY) || "{}") || {}; } catch (e) { return {}; }
+  };
+  window.saveDeletedPlayerNamesMap = function(m) {
+    try { localStorage.setItem(DELETED_KEY, JSON.stringify(m || {})); } catch (e) {}
+  };
+  window.getMergedPlayerAliasesMap = function() {
+    try { return JSON.parse(localStorage.getItem(ALIAS_KEY) || "{}") || {}; } catch (e) { return {}; }
+  };
+  window.saveMergedPlayerAliasesMap = function(m) {
+    try { localStorage.setItem(ALIAS_KEY, JSON.stringify(m || {})); } catch (e) {}
+  };
+  window.resolveMergedPlayerName = function(rawName) {
+    var cur = String(rawName || "").trim();
+    if (!cur) return "";
+    var map = window.getMergedPlayerAliasesMap();
+    var depth = 0;
+    while (map[cur] && map[cur] !== cur && depth < 8) { cur = map[cur]; depth++; }
+    return cur;
+  };
+
+  var origShouldSkip = window.shouldSkipPlayerStatInMatch;
+  window.shouldSkipPlayerStatInMatch = function(playerName, gameTimeMs) {
+    var n = window.resolveMergedPlayerName(playerName);
+    var delMap = window.getDeletedPlayerNamesMap();
+    if (n && delMap[n]) return true;
+    return (typeof origShouldSkip === "function") ? origShouldSkip.call(this, n || playerName, gameTimeMs) : false;
+  };
+
+  window.collectAllAvailablePlayerNames = function() {
+    var nameSet = new Set();
+    var delMap = window.getDeletedPlayerNamesMap();
+    try {
+      var lb = document.getElementById("leaderboardList");
+      if (lb) {
+        lb.querySelectorAll("span.text-sm.font-black.text-neutral-100, .player-stat-name").forEach(function(el) {
+          var n = window.resolveMergedPlayerName(el.textContent);
+          if (n && !delMap[n]) nameSet.add(n);
+        });
+      }
+      ["adminSelectPlayerStatsReset", "adminSelectMergeSource", "adminSelectMergeTarget"].forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (sel && sel.options) {
+          Array.from(sel.options).forEach(function(o) {
+            var v = window.resolveMergedPlayerName(o.value);
+            if (v && !delMap[v]) nameSet.add(v);
+          });
+        }
+      });
+    } catch (e) {}
+    return Array.from(nameSet).sort(function(a, b) { return a.localeCompare(b, "zh-Hant"); });
+  };
+
+  window.syncAdminMergeAndDeleteSelectors = function() {
+    try {
+      var names = window.collectAllAvailablePlayerNames();
+      var esc = (typeof escapeHTML === "function") ? escapeHTML : function(s) { return String(s); };
+      var opts = names.map(function(n) { return "<option value=\"" + esc(n) + "\">" + esc(n) + "</option>"; }).join("");
+      var s1 = document.getElementById("adminSelectMergeSource");
+      if (s1) { var v1 = s1.value; s1.innerHTML = "<option value=\"\">-- 被合併來源暱稱 (A) --</option>" + opts; if (names.includes(v1)) s1.value = v1; }
+      var s2 = document.getElementById("adminSelectMergeTarget");
+      if (s2) { var v2 = s2.value; s2.innerHTML = "<option value=\"\">-- 併入目標主暱稱 (B) --</option>" + opts; if (names.includes(v2)) s2.value = v2; }
+      var s3 = document.getElementById("adminSelectPlayerStatsReset");
+      if (s3) { var v3 = s3.value; s3.innerHTML = "<option value=\"\">-- 選擇要刪除的玩家暱稱 --</option>" + opts; if (names.includes(v3)) s3.value = v3; }
+    } catch (e) {}
+  };
+
+  window.adminMergePlayerStats = async function() {
+    var s1 = document.getElementById("adminSelectMergeSource");
+    var s2 = document.getElementById("adminSelectMergeTarget");
+    var src = s1 ? String(s1.value || "").trim() : "";
+    var tgt = s2 ? String(s2.value || "").trim() : "";
+    if (!src || !tgt) { if (typeof showToast === "function") showToast("請同時選擇來源暱稱 (A) 與目標暱稱 (B)！", "warning"); return; }
+    if (src === tgt) { if (typeof showToast === "function") showToast("來源與目標暱稱不能相同！", "warning"); return; }
+    if (!confirm("確定要將【" + src + "】的戰績數據併入【" + tgt + "】名下嗎？（可隨時透過右上角復原）")) return;
+    var map = window.getMergedPlayerAliasesMap();
+    map[src] = tgt;
+    Object.keys(map).forEach(function(k) { if (map[k] === src) map[k] = tgt; });
+    window.saveMergedPlayerAliasesMap(map);
+    if (typeof showToast === "function") showToast("✅ 已將【" + src + "】合併至【" + tgt + "】！", "info", 3500);
+    if (typeof refreshStatsData === "function") await refreshStatsData();
+    window.syncAdminMergeAndDeleteSelectors();
+  };
+
+  window.adminDeleteSelectedPlayerProfile = async function() {
+    var s3 = document.getElementById("adminSelectPlayerStatsReset");
+    var pName = s3 ? String(s3.value || "").trim() : "";
+    if (!pName) { if (typeof showToast === "function") showToast("請先選擇要刪除的玩家暱稱！", "warning"); return; }
+    if (!confirm("確定要從排行榜移除【" + pName + "】嗎？（可隨時復原）")) return;
+    var delMap = window.getDeletedPlayerNamesMap();
+    delMap[pName] = Date.now();
+    window.saveDeletedPlayerNamesMap(delMap);
+    if (typeof getPlayerStatsResets === "function" && typeof savePlayerStatsResets === "function") {
+      var resets = getPlayerStatsResets();
+      resets[pName] = 9999999999999;
+      await savePlayerStatsResets(resets);
+    }
+    if (typeof showToast === "function") showToast("🗑️ 已移除【" + pName + "】！", "info", 3500);
+    if (typeof refreshStatsData === "function") await refreshStatsData();
+    window.syncAdminMergeAndDeleteSelectors();
+  };
+
+  window.adminRestoreDeletedPlayers = async function() {
+    var delMap = window.getDeletedPlayerNamesMap();
+    var aliasMap = window.getMergedPlayerAliasesMap();
+    var items = [];
+    Object.keys(delMap).forEach(function(k) { items.push("刪除:" + k); });
+    Object.keys(aliasMap).forEach(function(k) { items.push("合併:" + k + "->" + aliasMap[k]); });
+    if (items.length === 0) {
+      if (typeof showToast === "function") showToast("目前沒有已刪除或合併的紀錄可供復原。", "info");
+      return;
+    }
+    var pick = prompt("目前紀錄：\n" + items.join("、") + "\n\n請輸入要復原的玩家暱稱（或輸入 ALL 全部復原）：", "ALL");
+    if (!pick) return;
+    var trimmed = pick.trim();
+    if (trimmed.toUpperCase() === "ALL") {
+      window.saveDeletedPlayerNamesMap({});
+      window.saveMergedPlayerAliasesMap({});
+    } else {
+      delete delMap[trimmed];
+      delete aliasMap[trimmed];
+      window.saveDeletedPlayerNamesMap(delMap);
+      window.saveMergedPlayerAliasesMap(aliasMap);
+    }
+    if (typeof refreshStatsData === "function") await refreshStatsData();
+    window.syncAdminMergeAndDeleteSelectors();
+    if (typeof showToast === "function") showToast("♻️ 復原完成！", "info", 3000);
+  };
+
+  var lbNode = document.getElementById("leaderboardList");
+  if (lbNode && typeof MutationObserver !== "undefined") {
+    new MutationObserver(function() {
+      window.syncAdminMergeAndDeleteSelectors();
+    }).observe(lbNode, { childList: true });
+  }
+})();
+</script>
+<!-- [GUDONG_PATCH_END_V507] -->
 </body>
 </html>
