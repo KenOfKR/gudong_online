@@ -10,7 +10,7 @@
  <meta name="theme-color" content="#0a0a0a">  
  <meta name="format-detection" content="telephone=no">  
  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
- <title>古董局中局 (版本 5.0.7 - 言行一致與同步強化版)</title>
+ <title>古董局中局 (版本 5.0.10 - 許願資訊保留與統一查驗結果)</title>
  <script src="https://cdn.tailwindcss.com"></script>  
  <link rel="preconnect" href="https://fonts.googleapis.com">  
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>  
@@ -2609,8 +2609,9 @@ class GameRules {
       return { beastName: beast.name, resultText: `【${beast.name}】 無法辨別真偽！`, actualIsReal: beast.isReal, isBlocked: true };
     }
 
-    if ((player.role === '黃煙煙' || player.role === '木戶加奈') && player.confusedRound === (roomState ? roomState.currentRoundIdx : 0)) {
-      return { beastName: beast.name, resultText: `【${beast.name}】 無法辨別真偽！`, actualIsReal: beast.isReal, isConfused: true };
+    if ((player.role === '黃煙煙' || player.role === '木戶加奈') && Number(player.confusedRound) === Number(roomState ? roomState.currentRoundIdx : 0)) {
+      // 困惑輪只能消耗查驗機會，不將真實答案附在個人查驗結果上。
+      return { beastName: beast.name, resultText: `【${beast.name}】 無法辨別真偽！`, isConfused: true, inspectionConsumed: true };
     }
 
     let isReal = beast.isReal;
@@ -5462,6 +5463,8 @@ class BotDeductionEngine {
       speechDNA: me.speechDNA || (typeof BotDeductionEngine !== 'undefined' ? BotDeductionEngine.generateBotDNA(me.id, me.role).speechDNA : '55555555555555555555555555555555555555555555555555'),
       personaTitle: me.personaTitle || '【推演AI】',
       currentRoundIdx: curRoundIdx,
+      // 本局角色私有的困惑輪次（公開玩家資料不含真人的此欄位）。
+      confusedRound: me.confusedRound,
       currentBeasts: (curRound.beasts || []).map(b => b.name),
       roundBeastsObj: (curRound.beasts || []).map(b => ({ name: b.name })),
       passOrders: (room.rounds || []).map(r => r.passOrder || []),
@@ -12326,12 +12329,6 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
          <div class="text-xs text-neutral-300 font-bold mt-0.5">你已被藥不然偷襲致盲，眼前一片漆黑，本輪無法查驗出任何真偽資訊！</div>
        `;
      }
-   } else if ((me.role === '黃煙煙' || me.role === '木戶加奈') && Number(me.confusedRound) === Number(room.currentRoundIdx)) {
-     ambushBannerA.classList.remove('hidden');
-     ambushBannerA.innerHTML = `
-       <div class="text-sm font-black text-amber-300">🌫️ 本回合陷入困惑</div>
-       <div class="text-xs text-neutral-200 font-bold mt-0.5">本輪仍需選擇一次查驗行動以完成流程，但結果固定為「無法辨別真偽」，不會取得獸首真偽資訊。</div>
-     `;
    } else {
      ambushBannerA.classList.add('hidden');
      ambushBannerA.innerHTML = '';
@@ -12463,8 +12460,8 @@ const pGrid = document.getElementById('onlPassiveBeastsGrid');
    }
  }
  const isConfusedThisRound = isConfusionRole && Number(me.confusedRound) === Number(room.currentRoundIdx);
- if (isConfusedThisRound) {
-   console.info('[v5.0.8 查驗防線] 困惑回合已套用：', { playerId: me.id, role: me.role, roundIdx: room.currentRoundIdx, confusedRound: me.confusedRound });
+ if (isConfusionRole) {
+   console.info('[v5.0.10 真人查驗診斷]', { playerId: me.id, role: me.role, roundIdx: room.currentRoundIdx, confusedRound: me.confusedRound, applied: isConfusedThisRound });
  }
  const targetCount = (me.role === '許願' && !isUnderAmbush) ? 2 : 1;  
   
@@ -12497,7 +12494,7 @@ else if (curRound.blockedBeast === b.name) {
  displayText = `【${b.name}】 無法辨別真偽！`;  
  }  
 else if (isConfusedThisRound) {  
- displayText = `【${b.name}】 本回合陷入困惑，無法辨別真偽！`;  
+ displayText = `【${b.name}】 無法辨別真偽！`;  
  }  
 else {  
  let isReal = b.isReal;  
@@ -13998,8 +13995,7 @@ window.renderPassOrderRows = renderPassOrderRows;
  } else if (me.role === '姬雲浮') {  
  skillStatus = `【專屬被動】泰斗法眼：不受老朝奉擾亂影響，看見的永遠是真實真偽（但遭偷襲則封閉）。`;  
  } else if (me.role === '黃煙煙' || me.role === '木戶加奈') {  
- const isConfused = me.confusedRound === curRoundIdx;  
- skillStatus = `【特異體質】靈動身手：第 ${ (me.confusedRound !== undefined && me.confusedRound !== null) ? (me.confusedRound + 1) : '?' } 回合會陷入困惑（當前狀態：${isConfused ? '⚠️ 本回合困惑無法辨別' : '✓ 正常無困惑'}）。`;  
+ skillStatus = `【特異體質】靈動身手：每局有一個隨機回合，查驗結果會顯示「無法辨別真偽」。`;  
  } else if (me.role === '老朝奉') {  
  const isLao = curRound.laoChaoFengActive || onlTempLaoActive;  
  skillStatus = `【主動技能】混淆顛倒：每輪可開啟擾亂。本輪狀態：${isLao ? '🔴 擾亂已開啟（後續好人查驗反轉）' : '⚪ 未開啟擾亂'}。`;  
@@ -16314,6 +16310,22 @@ function renderOnlinePersonVotingReference(room) {
           // 真人被託管但讀不到其角色：保守行動，不洩漏真偽、不使用技能，避免套錯規則（例如方震看懂真偽）。
           const roleUnknownHuman = !String(mockPlayerId).startsWith('mock_p_') && !actualRole;
 
+          // 關鍵修正：線上電腦玩家有自己的查驗結果產生器，不能只靠 GameRules 包裝器。
+          // mock 玩家發牌時 confusedRound 在 players 中；舊局缺值則按本局開始時間 + 玩家 ID 穩定補值。
+          const isConfusionRole = actualRole === '黃煙煙' || actualRole === '木戶加奈';
+          const storedConfusedRound = freshMockP.confusedRound;
+          let confusedRoundForActor = (storedConfusedRound === 0 || storedConfusedRound === 1 || storedConfusedRound === 2) ? storedConfusedRound : null;
+          if (confusedRoundForActor === null) {
+            if (isConfusionRole && typeof window.ensureBotConfusedRoundV505 === 'function') {
+              const confusionPlayer = Object.assign({}, freshMockP, { role: actualRole, confusedRound: null });
+              confusedRoundForActor = window.ensureBotConfusedRoundV505(confusionPlayer, freshRoom);
+            }
+          }
+          const isConfusedThisRound = isConfusionRole && Number(confusedRoundForActor) === Number(freshRoom.currentRoundIdx);
+          if (isConfusionRole) {
+            console.info('[v5.0.10 電腦查驗診斷]', { playerId: mockPlayerId, role: actualRole, roundIdx: freshRoom.currentRoundIdx, confusedRound: confusedRoundForActor, applied: isConfusedThisRound });
+          }
+
           const chosen = BotDeductionEngine.decideInspect(botPOV, beliefs, roundObj.beasts);
           const isUnderAmbush = !!(freshMockP && (freshMockP.isAmbushed || freshMockP.isPermanentlyAmbushed)) || !!botPOV.myInspectWasBlinded;
 
@@ -16325,6 +16337,8 @@ function renderOnlinePersonVotingReference(room) {
               txt = `【${b.name}】（方震無法辨別真偽。⚠️ 發言時切勿說「看不懂」，請偽裝成看懂報真假，避免被藥不然抓獲！）`;
             } else if (isUnderAmbush) {
               txt = '獸首被偷襲';
+            } else if (isConfusedThisRound) {
+              txt = `【${b.name}】 無法辨別真偽！`;
             } else if (roundObj.blockedBeast === b.name) {
               txt = `【${b.name}】 無法辨別真偽！`;
             } else {
@@ -16333,7 +16347,15 @@ function renderOnlinePersonVotingReference(room) {
               if (roundObj.laoChaoFengActive && !immuneToLao) isReal = !isReal;
               txt = `【${b.name}】 ${isReal ? '【真品】' : '【贗品】'}`;
             }
-            return { beastName: b.name, resultText: txt, actualIsReal: b.isReal };
+            const entry = { beastName: b.name, resultText: txt };
+            if (isConfusedThisRound) {
+              entry.isConfused = true;
+              entry.inspectionConsumed = true;
+              // 不把 b.isReal 放進困惑輪的個人查驗紀錄。
+            } else {
+              entry.actualIsReal = b.isReal;
+            }
+            return entry;
           });
 
           let skillResult = roleUnknownHuman
@@ -19565,7 +19587,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         if (G.inspectedBeastsInTurn.length >= 1) return;
       }
 
-      // v5.0.8：舊本機存檔若缺少困惑輪次，補一個本局穩定值，避免三輪都意外顯示真偽。
+      // v5.0.9：舊本機存檔若缺少困惑輪次，補一個本局穩定值，避免三輪都意外顯示真偽。
       if ((curP.role === '黃煙煙' || curP.role === '木戶加奈') && !(curP.confusedRound === 0 || curP.confusedRound === 1 || curP.confusedRound === 2)) {
         if (typeof window.ensureBotConfusedRoundV505 === 'function') {
           curP.confusedRound = window.ensureBotConfusedRoundV505(curP, { startTimestamp: G.gameStartTimestamp || 0, roomId: 'local-game', players: [] });
@@ -19597,7 +19619,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         displayText = `【${b.name}】    無法辨別真偽！`;
         isBlockedByZheng = true;
       } else if (isConfusedThisRound) {
-        displayText = `【${b.name}】    本回合陷入困惑，無法辨別真偽！`;
+        displayText = `【${b.name}】    無法辨別真偽！`;
       } else {
         let isReal = b.isReal;
         const immuneToLao = ['姬雲浮', '老朝奉', '藥不然', '鄭國渠'].includes(curP.role);
@@ -19612,7 +19634,7 @@ window.addMockPlayersAndStart = addMockPlayersAndStart;
         beastName: b.name,
         position: positionOrder || b.position || 1,
         displayText: displayText,
-        actualIsReal: b.isReal,
+        ...(isConfusedThisRound ? {} : { actualIsReal: b.isReal }),
         isBlockedByZheng: isBlockedByZheng,
         sawAmbush: isUnderAmbush,
         isConfused: isConfusedThisRound
@@ -24206,6 +24228,11 @@ class BotSimulationEngine {
         const pov = BotDeductionEngine.buildPOV(room, botId);
         const beliefs = BotDeductionEngine.evaluateBeliefs(pov);
         const chosen = BotDeductionEngine.decideInspect(pov, beliefs, curRound.beasts);
+        const isConfusionRole = currentTurnPlayer.role === '黃煙煙' || currentTurnPlayer.role === '木戶加奈';
+        if (isConfusionRole && !(currentTurnPlayer.confusedRound === 0 || currentTurnPlayer.confusedRound === 1 || currentTurnPlayer.confusedRound === 2) && typeof window.ensureBotConfusedRoundV505 === 'function') {
+          currentTurnPlayer.confusedRound = window.ensureBotConfusedRoundV505(currentTurnPlayer, room);
+        }
+        const isConfusedThisRound = isConfusionRole && Number(currentTurnPlayer.confusedRound) === Number(room.currentRoundIdx);
 
         if (!curRound.turnLogs) curRound.turnLogs = {};
         if (!curRound.turnLogs[botId]) curRound.turnLogs[botId] = {};
@@ -24213,6 +24240,7 @@ class BotSimulationEngine {
           let txt = '';
           if (currentTurnPlayer.role === '方震') txt = `【${b.name}】 看不懂???`;
           else if (currentTurnPlayer.isAmbushed || currentTurnPlayer.isPermanentlyAmbushed) txt = '獸首被偷襲';
+          else if (isConfusedThisRound) txt = `【${b.name}】 無法辨別真偽！`;
           else if (curRound.blockedBeast === b.name) txt = `【${b.name}】 無法辨別真偽！`;
           else {
             let isReal = b.isReal;
@@ -24220,7 +24248,10 @@ class BotSimulationEngine {
             if (curRound.laoChaoFengActive && !immuneToLao) isReal = !isReal;
             txt = `【${b.name}】 ${isReal ? '【真品】' : '【贗品】'}`;
           }
-          return { beastName: b.name, resultText: txt, actualIsReal: b.isReal };
+          const entry = { beastName: b.name, resultText: txt };
+          if (isConfusedThisRound) { entry.isConfused = true; entry.inspectionConsumed = true; }
+          else entry.actualIsReal = b.isReal;
+          return entry;
         });
 
         const skillResult = BotDeductionEngine.decideSkill(pov, beliefs, room, curRound);
@@ -24453,6 +24484,11 @@ class BotSimulationEngine {
         const pov = BotDeductionEngine.buildPOV(room, botId);
         const beliefs = BotDeductionEngine.evaluateBeliefs(pov);
         const chosen = BotDeductionEngine.decideInspect(pov, beliefs, curRound.beasts);
+        const isConfusionRole = currentTurnPlayer.role === '黃煙煙' || currentTurnPlayer.role === '木戶加奈';
+        if (isConfusionRole && !(currentTurnPlayer.confusedRound === 0 || currentTurnPlayer.confusedRound === 1 || currentTurnPlayer.confusedRound === 2) && typeof window.ensureBotConfusedRoundV505 === 'function') {
+          currentTurnPlayer.confusedRound = window.ensureBotConfusedRoundV505(currentTurnPlayer, room);
+        }
+        const isConfusedThisRound = isConfusionRole && Number(currentTurnPlayer.confusedRound) === Number(room.currentRoundIdx);
 
         if (!curRound.turnLogs) curRound.turnLogs = {};
         if (!curRound.turnLogs[botId]) curRound.turnLogs[botId] = {};
@@ -24460,6 +24496,7 @@ class BotSimulationEngine {
           let txt = '';
           if (currentTurnPlayer.role === '方震') txt = `【${b.name}】 看不懂???`;
           else if (currentTurnPlayer.isAmbushed || currentTurnPlayer.isPermanentlyAmbushed) txt = '獸首被偷襲';
+          else if (isConfusedThisRound) txt = `【${b.name}】 無法辨別真偽！`;
           else if (curRound.blockedBeast === b.name) txt = `【${b.name}】 無法辨別真偽！`;
           else {
             let isReal = b.isReal;
@@ -24467,7 +24504,10 @@ class BotSimulationEngine {
             if (curRound.laoChaoFengActive && !immuneToLao) isReal = !isReal;
             txt = `【${b.name}】 ${isReal ? '【真品】' : '【贗品】'}`;
           }
-          return { beastName: b.name, resultText: txt, actualIsReal: b.isReal };
+          const entry = { beastName: b.name, resultText: txt };
+          if (isConfusedThisRound) { entry.isConfused = true; entry.inspectionConsumed = true; }
+          else entry.actualIsReal = b.isReal;
+          return entry;
         });
 
         const skillResult = BotDeductionEngine.decideSkill(pov, beliefs, room, curRound);
@@ -29317,66 +29357,26 @@ migrateAllProfiles();
       let openWolfTargetBeast = null;
 
       // --- 流派分支 A：許願 ---
+      // 許願依規則仍可查驗兩件，但公開發言只披露一件的真偽，避免把完整底牌一次攤開。
       if (pov.myRole === '許願' && effectiveMyFacts.length > 0) {
+        // 優先回應與前手衝突的單一證據；否則優先報一件真品，再退回第一件有效查驗。
+        const conflictFact = effectiveMyFacts.find(f => (claimsByBeast[f.beast] || []).some(c => c.status !== f.status));
+        const realFact = effectiveMyFacts.find(f => f.status === '真品');
+        const f1 = conflictFact || realFact || effectiveMyFacts[0];
+        if (f1.status === '真品') advocatedRealBeast = f1.beast;
+        else warnedFakeBeast = f1.beast;
+
+        const clashOnF1 = (claimsByBeast[f1.beast] || []).find(c => c.status !== f1.status);
         if (selfInvertedByLao) {
-          const f1 = effectiveMyFacts[0], f2 = effectiveMyFacts[1];
-          if (f1.status === '真品') advocatedRealBeast = f1.beast; else warnedFakeBeast = f1.beast;
-          if (f2 && f2.status === '真品' && !advocatedRealBeast) advocatedRealBeast = f2.beast;
-          const midTxt = inversionMidSuspects.length ? `老朝奉就藏在中間這幾棒裡開了擾亂` : '前中段明顯有老朝奉開啟擾亂';
-          beastClause = f2
-            ? `我排在後位 ${myPassLabel} 驗【${f1.beast}】顯示${f1.rawStatus}，但對照前位好人乾淨的底牌，${midTxt}！把反轉還原後，【${f1.beast}】實為${f1.status}、而【${f2.beast}】實為${f2.status}！`
-            : `我後位 ${myPassLabel} 查驗【${f1.beast}】顯示${f1.rawStatus}，對比前手乾淨資訊可知${midTxt}，因此還原真相後【${f1.beast}】確定是${f1.status}！`;
-        } else if (effectiveMyFacts.length >= 2 && (playstyle.id === 'XU_DUAL_ANCHOR_LEAD' || (effectiveMyFacts[0].status === effectiveMyFacts[1].status))) {
-          const f1 = effectiveMyFacts[0], f2 = effectiveMyFacts[1];
-          const remBeasts = currentBeasts.filter(b => b !== f1.beast && b !== f2.beast);
-          // 若場上剛才有人對 f1 或 f2 提出相反主張，優先把有衝突的真品設為主號票目標，確保前後呼應！
-          const f1Real = f1.status === '真品', f2Real = f2.status === '真品';
-          if (f1.status === '贗品' && f2.status === '贗品' && remBeasts.length >= 2) {
-            warnedFakeBeast = f1.beast;
-            advocatedRealBeast = remBeasts[0];
-            beastClause = pickNonRepeatingClause('XU_TWO_FAKE_SOLVE', [
-              `我這輪在 ${myPassLabel} 雙驗摸出【${f1.beast}】是贗品、【${f2.beast}】也是贗品。依二真二假鐵律，剩下的【${remBeasts[0]}】與【${remBeasts[1]}】必然是兩件真品！`,
-              `直接給全場座標：【${f1.beast}】與【${f2.beast}】我都確認過是贗品，用消去法反推，這輪真品就是【${remBeasts[0]}】跟【${remBeasts[1]}】！`
-            ]);
-          } else if (f1Real && f2Real && remBeasts.length >= 2) {
-            // 若前手剛吵過 f2，就以 f2 為主推真品，避免前句講 f2 真品、後句卻只喊投 f1！
-            const f2HasConflict = (claimsByBeast[f2.beast] || []).some(c => c.status === '贗品');
-            advocatedRealBeast = f2HasConflict ? f2.beast : f1.beast;
-            warnedFakeBeast = remBeasts[0];
-            beastClause = pickNonRepeatingClause('XU_TWO_REAL_SOLVE', [
-              `這輪我在 ${myPassLabel} 雙驗直接鎖死兩件真品：【${f1.beast}】是真品、【${f2.beast}】也是真品！剩下的【${remBeasts[0]}】與【${remBeasts[1]}】全都是贗品！`,
-              `全場好人對齊座標：【${f1.beast}】跟【${f2.beast}】我確認過都是真品，因此剩下的【${remBeasts[0]}】與【${remBeasts[1]}】必為贗品！`
-            ]);
-          } else {
-            const realF = f1Real ? f1 : f2;
-            const fakeF = f1Real ? f2 : f1;
-            advocatedRealBeast = realF.beast;
-            warnedFakeBeast = fakeF.beast;
-            const oppOnReal = (claimsByBeast[realF.beast] || []).find(c => c.status !== '真品');
-            if (oppOnReal) {
-              beastClause = buildPassOrderConflictExplanation(oppOnReal, realF.beast, '真品') + ` 另外【${fakeF.beast}】我驗過是贗品，大家別碰。`;
-            } else {
-              beastClause = pickNonRepeatingClause('XU_DUAL', [
-                `我在 ${myPassLabel} 把兩條線對齊了：【${realF.beast}】我確認是真品，而【${fakeF.beast}】是贗品，兩真兩假的輪廓很清楚。`,
-                `直接給大家雙向座標：【${realF.beast}】我親手確認為真品，另一件【${fakeF.beast}】則是贗品，後面誰顛倒這兩件就是有鬼。`
-              ]);
-            }
-          }
+          const midTxt = inversionMidSuspects.length ? '傳遞鏈中段可能有人啟動了擾亂' : '前中段資訊有遭擾亂的疑點';
+          beastClause = `我在 ${myPassLabel} 親手驗【${f1.beast}】原始顯示${f1.rawStatus}，對照前位資訊後發現${midTxt}；我先只公開這一件：還原後【${f1.beast}】應為${f1.status}，其餘線索先保留。`;
+        } else if (clashOnF1) {
+          beastClause = buildPassOrderConflictExplanation(clashOnF1, f1.beast, f1.status);
         } else {
-          // 單報一隻時：若有任一親驗獸首與場上公開發言衝突（例如紅色剛報虎是贗品，而我驗過虎是真品），優先拿這隻衝突獸首出來正面對決！
-          const conflictFact = effectiveMyFacts.find(f => (claimsByBeast[f.beast] || []).some(c => c.status !== f.status));
-          const realFact = effectiveMyFacts.find(f => f.status === '真品');
-          const f1 = conflictFact || realFact || effectiveMyFacts[0];
-          if (f1.status === '真品') advocatedRealBeast = f1.beast; else warnedFakeBeast = f1.beast;
-          const clashOnF1 = (claimsByBeast[f1.beast] || []).find(c => c.status !== f1.status);
-          if (clashOnF1) {
-            beastClause = buildPassOrderConflictExplanation(clashOnF1, f1.beast, f1.status);
-          } else {
-            beastClause = pickNonRepeatingClause('XU_SINGLE', [
-              `我這輪在 ${myPassLabel} 先釘死一件：【${f1.beast}】我親手驗出來是${f1.status}，其餘獸首我先聽聽後位怎麼表態。`,
-              `【${f1.beast}】我在 ${myPassLabel} 上手看過是${f1.status}，這條線很穩，剩下的等大家把資訊補齊再交叉比對。`
-            ]);
-          }
+          beastClause = pickNonRepeatingClause('XU_SINGLE', [
+            `我這輪在 ${myPassLabel} 親手驗出【${f1.beast}】是${f1.status}；另一件查驗資訊先保留，等後位發言交叉比對。`,
+            `【${f1.beast}】我在 ${myPassLabel} 上手看過是${f1.status}，先把這條線給大家，剩下的看票型再決定。`
+          ]);
         }
       }
       // --- 流派分支 B：方震 ---
@@ -30989,23 +30989,35 @@ migrateAllProfiles();
       var committedBeast = myBeast;
 
       if (isGood) {
-        // 1. 許願本人（真的驗了 2 件獸首）
+        // 1. 許願：仍依規則查驗兩件，但公開發言一次最多只揭露一件的真偽。
+        // 「無法辨別／被封鎖／偷襲」不可被錯當成贗品；承諾的獸首目標必須與發言一致。
         if (pov.myRole === "許願" && validMyInspects.length >= 2 && !isAmbushed) {
-          var ins1 = validMyInspects[0], ins2 = validMyInspects[1];
-          var r1Real = String(ins1.resultText || "").includes("真品");
-          var r2Real = String(ins2.resultText || "").includes("真品");
-          if (r1Real && r2Real) {
-            committedBeast = ins1.beastName;
-            coreClause = "我在" + myPosText + "看過盤面，【" + ins1.beastName + "】跟【" + ins2.beastName + "】兩件都是真品；為了避免分票讓假貨偷渡，這輪我會把獸首票集中投給【" + ins1.beastName + "】。";
-          } else if (r1Real || r2Real) {
-            var goodB = r1Real ? ins1.beastName : ins2.beastName;
-            var badB = r1Real ? ins2.beastName : ins1.beastName;
-            committedBeast = goodB;
-            coreClause = "我在" + myPosText + "比對過了，【" + badB + "】顯示是贗品千萬別碰，真品是【" + goodB + "】，這輪請集中投給【" + goodB + "】！";
+          var xuInspects = validMyInspects.slice(0, 2).map(function(it) {
+            var t = String(it.resultText || "");
+            var unknown = !!(it.isConfused || it.isBlocked || it.cannotInspect || /無法辨別|看不懂|驗不到|偷襲|一片黑|暈眩/.test(t));
+            var value = unknown ? null : (t.includes("真品") ? true : (t.includes("贗品") ? false : null));
+            return { item: it, value: value };
+          });
+          var knownReal = xuInspects.find(function(x) { return x.value === true; }) || null;
+          var knownFake = xuInspects.find(function(x) { return x.value === false; }) || null;
+          var inspectedNames = validMyInspects.map(function(it) { return it.beastName; });
+          var uninspectedNames = roundBeastNames.filter(function(n) { return inspectedNames.indexOf(n) < 0; });
+
+          if (knownReal) {
+            // 不公開另一件的查驗結果；說出的真品也是實際承諾投票的目標。
+            committedBeast = knownReal.item.beastName;
+            coreClause = "我在" + myPosText + "親手確認【" + committedBeast + "】是真品，這輪我的獸首票會集中投給【" + committedBeast + "】；其他線索先留著，等票型再判斷。";
+          } else if (knownFake) {
+            // 若已知的結果只有贗品，最多揭露這一件；票改投未查驗獸首或可信的前手真品線。
+            var trustedUninspected = trustedRealClaim && uninspectedNames.indexOf(trustedRealClaim.beast) >= 0 ? trustedRealClaim.beast : null;
+            committedBeast = trustedUninspected || uninspectedNames[0] || roundBeastNames.find(function(n) { return n !== knownFake.item.beastName; }) || knownFake.item.beastName;
+            coreClause = "我在" + myPosText + "確認【" + knownFake.item.beastName + "】是贗品，這件先排除；這輪我的獸首票會投給【" + committedBeast + "】。";
           } else {
-            var restB = roundBeastNames.find(function(n) { return n !== ins1.beastName && n !== ins2.beastName; }) || roundBeastNames[0];
-            committedBeast = restB;
-            coreClause = "我在" + myPosText + "排掉了【" + ins1.beastName + "】跟【" + ins2.beastName + "】兩顆雷，這輪建議改投【" + committedBeast + "】！";
+            // 兩件都無法辨別時，不得把未知結果推斷成兩件贗品。
+            committedBeast = (trustedRealClaim && validBeastSet.has(trustedRealClaim.beast))
+              ? trustedRealClaim.beast
+              : (uninspectedNames[0] || roundBeastNames[0] || myBeast);
+            coreClause = "我這棒的查驗資訊不足以確認真偽，先不把未知結果當成真假結論；這輪我的獸首票會投給【" + committedBeast + "】。";
           }
         }
         // 2. 方震（只在親手驗過好人時才幫該好人背書擋刀；驗到壞人則抓鬼；否則誠實說驗不到並跟前段乾淨線）
@@ -31173,7 +31185,7 @@ migrateAllProfiles();
   'use strict';
   if (window.__GUDONG_V507_PATCHED__) return;
   window.__GUDONG_V507_PATCHED__ = true;
-  console.info('%c[古董局中局 v5.0.8] 困惑回合、言行一致與同步修正已載入', 'color:#10b981;font-weight:bold');
+  console.info('%c[古董局中局 v5.0.10] 保留許願隱藏資訊與統一查驗結果已載入', 'color:#10b981;font-weight:bold');
 
   var planMemory = window.__botPlansV507 || (window.__botPlansV507 = Object.create(null));
   function roomIdentity(room) {
@@ -31364,9 +31376,7 @@ migrateAllProfiles();
       var plan = pov && pov.myId ? window.getBotCommittedPlan(r, pov.myId, roundIndex(r)) : null;
       var names = currentBeastNames(pov, r);
       if (!text || !plan || !plan.committedBeast || names.indexOf(plan.committedBeast) < 0) return text;
-      // Older template promised to split votes even though decideVote binds all available votes to one beast.
-      text = text.replace(/大家這輪直接分票保【([^】]+)】和【([^】]+)】！/g,
-        '兩件都是真品；為避免分票讓贗品偷渡，這輪我會把獸首票集中投給【' + plan.committedBeast + '】。');
+      // 許願的雙查驗結果不可全數公開；目前的安全發言器只產生單一真偽主張。
       var intent = parseBeastIntent(text, names);
       if (intent.ambiguous) {
         // Do not return a contradictory local speech; the deterministic plan is authoritative.
@@ -31410,6 +31420,13 @@ migrateAllProfiles();
       var text = typeof result === 'string' ? result.trim() : '';
       if (!text) text = String(fallback || '').trim();
       if (!text) return '';
+      // 許願仍依規則查驗兩件，但公開發言固定採用已驗證的本地策略句，避免 Gemini 把兩件結果一起攤開。
+      var speechRound = room && room.rounds && room.rounds[roundIndex(room)];
+      var xuLog = speechRound && speechRound.turnLogs && speechRound.turnLogs[botId];
+      var xuInspects = xuLog && Array.isArray(xuLog.inspect) ? xuLog.inspect : (pov && Array.isArray(pov.myInspectLogs) ? pov.myInspectLogs : []);
+      if (pov && pov.myRole === '許願' && xuInspects.length >= 2 && fallback) {
+        text = String(fallback).trim();
+      }
       var names = currentBeastNames(pov, room);
       var beastIntent = parseBeastIntent(text, names);
       if (beastIntent.ambiguous) {
@@ -31537,7 +31554,7 @@ migrateAllProfiles();
   }
 
   window.GudongV507Diagnostics = {
-    version: '5.0.8',
+    version: '5.0.10',
     parseBeastIntent: parseBeastIntent,
     parsePersonIntent: parsePersonIntent,
     getBotCommittedPlan: window.getBotCommittedPlan,
@@ -31550,8 +31567,8 @@ migrateAllProfiles();
 
 <script id="gudong-v508-release-note">
 (function(){
-  window.GUDONG_APP_VERSION = '5.0.8';
-  console.info('[古董局中局] v5.0.8 已載入：線上困惑回合接線、空更新安全略過、邪惡方承諾不寫公開房間。');
+  window.GUDONG_APP_VERSION = '5.0.10';
+  console.info('[古董局中局] v5.0.10 已載入：許願僅公開一件查驗結果，困惑回合統一顯示無法辨別真偽。');
 })();
 </script>
 </body>
