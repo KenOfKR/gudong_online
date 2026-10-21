@@ -30918,8 +30918,9 @@ migrateAllProfiles();
       var curRoundIdx = r.currentRoundIdx || 0;
       var curRound = (r.rounds && r.rounds[curRoundIdx]) || {};
       var passOrder = (Array.isArray(curRound.passOrder) && curRound.passOrder.length > 0) ? curRound.passOrder : (pov.passOrder || []);
-      var myPassIdx = passOrder.indexOf(pov.myId) !== -1 ? passOrder.indexOf(pov.myId) : (typeof pov.myPassIdx === "number" ? pov.myPassIdx : 0);
-      var myPosText = window.toChinesePassOrderText ? window.toChinesePassOrderText(myPassIdx) : ("第" + (myPassIdx + 1) + "位");
+      // v5.0.11：順位未同步時不可當成第一位（首家）；改用「這一棒」。
+      var myPassIdx = passOrder.indexOf(pov.myId) !== -1 ? passOrder.indexOf(pov.myId) : (Number.isInteger(pov.myPassIdx) && pov.myPassIdx >= 0 ? pov.myPassIdx : -1);
+      var myPosText = myPassIdx >= 0 ? (window.toChinesePassOrderText ? window.toChinesePassOrderText(myPassIdx) : ("第" + (myPassIdx + 1) + "位")) : "這一棒";
       var isGood = (typeof GameRules !== "undefined" && GameRules.isGoodCamp)
         ? GameRules.isGoodCamp(pov.myRole)
         : ["許願", "方震", "姬雲浮", "黃煙煙", "木戶加奈"].includes(pov.myRole);
@@ -30937,11 +30938,17 @@ migrateAllProfiles();
       // (A) 先取得該電腦在 41 人設定中的個性特色短句（不丟失個性！）
       var personaOpener = "";
       if (matrix.archetype && Array.isArray(matrix.archetype.phrases) && matrix.archetype.phrases.length > 0) {
-        var pickIdx = (curRoundIdx + myPassIdx) % matrix.archetype.phrases.length;
-        var rawPhrase = String(matrix.archetype.phrases[pickIdx] || "");
-        var firstClause = rawPhrase.split(/[！!。？?～~]/)[0];
-        if (firstClause && firstClause.length >= 4 && firstClause.length <= 24) {
-          personaOpener = firstClause + "！";
+        // v5.0.11：過濾依賴前文的轉折句（「但首家說……」「不過前面……」），避免沒頭沒尾的開場白。
+        var dependentRe = /^(但|但是|不過|可是|然而|而且|所以|因此|並且|還有|另外|至於|只是|卻|那麼|那)|((首家|前面|前一位|上一位|前手|剛才|剛剛|他|她|對方).{0,4}(說|講|報|喊))/;
+        var phraseCount = matrix.archetype.phrases.length;
+        var startIdx = (curRoundIdx + Math.max(myPassIdx, 0)) % phraseCount;
+        for (var pi = 0; pi < phraseCount; pi++) {
+          var rawPhrase = String(matrix.archetype.phrases[(startIdx + pi) % phraseCount] || "");
+          var firstClause = rawPhrase.split(/[！!。？?～~]/)[0];
+          if (firstClause && firstClause.length >= 4 && firstClause.length <= 24 && !dependentRe.test(firstClause)) {
+            personaOpener = firstClause + "！";
+            break;
+          }
         }
       }
 
@@ -30961,22 +30968,7 @@ migrateAllProfiles();
         else if (resTxt.includes("贗品")) mySawReal = false;
       }
 
-      // (B) 對前手同獸首的回應（依個性 aggression 決定語氣）
-      var sameBeastPrior = myBeast
-        ? spokenClaims.filter(function(c) { return c.beast === myBeast; }).sort(function(a, b) { return a.passIdx - b.passIdx; })[0]
-        : null;
-      var rebuttalClause = "";
-      if (sameBeastPrior && mySawReal !== null) {
-        if (sameBeastPrior.claimReal !== mySawReal) {
-          if (traits.aggression >= 0.68) {
-            rebuttalClause = "等一下，" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】說【" + myBeast + "】是" + (sameBeastPrior.claimReal ? "真品" : "贗品") + "，跟我親手看到的完全相反！不是中間被反轉，就是【" + sameBeastPrior.speakerName + "】在帶假風向！";
-          } else {
-            rebuttalClause = "前面" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】報【" + myBeast + "】是" + (sameBeastPrior.claimReal ? "真品" : "贗品") + "，不過傳到我這棒看到的結果卻相反，中間很可能被老朝奉反轉過了。";
-          }
-        } else {
-          rebuttalClause = "前面" + sameBeastPrior.posText + "【" + sameBeastPrior.speakerName + "】對【" + myBeast + "】的查驗跟我這棒看到的吻合。";
-        }
-      }
+      var rebuttalClause = ""; // v5.0.11：改在核心決策確定後才依「實際發言順序最新」的相關主張產生，避免與核心結論矛盾。
 
       // 找出前手報真品的紀錄（優先挑選自己信任度高、非嫌疑犯的前手！）
       var trustedRealClaim = spokenClaims.filter(function(c) {
@@ -31091,6 +31083,93 @@ migrateAllProfiles();
           coreClause = "我在" + myPosText + "親手查驗過【" + committedBeast + "】顯示是真品，這條線沒問題，這輪我會把票投給【" + committedBeast + "】！";
         }
       }
+
+      // v5.0.11：所有角色都有機率「報兩個」；許願依當局情況（有衝突主張、後期回合）提高機率，不再是最低。
+      // 只引用已公開的真品主張，不讀取任何未查驗獸首的真偽；承諾投票目標 committedBeast 不變（許願例外：改為其實際查驗的真品）。
+      var twoClaimBeasts = null;
+      (function() {
+        if (/我驗了兩件/.test(coreClause)) return;
+        var role = pov.myRole;
+        var p = 0.3;
+        if (role === "許願") {
+          var okXu = (typeof xuInspects !== "undefined" && xuInspects && xuInspects.length >= 2 && !isAmbushed)
+            && xuInspects.every(function(x) { return x.value !== null; });
+          if (!okXu) return;
+          var conflict = spokenClaims.some(function(c) {
+            return xuInspects.some(function(x) { return x.item.beastName === c.beast && x.value !== c.claimReal; });
+          });
+          p = Math.min(0.55, 0.35 + (conflict ? 0.15 : 0) + (curRoundIdx >= 1 ? 0.05 : 0));
+          if (Math.random() >= p) return;
+          var realOne = xuInspects.find(function(x) { return x.value === true; });
+          if (realOne) committedBeast = realOne.item.beastName;
+          var desc = xuInspects.map(function(x) { return "【" + x.item.beastName + "】是" + (x.value ? "真品" : "贗品"); }).join("、");
+          twoClaimBeasts = xuInspects.map(function(x) { return { beast: x.item.beastName, real: x.value }; });
+          coreClause = "我這輪兩件都驗過了，我驗了兩件：" + desc + "，" + (realOne ? "這輪主投【" + committedBeast + "】" : "兩件都不投，票改投【" + committedBeast + "】") + "！";
+          return;
+        }
+        var secondBeast = null;
+        if (isGood) {
+          var pub = spokenClaims.filter(function(c) {
+            return c.claimReal === true && validBeastSet.has(c.beast) && c.beast !== committedBeast
+              && !(mySawReal === false && c.beast === myBeast);   // 自己親眼看到是贗品的，不可再說成真品
+          })[0];
+          if (!pub) return;
+          secondBeast = pub.beast;
+        } else {
+          secondBeast = roundBeastNames.filter(function(n) { return n !== committedBeast; })[0] || null;
+        }
+        if (!secondBeast || secondBeast === committedBeast || Math.random() >= p) return;
+        twoClaimBeasts = [{ beast: committedBeast, real: true }, { beast: secondBeast, real: true }];
+        coreClause = "我這輪兩件都驗過了，我驗了兩件：【" + committedBeast + "】跟【" + secondBeast + "】都顯示是真品，主投【" + committedBeast + "】，【" + secondBeast + "】也不會是贗品！";
+      })();
+
+      // (B) v5.0.11：回應「實際發言順序最新」的相關主張，並與核心結論交叉檢查，矛盾就不說反駁句。
+      (function() {
+        var basisBeast = null, basisReal = null;
+        if (twoClaimBeasts) {
+          // 已經報兩件時，只針對自己報的真品之一回應即可；與自己報的結果相反才需要反駁。
+          var firstReal = twoClaimBeasts.filter(function(x) { return x.real; })[0];
+          if (!firstReal) return;
+          basisBeast = firstReal.beast; basisReal = true;
+        } else if (isGood) {
+          if (pov.myRole === "許願") {
+            var kr = (typeof knownReal !== "undefined") ? knownReal : null;
+            var kf = (typeof knownFake !== "undefined") ? knownFake : null;
+            if (kr && /親手確認【/.test(coreClause)) { basisBeast = kr.item.beastName; basisReal = true; }
+            else if (kf && /是贗品，這件先排除/.test(coreClause)) { basisBeast = kf.item.beastName; basisReal = false; }
+            else return;                       // 許願不公開未說出口的那一件
+          } else {
+            if (mySawReal === null || !myBeast || isAmbushed || isBlockedOrConfused || pov.myRole === "方震") return;
+            // 核心結論對自己所驗獸首的立場：投它＝認定真品；避開它＝認定贗品。立場與親驗結果不同就不要說反駁。
+            var stance = (committedBeast === myBeast);
+            if (stance !== mySawReal) return;
+            basisBeast = myBeast; basisReal = mySawReal;
+          }
+        } else {
+          // 壞人：不可拿私有查驗結果當依據（會洩漏），只依自己公開說出口的結論回應。
+          var avoid = /建議大家避開【/.test(coreClause);
+          if (avoid && myBeast) { basisBeast = myBeast; basisReal = false; }
+          else { basisBeast = committedBeast; basisReal = true; }
+        }
+        if (!basisBeast) return;
+        var priors = spokenClaims.filter(function(c) { return c.beast === basisBeast; });
+        if (priors.length === 0) return;
+        var prior = priors.sort(function(a, b) {
+          var ao = Number.isInteger(a.speechOrderIdx) ? a.speechOrderIdx : a.passIdx;
+          var bo = Number.isInteger(b.speechOrderIdx) ? b.speechOrderIdx : b.passIdx;
+          return bo - ao;                       // 最新發言優先
+        })[0];
+        var who = (prior.posText && prior.posText !== "順位尚未確認") ? (prior.posText + "【" + prior.speakerName + "】") : ("【" + prior.speakerName + "】");
+        var priorTxt = prior.claimReal ? "真品" : "贗品";
+        var mineTxt = basisReal ? "真品" : "贗品";
+        if (prior.claimReal !== basisReal) {
+          rebuttalClause = (traits.aggression >= 0.68)
+            ? ("等一下，" + who + "說【" + basisBeast + "】是" + priorTxt + "，跟我這邊的結論完全相反，我說的是" + mineTxt + "！不是中間被反轉，就是【" + prior.speakerName + "】在帶假風向！")
+            : ("剛才" + who + "報【" + basisBeast + "】是" + priorTxt + "，跟我這邊的結論不同，我說的是" + mineTxt + "，中間很可能被老朝奉反轉過了。");
+        } else {
+          rebuttalClause = "剛才" + who + "對【" + basisBeast + "】的說法跟我這邊一致。";
+        }
+      })();
 
       // (C) 證據分級的鑑人意向（有鐵證/中度證據才點名，否則保留觀察）
       var suspectClause = "";
