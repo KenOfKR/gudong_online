@@ -22819,7 +22819,12 @@ function cancelLocalVoteConfirm() {
             gameHasDisruptLogs = true;
             laoTotalRounds++;
             const abText = log.ability || '';
-            if (abText.includes('發動擾亂')) {
+            // 【修正】舊版用 includes('發動擾亂') 會把「未發動擾亂」(本機模式)誤判為有開技能，
+            // 且完全漏掉線上模式的「開啟擾亂（真偽反轉）」。改為：優先採用結構化旗標 laoActive，
+            // 否則文字判斷必須先排除「未/不/關閉」否定詞。
+            const _laoNegated = /未\s*(開啟|發動)|不\s*(開啟|發動)|關閉|確定未發動|無操作|跳過/.test(abText);
+            const _laoOn = (!_laoNegated && /(開啟|發動)\s*擾亂/.test(abText)) || log.laoActive === true;
+            if (_laoOn) {
               laoActivatedDisruptRounds++;
               gameDisruptCount++;
             }
