@@ -22290,6 +22290,52 @@ function cancelLocalVoteConfirm() {
     window.adminDeleteSelectedPlayerProfile = adminDeleteSelectedPlayerProfile;
     window.adminRestoreDeletedPlayers = adminRestoreDeletedPlayers;
 
+    // 【公式修正 v5.0.10】載入戰績時統一查驗紀錄格式（只改記憶體中的統計副本，不動雲端原始資料）。
+    // 問題：統計公式讀 ins.isReal / ins.resultText / ins.position，但
+    //  - 本機版紀錄只有 displayText + actualIsReal（沒有 isReal、resultText），
+    //  - 線上版玩家物件沒有 inspectHistory，查驗結果只存在 rounds[].turnLogs[玩家].inspect。
+    // 結果：許願「查驗雙真/贋品」、姬雲浮「每局查到2個真品」等永遠是 0%，偷襲判斷也漏掉部分字樣。
+    // isReal 定義為「玩家當時看到的結果」（含老朝奉擾亂反轉）；被偷襲/封鎖/困惑則為 undefined（不算真也不算贗）。
+    function normalizeGameInspections(g) {
+      if (!g || !Array.isArray(g.players)) return g;
+      g.players.forEach(p => {
+        if (!p) return;
+        let list = Array.isArray(p.inspectHistory) ? p.inspectHistory : [];
+        if (list.length === 0 && Array.isArray(g.rounds)) {
+          const built = [];
+          g.rounds.forEach((r, rIdx) => {
+            const tl = r && r.turnLogs && r.turnLogs[p.id];
+            if (tl && Array.isArray(tl.inspect)) {
+              tl.inspect.forEach(ins => { if (ins && typeof ins === 'object') built.push({ ...ins, round: ins.round || (rIdx + 1) }); });
+            }
+          });
+          list = built;
+        }
+        p.inspectHistory = list.map(ins => {
+          if (!ins || typeof ins !== 'object') return ins;
+          const txt = ins.resultText || ins.displayText || '';
+          const blackout = !!(ins.sawAmbush || ins.isAmbushed || /偷襲|一片黑|你被幹了|失血過多|暈眩/.test(txt));
+          const blocked = !!(ins.isBlockedByZheng || ins.isBlocked || /無法辨別/.test(txt));
+          let shown;
+          if (!blackout && !blocked && !ins.isConfused) {
+            if (/真品/.test(txt)) shown = true;
+            else if (/[贗贋]品/.test(txt)) shown = false;
+            else if (typeof ins.isReal === 'boolean') shown = ins.isReal;
+            else if (!txt && typeof ins.actualIsReal === 'boolean') shown = ins.actualIsReal;
+          }
+          const out = { ...ins, resultText: (blackout && !/偷襲|一片黑/.test(txt)) ? (txt + '（被偷襲：一片黑）') : txt };
+          if (shown === undefined) delete out.isReal; else out.isReal = shown;
+          if (!out.position && Array.isArray(g.rounds)) {
+            const rb = g.rounds[(Number(out.round) || 1) - 1];
+            const bi = rb && Array.isArray(rb.beasts) ? rb.beasts.findIndex(b => b && b.name === out.beastName) : -1;
+            if (bi >= 0) out.position = bi + 1;
+          }
+          return out;
+        });
+      });
+      return g;
+    }
+
     async function refreshStatsData() {
       // 0. 自動雲端去重：清理雲端 Firestore 中因連點產生的同場重複對局文件
       if (typeof isFirebaseReady !== 'undefined' && isFirebaseReady && db) {
@@ -22339,6 +22385,7 @@ function cancelLocalVoteConfirm() {
         const _elig = validateStatsEligibility(g);
         if (!_elig.ok) { _excludedCount++; return; }
         g._statsTier = _elig.tier;
+        try { normalizeGameInspections(g); } catch (e) { console.warn('[戰績] 查驗紀錄格式整理失敗', e); }
 
         // 依使用者指示：徹底排除並刪除 21:40 之對局
         const tStr = g.formattedTime || (g.formattedDateTime ? g.formattedDateTime.slice(11) : '');
@@ -22394,7 +22441,18 @@ function cancelLocalVoteConfirm() {
       const voteStr = logs.vote || '';
       const match = voteStr.match(/\((.*?)\)/);
       if (match) return match[1].trim();
+      // 【修正】線上版戰績的投票紀錄格式為「指認【暱稱】」(沒有角色括號、也沒有 personVoteTarget)，
+      // 舊版讀不到，導致所有線上對局的投票類指標被整場排除。改以暱稱找回被投玩家的角色。
+      const byName = _findVotedPlayerByLogText(voteStr, gameObj, playerObj);
+      if (byName && byName.role) return byName.role;
       return null;
+    }
+
+    function _findVotedPlayerByLogText(voteStr, gameObj, voterObj) {
+      const m = String(voteStr || '').match(/指認【(.*?)】/);
+      if (!m) return null;
+      const nm = m[1].trim();
+      return (gameObj.players || []).find(x => x && x.name === nm && (!voterObj || String(x.id) !== String(voterObj.id))) || null;
     }
 
     function getVotedTargetId(playerObj, gameObj) {
@@ -22403,6 +22461,9 @@ function cancelLocalVoteConfirm() {
         if (typeof pvt === 'object' && pvt.targetId) return String(pvt.targetId);
         if (typeof pvt === 'string' || typeof pvt === 'number') return String(pvt);
       }
+      const logs = (gameObj.actionLogs && gameObj.actionLogs[playerObj.id]) || {};
+      const byName = _findVotedPlayerByLogText(logs.vote, gameObj, playerObj);
+      if (byName) return String(byName.id);
       return null;
     }
 
@@ -22582,7 +22643,9 @@ function cancelLocalVoteConfirm() {
             if (!roundIns[r]) roundIns[r] = [];
             roundIns[r].push(ins);
           });
-          Object.values(roundIns).forEach(list => {
+          Object.values(roundIns).forEach(rawList => {
+            // 只取「看得到真/贗結果」的查驗（被偷襲/封鎖/困惑的不算），且須同輪至少 2 隻
+            const list = rawList.filter(b => b && (b.isReal === true || b.isReal === false));
             if (list.length >= 2) {
               xuInspectTurns++;
               const allReal = list.every(b => b.isReal === true);
@@ -22614,20 +22677,31 @@ function cancelLocalVoteConfirm() {
           }
 
           // 每局查驗到2位以上老朝奉陣營：有技能操作紀錄才計入分母
-          const hasAbilityInfo = Array.isArray(p.abilityHistory) && p.abilityHistory.length > 0;
-          if (hasAbilityInfo) {
+          // 【修正】方震查驗結果存在三個不同位置，舊版只讀 abilityHistory 的文字欄位（本機版根本沒有該欄位、
+          // 線上版根本不寫 abilityHistory），所以永遠是 0%。改為依「回合」彙整三種來源：
+          //  (a) 本機 abilityHistory（isEvil / revealedCamp）
+          //  (b) actionLogs[方震].rN.ability 文字（本機「查驗 … ➔ 老朝奉陣營」、線上「查驗【…】：屬於【老朝奉陣營 (壞人)】」）
+          //  (c) 線上 rounds[].turnLogs[方震].fangZhenCamp
+          const fangByRound = {};
+          const markFang = (rd, isEvil) => { if (rd) fangByRound[rd] = (fangByRound[rd] === true) || isEvil; };
+          (Array.isArray(p.abilityHistory) ? p.abilityHistory : []).forEach(ab => {
+            if (!ab) return;
+            const txt = ab.actionText || ab.ability || '';
+            const hasCamp = ab.isEvil !== undefined || ab.revealedCamp || /陣營/.test(txt);
+            if (!hasCamp && ab.type !== '方震查驗') return;
+            markFang(Number(ab.round) || 0, ab.isEvil === true || ab.revealedCamp === '老朝奉陣營' || /老朝奉陣營/.test(txt));
+          });
+          [1, 2, 3].forEach(rn => {
+            const lg = pLogs['r' + rn];
+            const txt = (lg && typeof lg.ability === 'string') ? lg.ability : '';
+            if (/^查驗/.test(txt) && /陣營/.test(txt)) markFang(rn, /老朝奉陣營/.test(txt));
+            const tl = Array.isArray(g.rounds) && g.rounds[rn - 1] && g.rounds[rn - 1].turnLogs && g.rounds[rn - 1].turnLogs[p.id];
+            if (tl && tl.fangZhenCamp) markFang(rn, /老朝奉陣營/.test(tl.fangZhenCamp));
+          });
+          const fangRoundsKnown = Object.keys(fangByRound);
+          if (fangRoundsKnown.length > 0) {
             fangTwoPlusEvilDenom++;
-            // 【修正】本機版 abilityHistory 沒有 actionText/ability 文字欄位，舊版因此永遠算 0。
-            // 改用 isEvil / revealedCamp 結構化欄位（保留文字判斷作後備），並以被查驗者去重。
-            const evilTargets = new Set();
-            let evilNoId = 0;
-            p.abilityHistory.forEach(ab => {
-              const txt = ab.actionText || ab.ability || '';
-              const isEvilHit = ab.isEvil === true || ab.revealedCamp === '老朝奉陣營' || /(為|➔|->)\s*【?老朝奉陣營/.test(txt) || (!ab.revealedCamp && ab.isEvil === undefined && txt.includes('老朝奉陣營'));
-              if (!isEvilHit) return;
-              if (ab.targetId !== undefined && ab.targetId !== null) evilTargets.add(String(ab.targetId)); else evilNoId++;
-            });
-            const evilInsCount = evilTargets.size + evilNoId;
+            const evilInsCount = fangRoundsKnown.filter(k => fangByRound[k] === true).length;
             if (evilInsCount >= 2) fangTwoPlusEvil++;
           }
 
