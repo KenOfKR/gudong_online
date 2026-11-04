@@ -22470,6 +22470,27 @@ function cancelLocalVoteConfirm() {
       return (Math.round((numerator / denominator) * 1000) / 10) + '%';
     }
 
+    // 【公式修正 v5.0.9】判斷某票是否投給玩家 p：有 targetId 時以 ID 為準；
+    // 只有角色名（舊紀錄只存 "(角色)"）時改以角色比對，避免分母有算、分子卻永遠 0。
+    function isVoteOnPlayer(votedId, votedRole, p) {
+      if (votedId !== null && votedId !== undefined) return String(votedId) === String(p.id);
+      return votedRole !== null && votedRole !== undefined && votedRole === p.role;
+    }
+    // 【公式修正 v5.0.9】藥不然技能文字解析：必須是「真的偷襲某人」才算，
+    // 排除「遭偷襲(能力封鎖)」「找不到可偷襲/不發動偷襲」「跳過不偷襲」等字樣；
+    // 目標改用「文字中出現的玩家暱稱」比對（線上版格式為 偷襲【紅色 小明】，舊版取字串會多帶 】而查不到人）。
+    function parseYaoAmbushAction(abText, players, selfId) {
+      const t = abText || '';
+      if (!/偷襲/.test(t)) return null;
+      if (/跳過|不發動|不偷襲|遭偷襲|遭藥不然|能力封鎖|找不到|只查驗/.test(t)) return null;
+      let tgt = null;
+      (players || []).forEach(x => {
+        if (!x || !x.name || String(x.id) === String(selfId)) return;
+        if (t.includes(x.name) && (!tgt || x.name.length > tgt.name.length)) tgt = x;
+      });
+      return { target: tgt };
+    }
+
     // 計算特定角色在該玩家手中的深度細節數據 (a~g 各角色專屬大數據，實施單項無效場次自動扣減分母)
     function calculatePlayerRoleDetailStats(roleName, playerMatches) {
       const isGood = ['許願', '方震', '姬雲浮', '黃煙煙', '木戶加奈'].includes(roleName);
@@ -22550,7 +22571,7 @@ function cancelLocalVoteConfirm() {
           const hasLaoVoteInfo = (g.xuCaughtByLao !== undefined) || (laoP && (laoVotedId !== null || laoVotedRole !== null));
           if (hasLaoVoteInfo) {
             xuNotCaughtDenom++;
-            const caught = (g.xuCaughtByLao === true) || (laoVotedId === String(p.id)) || (laoVotedRole === '許願' && laoVotedId === String(p.id));
+            const caught = (g.xuCaughtByLao === true) || isVoteOnPlayer(laoVotedId, laoVotedRole, p);
             if (!caught) xuNotCaughtByLao++;
           }
 
@@ -22580,7 +22601,7 @@ function cancelLocalVoteConfirm() {
           const hasYaoVoteInfo = (g.fangCaughtByYao !== undefined) || (yaoP && (yaoVotedId !== null || yaoVotedRole !== null));
           if (hasYaoVoteInfo) {
             xuMistakenAsFangDenom++;
-            if (yaoVotedId === String(p.id)) xuMistakenAsFang++;
+            if (isVoteOnPlayer(yaoVotedId, yaoVotedRole, p)) xuMistakenAsFang++;
           }
         }
         else if (roleName === '方震') {
@@ -22588,7 +22609,7 @@ function cancelLocalVoteConfirm() {
           const hasYaoVoteInfo = (g.fangCaughtByYao !== undefined) || (yaoP && (yaoVotedId !== null || yaoVotedRole !== null));
           if (hasYaoVoteInfo) {
             fangNotFoundDenom++;
-            const caught = (g.fangCaughtByYao === true) || (yaoVotedId === String(p.id)) || (yaoVotedRole === '方震' && yaoVotedId === String(p.id));
+            const caught = (g.fangCaughtByYao === true) || isVoteOnPlayer(yaoVotedId, yaoVotedRole, p);
             if (!caught) fangNotFoundByYao++;
           }
 
@@ -22596,11 +22617,17 @@ function cancelLocalVoteConfirm() {
           const hasAbilityInfo = Array.isArray(p.abilityHistory) && p.abilityHistory.length > 0;
           if (hasAbilityInfo) {
             fangTwoPlusEvilDenom++;
-            let evilInsCount = 0;
+            // 【修正】本機版 abilityHistory 沒有 actionText/ability 文字欄位，舊版因此永遠算 0。
+            // 改用 isEvil / revealedCamp 結構化欄位（保留文字判斷作後備），並以被查驗者去重。
+            const evilTargets = new Set();
+            let evilNoId = 0;
             p.abilityHistory.forEach(ab => {
               const txt = ab.actionText || ab.ability || '';
-              if (txt.includes('老朝奉陣營')) evilInsCount++;
+              const isEvilHit = ab.isEvil === true || ab.revealedCamp === '老朝奉陣營' || /(為|➔|->)\s*【?老朝奉陣營/.test(txt) || (!ab.revealedCamp && ab.isEvil === undefined && txt.includes('老朝奉陣營'));
+              if (!isEvilHit) return;
+              if (ab.targetId !== undefined && ab.targetId !== null) evilTargets.add(String(ab.targetId)); else evilNoId++;
             });
+            const evilInsCount = evilTargets.size + evilNoId;
             if (evilInsCount >= 2) fangTwoPlusEvil++;
           }
 
@@ -22614,7 +22641,7 @@ function cancelLocalVoteConfirm() {
           const hasLaoVoteInfo = (g.xuCaughtByLao !== undefined) || (laoP && (laoVotedId !== null || laoVotedRole !== null));
           if (hasLaoVoteInfo) {
             fangMistakenAsXuDenom++;
-            if (laoVotedId === String(p.id)) fangMistakenAsXu++;
+            if (isVoteOnPlayer(laoVotedId, laoVotedRole, p)) fangMistakenAsXu++;
           }
         }
         else if (roleName === '姬雲浮') {
@@ -22668,11 +22695,11 @@ function cancelLocalVoteConfirm() {
           // 被誤認許願 / 方震
           if (laoP && (laoVotedId !== null || laoVotedRole !== null)) {
             jiMistakenAsXuDenom++;
-            if (laoVotedId === String(p.id)) jiMistakenAsXu++;
+            if (isVoteOnPlayer(laoVotedId, laoVotedRole, p)) jiMistakenAsXu++;
           }
           if (yaoP && (yaoVotedId !== null || yaoVotedRole !== null)) {
             jiMistakenAsFangDenom++;
-            if (yaoVotedId === String(p.id)) jiMistakenAsFang++;
+            if (isVoteOnPlayer(yaoVotedId, yaoVotedRole, p)) jiMistakenAsFang++;
           }
         }
         else if (roleName === '鄭國渠') {
@@ -22686,13 +22713,22 @@ function cancelLocalVoteConfirm() {
             // 若當回合無操作日誌資訊，則該輪分母不計入
             if (!log || log.ability === undefined) return;
 
-            zhengTotalRounds++;
             const abText = log.ability || '';
-            const match = abText.match(/封鎖【(.*?)】\(第(\d+)位\)/);
+            // 【修正】被藥不然偷襲（能力封鎖）的回合不是「不想封印」，不計入分母
+            if (/遭偷襲|遭藥不然|能力封鎖/.test(abText)) return;
+            zhengTotalRounds++;
+            // 【修正】線上版文字為「封鎖【獸首】」不帶(第N位)，舊正則因此全部落入「不想封印」；
+            // 位置缺漏時改由該輪獸首排列推回。
+            const match = abText.match(/封鎖【(.*?)】(?:\s*\(第(\d+)位\))?/);
 
             if (match) {
               const bName = match[1];
-              const bPos = parseInt(match[2], 10);
+              let bPos = match[2] ? parseInt(match[2], 10) : 0;
+              if (!bPos) {
+                const rb = (g.rounds && g.rounds[rNum - 1] && g.rounds[rNum - 1].beasts) || [];
+                const bi = rb.findIndex(b => b && b.name === bName);
+                if (bi >= 0) bPos = bi + 1;
+              }
               if (bPos >= 1 && bPos <= 4) zhengSealPositions[bPos] = (zhengSealPositions[bPos] || 0) + 1;
 
               // 依當輪傳位鏈，找出排在鄭國渠順位之後的玩家
@@ -22761,13 +22797,11 @@ function cancelLocalVoteConfirm() {
             const abText = log.ability || '';
             const nextText = log.next || '';
 
-            if (abText.includes('偷襲') && !abText.includes('跳過')) {
+            if (/遭偷襲|遭藥不然|能力封鎖/.test(abText)) { yaoTotalRounds--; return; } // 技能被封鎖的回合不計
+            const ambushAct = parseYaoAmbushAction(abText, g.players, p.id);
+            if (ambushAct) {
               yaoTotalAmbushes++;
-              let targetName = '';
-              const mName = abText.match(/偷襲\s*(?:\S+色)?\s*(\S+)/);
-              if (mName) targetName = mName[1];
-
-              const tgtP = (g.players || []).find(x => x.name === targetName || (targetName && x.name && x.name.includes(targetName)));
+              const tgtP = ambushAct.target;
               if (tgtP) {
                 if (tgtP.role === '老朝奉' || tgtP.role === '鄭國渠') yaoAmbushTeammate++;
                 if (tgtP.role === '方震') yaoAmbushFang++;
@@ -22869,11 +22903,11 @@ function cancelLocalVoteConfirm() {
           }
           if (laoP && (laoVotedId !== null || laoVotedRole !== null)) {
             appMistakenAsXuDenom++;
-            if (laoVotedId === String(p.id)) appMistakenAsXu++;
+            if (isVoteOnPlayer(laoVotedId, laoVotedRole, p)) appMistakenAsXu++;
           }
           if (yaoP && (yaoVotedId !== null || yaoVotedRole !== null)) {
             appMistakenAsFangDenom++;
-            if (yaoVotedId === String(p.id)) appMistakenAsFang++;
+            if (isVoteOnPlayer(yaoVotedId, yaoVotedRole, p)) appMistakenAsFang++;
           }
           if (Array.isArray(p.inspectHistory)) {
             appZeroInspectDenom++;
